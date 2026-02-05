@@ -22,10 +22,10 @@ export function SideDrawer({ open, onClose }: Props) {
   const drawerW = Math.min(320, Math.round(screenW * 0.78));
 
   const items = [
-  { label: "集英冊", href: "/anthology" },
-  { label: "活水泉源", href: "/living-water" },
-  { label: "有管大師", href: "/mentor" },
-  { label: "心靈營火", href: "/campfire" },
+  { label: "集典冊", href: "/diary" },
+  { label: "活水泉源", href: "/drawcard" },
+  { label: "有答大師", href: "/answer" },
+  { label: "心靈營火", href: "/community" },
   { label: "朝聖之地", href: "/pilgrimage" },
   { label: "思高聖經", href: "/bible" },
   { label: "首頁", href: "/" },
