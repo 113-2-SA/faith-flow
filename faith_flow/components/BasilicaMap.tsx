@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions } from "react-native";
+import MapView, { Marker } from "react-native-maps";
 import { GlassCard } from "./GlassCard";
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
@@ -209,6 +210,32 @@ export function BasilicaMap() {
         <ThemedText style={styles.headerSubtitle}>
           探索世界教堂的靈修之旅
         </ThemedText>
+      </View>
+
+      {/* Map View - Centered */}
+      <View style={styles.mapContainer}>
+        <MapView
+          style={styles.map}
+          initialRegion={{
+            latitude: 41.9029,
+            longitude: 12.4534,
+            latitudeDelta: 50,
+            longitudeDelta: 50,
+          }}
+        >
+          {filtered.map((basilica) => (
+            <Marker
+              key={basilica.id}
+              coordinate={{
+                latitude: basilica.coordinates[0],
+                longitude: basilica.coordinates[1],
+              }}
+              title={basilica.name}
+              description={basilica.location}
+              onPress={() => setSelectedId(basilica.id)}
+            />
+          ))}
+        </MapView>
       </View>
 
       {/* Search */}
@@ -447,6 +474,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     opacity: 0.7,
   },
+  mapContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  map: {
+    width: Dimensions.get('window').width - 24,
+    height: 300,
+    borderRadius: 12,
+  },
   searchCard: {
     marginBottom: 12,
     paddingHorizontal: 14,
@@ -505,7 +543,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   contentGrid: {
-    flex: 1,
     flexDirection: "row",
     gap: 12,
     marginBottom: 12,
