@@ -464,15 +464,13 @@ const styles = StyleSheet.create({
   headerSection: {
     marginTop: 8,
     marginBottom: 16,
-    // keep space for the global hamburger button so titles don't overlap
-    paddingLeft: 64,
+    // 留出足夠空間讓漢堡選單按鈕（約 44px + hitSlop + margin ≈ 64px）不會遮住標題
+    paddingLeft: 72,
   },
   headerTitle: {
     fontSize: 32,
     fontWeight: "700",
     marginBottom: 4,
-    // ensure text doesn't start under the hamburger
-    marginLeft: 4,
   },
   headerSubtitle: {
     fontSize: 14,

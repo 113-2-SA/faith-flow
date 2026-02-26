@@ -97,6 +97,8 @@ const styles = StyleSheet.create({
     headerSection: {
         marginTop: 8,
         marginBottom: 16,
+        // 留出足夠空間讓漢堡選單按鈕（約 44px + hitSlop + margin ≈ 64px）不會遮住標題
+        paddingLeft: 72,
     },
     headerTitle: {
         fontSize: 32,
