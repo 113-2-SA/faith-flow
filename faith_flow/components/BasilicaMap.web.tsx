@@ -108,13 +108,13 @@ const styles = StyleSheet.create({
         opacity: 0.7,
     },
     mapContainer: {
-        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 16,
+        width: '100%',
     },
     map: {
-        width: Dimensions.get('window').width - 24,
+        width: '90%',
         height: 300,
         borderRadius: 12,
     },

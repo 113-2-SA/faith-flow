@@ -464,25 +464,29 @@ const styles = StyleSheet.create({
   headerSection: {
     marginTop: 8,
     marginBottom: 16,
+    // keep space for the global hamburger button so titles don't overlap
+    paddingLeft: 64,
   },
   headerTitle: {
     fontSize: 32,
     fontWeight: "700",
     marginBottom: 4,
+    // ensure text doesn't start under the hamburger
+    marginLeft: 4,
   },
   headerSubtitle: {
     fontSize: 14,
     opacity: 0.7,
   },
   mapContainer: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
+    width: '100%',
   },
   map: {
-    width: Dimensions.get('window').width - 24,
-    height: 300,
+    width: '90%',
+    height: 'auto',
     borderRadius: 12,
   },
   searchCard: {
