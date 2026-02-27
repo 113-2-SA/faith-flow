@@ -14,6 +14,7 @@ app.use((req, res, next) => {
   next();
 });
 
+
 // ==================== 環境變數檢查 ====================
 if (!process.env.DATABASE_URL) {
   console.error("❌ 缺少環境變數: DATABASE_URL");
@@ -31,7 +32,8 @@ require("./config/firebase");
 // ==================== 匯入路由 ====================
 const healthRoutes = require("./routes/health");
 const authRoutes = require("./routes/routesauth");
-const userRoutes = require("./routes/user");
+const userRoutes = require("./routes/user"); // 新增使用者個人資料相關的路由
+const diaryRoutes = require("./routes/diarys"); // 新增日記相關的路由
 
 // ==================== 註冊路由 ====================
 
@@ -53,6 +55,9 @@ app.get("/debug/user", async (req, res) => {
 // 使用者個人資料路由
 app.use("/api/user", userRoutes);
 
+// 日記相關路由
+app.use("/api/diary", diaryRoutes);
+
 // 認證相關的路由
 // POST /auth/sync
 app.use("/auth", authRoutes);
@@ -60,6 +65,71 @@ app.use("/auth", authRoutes);
 // 管理員相關的路由
 // POST /admin/import-firebase-auth-users
 app.use("/admin", authRoutes);
+
+
+app.use("/api/diary", require("./routes/diarys"));
+// ⭐⭐⭐ 測試端點（加在這裡，在 404 之前）⭐⭐⭐
+app.post("/test/diary", async (req, res) => {
+  try {
+    console.log('📥 測試端點收到:', req.body);
+    
+    const diaryService = require("./services/diaryservice");
+    
+    const diary = await diaryService.createDiary({
+      userId: 'test-user-123',
+      diaryDate: req.body.diaryDate || '2025-12-26',
+      diaryTitle: req.body.diaryTitle || '測試標題',
+      diaryContent: req.body.diaryContent || '測試內容',
+      bibleQuote: req.body.bibleQuote || null,
+      tags: req.body.tags || null,
+      collectId: 0
+    });
+    
+    console.log('✅ 測試建立成功:', diary);
+    
+    res.json({
+      ok: true,
+      message: '測試建立成功',
+      data: diary
+    });
+  } catch (error) {
+    console.error('❌ 測試失敗:', error);
+    res.status(500).json({
+      ok: false,
+      error: error.message,
+      detail: {
+        message: error.message,
+        code: error.code,
+        detail: error.detail
+      }
+    });
+  }
+});
+
+app.get("/test/diary", async (req, res) => {
+  try {
+    const pool = require("./config/database");
+    const result = await pool.query(`
+      SELECT * FROM diary 
+      ORDER BY created_at DESC 
+      LIMIT 10
+    `);
+    
+    res.json({
+      ok: true,
+      count: result.rows.length,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('❌ 查詢失敗:', error);
+    res.status(500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+
 
 // ==================== 根路徑 ====================
 app.get("/", (req, res) => {
@@ -109,3 +179,4 @@ app.listen(port, () => {
   console.log("   POST /admin/import-firebase-auth-users");
   console.log("✝️  ==========================================");
 });
+
