@@ -67,7 +67,7 @@ app.use("/auth", authRoutes);
 app.use("/admin", authRoutes);
 
 
-app.use("/api/diary", require("./routes/diarys"));
+// app.use("/api/diary", require("./routes/diarys"));
 // ⭐⭐⭐ 測試端點（加在這裡，在 404 之前）⭐⭐⭐
 app.post("/test/diary", async (req, res) => {
   try {
@@ -106,25 +106,65 @@ app.post("/test/diary", async (req, res) => {
   }
 });
 
-app.get("/test/diary", async (req, res) => {
+// server.js 上方確保有引入
+const { verifyToken } = require("./middleware/auth");
+const attachUserId = require("./middleware/attachuserId");
+const pool = require("./config/database"); // 依你實際路徑
+
+// === DEBUG: 印出每一個 SQL（用來抓出是哪一段還在用 firebase_uid）===
+const _query = pool.query.bind(pool);
+
+pool.query = async (text, params) => {
   try {
-    const pool = require("./config/database");
-    const result = await pool.query(`
-      SELECT * FROM diary 
-      ORDER BY created_at DESC 
-      LIMIT 10
-    `);
-    
-    res.json({
-      ok: true,
-      count: result.rows.length,
-      data: result.rows
-    });
-  } catch (error) {
-    console.error('❌ 查詢失敗:', error);
-    res.status(500).json({
+    // 只要有提到 diary 或 firebase_uid 就印（避免 log 太爆）
+    const t = String(text);
+    if (/diary/i.test(t) || /firebase_uid/i.test(t)) {
+      console.log("🧾 [DB QUERY]", t);
+      console.log("🧾 [DB PARAMS]", params);
+    }
+
+    return await _query(text, params);
+  } catch (err) {
+    console.error("❌ [DB ERROR]", err.message);
+    console.error("🧾 [DB ERROR QUERY]", text);
+    console.error("🧾 [DB ERROR PARAMS]", params);
+    // 印出呼叫堆疊，直接看到是哪個檔案呼叫的
+    console.error("📌 [CALL STACK]", new Error().stack);
+    throw err;
+  }
+};
+
+app.get("/api/diary", verifyToken, attachUserId, async (req, res) => {
+  try {
+    console.log("🔥 HIT /api/diary IN server.js", __filename);
+    console.log("🔥 req.userId =", req.userId, " type=", typeof req.userId);
+
+    const userId = req.userId; // ⭐ int（對應 "user"."userID"）
+
+    const result = await pool.query(
+      `SELECT
+         diary_id,
+         collect_id,
+         diary_title,
+         diary_content,
+         tags,
+         bible_quote,
+         created_at,
+         diary_date,
+         user_id
+       FROM diary
+       WHERE user_id = $1
+       ORDER BY diary_date DESC, created_at DESC`,
+      [userId]
+    );
+
+    return res.json({ ok: true, data: result.rows });
+  } catch (err) {
+    console.error("[GET /api/diary] failed:", err);
+    return res.status(500).json({
       ok: false,
-      error: error.message
+      error: "取得日記失敗",
+      detail: err.message,
     });
   }
 });

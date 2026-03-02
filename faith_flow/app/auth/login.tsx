@@ -4,9 +4,7 @@ import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
-
 import { useRouter } from "expo-router";
-
 import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
 import { auth } from "../../lib/firebase";
 
@@ -35,51 +33,10 @@ export default function LoginScreen() {
   useEffect(() => {
     const url = (request as any)?.url as string | undefined;
     if (!url) return;
-
     console.log("authUrl =", url);
-
-    try {
-      const u = new URL(url);
-      console.log("client_id =", u.searchParams.get("client_id"));
-      console.log("redirect_uri =", u.searchParams.get("redirect_uri"));
-    } catch (e) {
-      console.log("parse authUrl failed:", e);
-    }
   }, [request]);
 
-  // 同步使用者到 PostgreSQL 的函式，50~80 行左右
-  const syncUserToBackend = async (user: any) => {
-    try {
-      console.log("🔄 開始同步使用者到資料庫...");
-      
-      // 取得 Firebase ID Token
-      const idToken = await user.getIdToken();
-      
-      // 呼叫後端 API
-      const response = await fetch('http://localhost:3000/auth/sync', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      const data = await response.json();
-      
-      if (data.ok) {
-        console.log('✅ PostgreSQL 同步成功:', data.user);
-        return true;
-      } else {
-        console.error('❌ PostgreSQL 同步失敗:', data.error);
-        return false;
-      }
-    } catch (error) {
-      console.error('❌ 同步錯誤:', error);
-      return false;
-    }
-  };
-
-  //  處理 Google 登入後，加上同步步驟 
+  // ⭐ 處理 Google 登入（AuthContext 會自動處理同步）
   useEffect(() => {
     (async () => {
       if (!response) return;
@@ -92,36 +49,30 @@ export default function LoginScreen() {
       try {
         setBusy(true);
 
-        const idToken =
-          (response.params as any)?.id_token ??
-          (response.authentication as any)?.idToken;
+        const idToken = (response.params as any)?.id_token ?? 
+                        (response.authentication as any)?.idToken;
 
-        console.log("idToken exists?", !!idToken);
+        console.log('========== 登入流程開始 ==========');
+        console.log('1. ✅ 取得 ID Token:', idToken ? '有' : '沒有');
+
         if (!idToken) throw new Error("Missing id_token");
 
-        // 步驟 1: Firebase 登入
+        // ⭐ Firebase 登入（AuthContext 的 onAuthStateChanged 會自動觸發同步）
         const credential = GoogleAuthProvider.credential(idToken);
         const userCred = await signInWithCredential(auth, credential);
 
-        console.log("✅ Firebase signed in uid =", userCred.user.uid);
-        console.log("✅ Firebase signed in email =", userCred.user.email);
-        console.log("✅ Firebase projectId =", (auth.app as any)?.options?.projectId);
+        console.log('2. ✅ Firebase 登入成功');
+        console.log('   - UID:', userCred.user.uid);
+        console.log('   - Email:', userCred.user.email);
+        console.log('   - AuthContext 會自動同步到 PostgreSQL');
 
-        // 步驟 2: 同步到 PostgreSQL 
-        const synced = await syncUserToBackend(userCred.user);
-        
-        if (synced) {
-          console.log("✅ 完整登入流程成功（Firebase + PostgreSQL）");
-        } else {
-          console.warn("⚠️ Firebase 登入成功，但 PostgreSQL 同步失敗");
-          // 你可以選擇是否繼續導航，或顯示錯誤訊息
-        }
+        console.log('========== 登入流程結束 ==========');
 
-        // 步驟 3: 導航到主頁
+        // 導航到主頁
         router.replace("/");
 
       } catch (e) {
-        console.error("❌ Firebase signInWithCredential failed:", e);
+        console.error("❌ 錯誤:", e);
       } finally {
         setBusy(false);
       }

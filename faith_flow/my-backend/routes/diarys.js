@@ -4,17 +4,19 @@ const express = require("express");
 const router = express.Router();
 
 const { verifyToken } = require("../middleware/auth");
-const diaryController = require("../controllers/diarycontroller");
+const diarycontroller = require("../controllers/diarycontroller");
+
+const attachUserId = require("../middleware/attachuserId");
 
 console.log({
   verifyToken: typeof verifyToken,
-  createDiary: typeof diaryController.createDiary,
-  getDiaries: typeof diaryController.getDiaries,
-  searchDiaries: typeof diaryController.searchDiaries,
-  getDiaryByDate: typeof diaryController.getDiaryByDate,
-  getDiaryById: typeof diaryController.getDiaryById,
-  updateDiary: typeof diaryController.updateDiary,
-  deleteDiary: typeof diaryController.deleteDiary,
+  createDiary: typeof diarycontroller.createDiary,
+  getDiaries: typeof diarycontroller.getDiaries,
+  searchDiaries: typeof diarycontroller.searchDiaries,
+  getDiaryByDate: typeof diarycontroller.getDiaryByDate,
+  getDiaryById: typeof diarycontroller.getDiaryById,
+  updateDiary: typeof diarycontroller.updateDiary,
+  deleteDiary: typeof diarycontroller.deleteDiary,
 });
 
 
@@ -22,25 +24,27 @@ console.log({
 // 所有路由都需要登入
 router.use(verifyToken);
 
-// POST /api/diary
-router.post("/", diaryController.createDiary);
+// GET /api/diary/stats
+router.get("/stats",verifyToken, attachUserId, diarycontroller.getStats);
 
 // GET /api/diary
-router.get("/", diaryController.getDiaries);
+router.get("/",verifyToken, attachUserId, diarycontroller.getDiaries);
 
 // GET /api/diary/search
-router.get("/search", diaryController.searchDiaries);
-
-// GET /api/diary/date/:date
-router.get("/date/:date", diaryController.getDiaryByDate);
+router.get("/search",verifyToken, attachUserId, diarycontroller.searchDiaries);
 
 // GET /api/diary/:id
-router.get("/:id", diaryController.getDiaryById);
+router.get("/:id", verifyToken, attachUserId, diarycontroller.getDiaryById);
 
 // PUT /api/diary/:id
-router.put("/:id", diaryController.updateDiary);
+router.put("/:id", verifyToken, attachUserId, diarycontroller.updateDiary);
+
+// POST /api/diary
+router.post("/", verifyToken, attachUserId, diarycontroller.createDiary);
 
 // DELETE /api/diary/:id
-router.delete("/:id", diaryController.deleteDiary);
+router.delete("/:id", verifyToken, attachUserId, diarycontroller.deleteDiary);
 
+// GET /api/diary/date/:date
+router.get("/date/:date", verifyToken, attachUserId, diarycontroller.getDiaryByDate);
 module.exports = router;

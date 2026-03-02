@@ -30,7 +30,7 @@ async function createDiary(diaryData) {
   } = diaryData;
 
   // 支援 snake_case
-  const firebaseUid = userId || diaryData.firebase_uid;
+  const dbUserID = userId; // ⭐ controller 傳進來的就是 int
   const finalDiaryDate =
     diaryDate || diaryData.diary_date || new Date().toISOString().split("T")[0];
   const finalDiaryTitle = diaryTitle || diaryData.diary_title;
@@ -45,20 +45,20 @@ async function createDiary(diaryData) {
       : Number(rawCollectId);
 
   console.log("處理後的資料:", {
-    firebaseUid,
+    // firebaseUid,
     finalDiaryDate,
     finalDiaryTitle,
     finalDiaryContent,
   });
 
   // 驗證必填欄位
-  if (!firebaseUid) throw new Error("缺少使用者 ID");
+  if (!dbUserID) throw new Error("缺少使用者 ID");
   if (!finalDiaryTitle || !finalDiaryContent) {
     throw new Error("diary_title 和 diary_content 為必填欄位");
   }
 
   // ✅ firebase uid -> userID（流水號）
-  const dbUserID = await getUserIDByFirebaseUid(firebaseUid);
+  // const dbUserID = await getUserIDByFirebaseUid(firebaseUid);
 
   const sql = `
     INSERT INTO diary (
@@ -99,37 +99,114 @@ async function createDiary(diaryData) {
 }
 
 /**
- * 取得使用者的所有日記（只能看自己的）
- * userId 參數：firebase uid
+ * 取得使用者的日記（支援多種篩選）
  */
 async function getUserDiaries(userId, options = {}) {
-  const { limit = 30, offset = 0, startDate, endDate } = options;
-
-  const dbUserID = await getUserIDByFirebaseUid(userId);
+  const {
+    limit = 30,
+    offset = 0,
+    startDate,      // 開始日期 (YYYY-MM-DD) //開始與結束用於提供資訊給LLM整理時篩選
+    endDate,        // 結束日期 (YYYY-MM-DD)
+    date,           // 特定日期 (YYYY-MM-DD) - 優先級最高
+    collectId,      // 日記本 ID
+    year,           // 年份 (YYYY)
+    month,          // 月份 (1-12)
+    keyword,        // 搜尋關鍵字
+    sortBy = 'date', // 排序方式: 'date' 或 'created'
+    sortOrder = 'DESC' // 排序順序: 'ASC' 或 'DESC'
+  } = options;
 
   let sql = `
-    SELECT *
+    SELECT 
+      diary_id,
+      diary_date,
+      diary_title,
+      diary_content,
+      bible_quote,
+      tags,
+      collect_id,
+      created_at
     FROM diary
-    WHERE "user_id" = $1
+    WHERE user_id = $1
   `;
 
-  const params = [dbUserID];
+  const params = [userId];
   let paramCount = 1;
 
-  if (startDate) {
+  // ⭐ 篩選 1: 特定日期（優先級最高）
+  if (date) {
     paramCount++;
-    sql += ` AND diary_date >= $${paramCount}`;
-    params.push(startDate);
+    sql += ` AND diary_date = $${paramCount}`;
+    params.push(date);
+    console.log(`[篩選] 特定日期: ${date}`);
+  }
+  // ⭐ 篩選 2: 日期範圍
+  else {
+    if (startDate) {
+      paramCount++;
+      sql += ` AND diary_date >= $${paramCount}`;
+      params.push(startDate);
+      console.log(`[篩選] 開始日期: ${startDate}`);
+    }
+
+    if (endDate) {
+      paramCount++;
+      sql += ` AND diary_date <= $${paramCount}`;
+      params.push(endDate);
+      console.log(`[篩選] 結束日期: ${endDate}`);
+    }
   }
 
-  if (endDate) {
+  // ⭐ 篩選 3: 年份
+  if (year && !date && !startDate && !endDate) {
     paramCount++;
-    sql += ` AND diary_date <= $${paramCount}`;
-    params.push(endDate);
+    sql += ` AND EXTRACT(YEAR FROM diary_date) = $${paramCount}`;
+    params.push(year);
+    console.log(`[篩選] 年份: ${year}`);
   }
 
-  sql += ` ORDER BY diary_date DESC, created_at DESC`;
+  // ⭐ 篩選 4: 月份（需要配合年份）
+  if (month && year) {
+    paramCount++;
+    sql += ` AND EXTRACT(MONTH FROM diary_date) = $${paramCount}`;
+    params.push(month);
+    console.log(`[篩選] 月份: ${year}-${month}`);
+  }
 
+  // ⭐ 篩選 5: 日記本
+  if (collectId !== undefined && collectId !== null) {
+    paramCount++;
+    sql += ` AND collect_id = $${paramCount}`;
+    params.push(collectId);
+    console.log(`[篩選] 日記本 ID: ${collectId}`);
+  }
+
+  // ⭐ 篩選 6: 關鍵字搜尋（標題、內容、經文）
+  if (keyword) {
+    paramCount++;
+    sql += ` AND (
+      diary_title ILIKE $${paramCount}
+      OR diary_content ILIKE $${paramCount}
+      OR bible_quote ILIKE $${paramCount}
+    )`;
+    params.push(`%${keyword}%`);
+    console.log(`[篩選] 關鍵字: ${keyword}`);
+  }
+
+  // ⭐ 排序
+  const validSortBy = ['date', 'created'];
+  const validSortOrder = ['ASC', 'DESC'];
+  
+  const actualSortBy = validSortBy.includes(sortBy) ? sortBy : 'date';
+  const actualSortOrder = validSortOrder.includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC';
+
+  if (actualSortBy === 'date') {
+    sql += ` ORDER BY diary_date ${actualSortOrder}, created_at ${actualSortOrder}`;
+  } else {
+    sql += ` ORDER BY created_at ${actualSortOrder}`;
+  }
+
+  // 分頁
   paramCount++;
   sql += ` LIMIT $${paramCount}`;
   params.push(limit);
@@ -137,6 +214,9 @@ async function getUserDiaries(userId, options = {}) {
   paramCount++;
   sql += ` OFFSET $${paramCount}`;
   params.push(offset);
+
+  console.log('[SQL]', sql);
+  console.log('[參數]', params);
 
   const result = await pool.query(sql, params);
   return result.rows;
@@ -243,13 +323,13 @@ async function updateDiary(diaryId, userId, updates) {
  * userId 參數：firebase uid
  */
 async function deleteDiary(diaryId, userId) {
-  const dbUserID = await getUserIDByFirebaseUid(userId);
+  // const dbUserID = await getUserIDByFirebaseUid(userId);
 
   const result = await pool.query(
     `DELETE FROM diary
      WHERE diary_id = $1 AND "user_id" = $2
      RETURNING diary_id`,
-    [diaryId, dbUserID]
+    [diaryId, userId]
   );
   return result.rows[0] || null;
 }
@@ -259,11 +339,9 @@ async function deleteDiary(diaryId, userId) {
  * userId 參數：firebase uid
  */
 async function getDiaryCount(userId) {
-  const dbUserID = await getUserIDByFirebaseUid(userId);
-
   const result = await pool.query(
-    `SELECT COUNT(*) as count FROM diary WHERE "user_id" = $1`,
-    [dbUserID]
+    `SELECT COUNT(*) as count FROM diary WHERE user_id = $1`,
+    [userId]
   );
   return parseInt(result.rows[0].count, 10);
 }
@@ -299,6 +377,25 @@ async function searchDiaries(userId, keyword, options = {}) {
   return result.rows;
 }
 
+/**
+ * 取得日記統計（年月分布）
+ */
+async function getDiaryStats(userId) {
+  const sql = `
+    SELECT 
+      EXTRACT(YEAR FROM diary_date) as year,
+      EXTRACT(MONTH FROM diary_date) as month,
+      COUNT(*) as count
+    FROM diary
+    WHERE user_id = $1
+    GROUP BY year, month
+    ORDER BY year DESC, month DESC
+  `;
+
+  const result = await pool.query(sql, [userId]);
+  return result.rows;
+}
+
 module.exports = {
   createDiary,
   getUserDiaries,
@@ -308,4 +405,5 @@ module.exports = {
   deleteDiary,
   getDiaryCount,
   searchDiaries,
+  getDiaryStats,
 };
