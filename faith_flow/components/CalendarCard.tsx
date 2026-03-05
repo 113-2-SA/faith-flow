@@ -14,7 +14,7 @@ export function CalendarCard() {
   const cells = useMemo(() => buildMonthGrid(viewDate), [viewDate]);
 
 return (
-  <GlassCard style={styles.card} intensity={100}>
+  <GlassCard style={styles.card}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable
@@ -82,8 +82,7 @@ return (
 }
 
 const styles = StyleSheet.create({
-  // 這裡先做「卡片內容」的排版
-  // 你之後要玻璃擬態，就把這個外層包進 GlassCard 即可
+
   card: {
     flex: 1,
   },
