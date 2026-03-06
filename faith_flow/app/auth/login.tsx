@@ -5,8 +5,8 @@ import * as WebBrowser from "expo-web-browser";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
-import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
-import { auth } from "../../lib/firebase";
+import { GoogleAuthProvider, signInWithCredential, onAuthStateChanged } from "firebase/auth";
+import { auth} from "../../lib/firebase";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -78,6 +78,21 @@ export default function LoginScreen() {
       }
     })();
   }, [response]);
+
+  useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      const idToken = await user.getIdToken();
+      
+      await fetch('http://localhost:3000/api/auth/sync', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
+    }
+  });
+  return unsubscribe;
+}, []);
+
 
   const disabled = !request || busy || !webClientId;
 
