@@ -1,12 +1,12 @@
 // app/auth/login.tsx
 import * as AuthSession from "expo-auth-session";
 import * as Google from "expo-auth-session/providers/google";
+import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
-import { useRouter } from "expo-router";
 import { GoogleAuthProvider, signInWithCredential, onAuthStateChanged } from "firebase/auth";
 import { auth} from "../../lib/firebase";
+import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -16,8 +16,12 @@ export default function LoginScreen() {
 
   const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 
+  // Web 用 preferLocalhost；未來手機端可用 scheme（先留好路）
   const redirectUri = useMemo(() => {
-    return AuthSession.makeRedirectUri({ preferLocalhost: true } as any);
+    if (Platform.OS === "web") {
+      return AuthSession.makeRedirectUri({ preferLocalhost: true } as any);
+    }
+    return AuthSession.makeRedirectUri({ scheme: "faithflow" } as any);
   }, []);
 
   useEffect(() => {
@@ -30,13 +34,24 @@ export default function LoginScreen() {
     scopes: ["openid", "profile", "email"],
   });
 
+  // Debug：只在 Web 印出（避免未來跑手機出現 URL 不支援等問題）
   useEffect(() => {
+    if (Platform.OS !== "web") return;
+
     const url = (request as any)?.url as string | undefined;
     if (!url) return;
     console.log("authUrl =", url);
-  }, [request]);
 
   // ⭐ 處理 Google 登入（AuthContext 會自動處理同步）
+    try {
+      const u = new URL(url);
+      console.log("client_id =", u.searchParams.get("client_id"));
+      console.log("redirect_uri =", u.searchParams.get("redirect_uri"));
+    } catch (e) {
+      console.log("parse authUrl failed:", e);
+    }
+  }, [request]);
+
   useEffect(() => {
     (async () => {
       if (!response) return;
@@ -135,8 +150,7 @@ export default function LoginScreen() {
       </Pressable>
 
       <Text style={{ opacity: 0.6, fontSize: 12 }}>
-        目前先以 Web（localhost:8081）測試。請把 console 印出的 redirectUri 加到
-        Google Cloud 的 Authorized redirect URIs。
+        Web 測試：redirectUri 以 console 印出的為準；Google Cloud 的 Authorized redirect URIs 要包含它。
       </Text>
     </View>
   );

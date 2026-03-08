@@ -5,8 +5,8 @@ const router = express.Router();
 
 const { verifyToken } = require("../middleware/auth");
 const diarycontroller = require("../controllers/diarycontroller");
+const attachUserId = require('../middleware/attachuserId');
 
-const attachUserId = require("../middleware/attachuserId");
 
 console.log({
   verifyToken: typeof verifyToken,

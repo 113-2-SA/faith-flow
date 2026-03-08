@@ -1,7 +1,7 @@
-// app/_layout.tsx
 import { Redirect, Stack, useSegments } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import { AuthProvider, useAuth } from "./context/authcontext"  
+
 
 /**
  * ⭐ 內部路由保護元件
@@ -11,8 +11,7 @@ function RootLayoutNav() {
   const { currentUser, loading } = useAuth();  // ⭐ 從 AuthContext 取得
   const segments = useSegments();
 
-  // 你的 login 路徑是 /auth/login（因為資料夾叫 app/auth）
-  const inAuthRoute = segments[0] === "auth";
+  const inAuth = segments[0] === "auth"; // 你的登入頁在 /auth/login
 
   if (loading) {
     return (
@@ -23,12 +22,12 @@ function RootLayoutNav() {
   }
 
   // 未登入：只在「不在 auth 區」時才導去 login（避免 loop）
-  if (!currentUser && !inAuthRoute) {
+  if (!currentUser && !inAuth) {
     return <Redirect href="/auth/login" />;
   }
 
   // 已登入：如果還在 auth 區（login 頁），就導回首頁
-  if (currentUser && inAuthRoute) {
+  if (currentUser && inAuth) {
     return <Redirect href="/" />;
   }
 
