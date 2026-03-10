@@ -38,7 +38,8 @@ const authRoutes = require("./routes/routesauth");
 const userRoutes = require("./routes/user"); // 新增使用者個人資料相關的路由
 const diaryRoutes = require("./routes/diarys"); // 新增日記相關的路由
 const postRoutes = require('./routes/post'); // 新增貼文相關的路由
-// const commentRoutes = require('./routes/comment');
+const commentRoutes = require('./routes/comment');           
+const commentLikeRoutes = require('./routes/clike');  
 const likeRoutes = require('./routes/like');        
 const shareRoutes = require('./routes/share');      
 
@@ -77,7 +78,10 @@ app.use("api/auth", authRoutes);
 app.use("api/admin", authRoutes);
 
 // 留言相關路由
-// app.use('/api/comment', commentRoutes);
+app.use('/api/comments', commentRoutes);         
+
+// 留言點讚相關路由
+app.use('/api/comment-likes', commentLikeRoutes); 
 
 // 點讚相關路由
 app.use('/api/like', likeRoutes);
@@ -87,108 +91,6 @@ app.use('/api/share', shareRoutes);
 
 
 
-
-// app.use("/api/diary", require("./routes/diarys"));
-// ⭐⭐⭐ 測試端點（加在這裡，在 404 之前）⭐⭐⭐
-app.post("/test/diary", async (req, res) => {
-  try {
-    console.log('📥 測試端點收到:', req.body);
-    
-    const diaryService = require("./services/diaryservice");
-    
-    const diary = await diaryService.createDiary({
-      userId: 'test-user-123',
-      diaryDate: req.body.diaryDate || '2025-12-26',
-      diaryTitle: req.body.diaryTitle || '測試標題',
-      diaryContent: req.body.diaryContent || '測試內容',
-      bibleQuote: req.body.bibleQuote || null,
-      tags: req.body.tags || null,
-      collectId: 0
-    });
-    
-    console.log('✅ 測試建立成功:', diary);
-    
-    res.json({
-      ok: true,
-      message: '測試建立成功',
-      data: diary
-    });
-  } catch (error) {
-    console.error('❌ 測試失敗:', error);
-    res.status(500).json({
-      ok: false,
-      error: error.message,
-      detail: {
-        message: error.message,
-        code: error.code,
-        detail: error.detail
-      }
-    });
-  }
-});
-
-// server.js 上方確保有引入
-const { verifyToken } = require("./middleware/auth");
-const attachUserId = require("./middleware/attachuserId");
-const pool = require("./config/database"); // 依你實際路徑
-
-// === DEBUG: 印出每一個 SQL（用來抓出是哪一段還在用 firebase_uid）===
-const _query = pool.query.bind(pool);
-
-pool.query = async (text, params) => {
-  try {
-    // 只要有提到 diary 或 firebase_uid 就印（避免 log 太爆）
-    const t = String(text);
-    if (/diary/i.test(t) || /firebase_uid/i.test(t)) {
-      console.log("🧾 [DB QUERY]", t);
-      console.log("🧾 [DB PARAMS]", params);
-    }
-
-    return await _query(text, params);
-  } catch (err) {
-    console.error("❌ [DB ERROR]", err.message);
-    console.error("🧾 [DB ERROR QUERY]", text);
-    console.error("🧾 [DB ERROR PARAMS]", params);
-    // 印出呼叫堆疊，直接看到是哪個檔案呼叫的
-    console.error("📌 [CALL STACK]", new Error().stack);
-    throw err;
-  }
-};
-
-app.get("/api/diary", verifyToken, attachUserId, async (req, res) => {
-  try {
-    console.log("🔥 HIT /api/diary IN server.js", __filename);
-    console.log("🔥 req.userId =", req.userId, " type=", typeof req.userId);
-
-    const userId = req.userId; // ⭐ int（對應 "user"."userID"）
-
-    const result = await pool.query(
-      `SELECT
-         diary_id,
-         collect_id,
-         diary_title,
-         diary_content,
-         tags,
-         bible_quote,
-         created_at,
-         diary_date,
-         user_id
-       FROM diary
-       WHERE user_id = $1
-       ORDER BY diary_date DESC, created_at DESC`,
-      [userId]
-    );
-
-    return res.json({ ok: true, data: result.rows });
-  } catch (err) {
-    console.error("[GET /api/diary] failed:", err);
-    return res.status(500).json({
-      ok: false,
-      error: "取得日記失敗",
-      detail: err.message,
-    });
-  }
-});
 
 
 

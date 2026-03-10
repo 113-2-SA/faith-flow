@@ -100,6 +100,22 @@ const validateCommentId = [
     }
 ];
 
+const validateCommentIdParam = [
+    param('commentId')
+        .isInt({ min: 1 }).withMessage('留言 ID 必須是正整數'),
+    
+    (req, res, next) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ 
+                ok: false,
+                errors: errors.array() 
+            });
+        }
+        next();
+    }
+];
+
 const validateSharePost = [
     body('share_caption')
         .optional()
@@ -126,6 +142,7 @@ module.exports = {
     validateCreatePost,
     validatePostId,
     validateCreateComment,  
-    validateCommentId,     
+    validateCommentId,
+    validateCommentIdParam,     
     validateSharePost
 };

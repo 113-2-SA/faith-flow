@@ -4,45 +4,75 @@ const pool = require('../config/database');
 class CommentService {
     // 新增留言
     async createComment(commentData) {
-        const query = `
-            INSERT INTO community_comments 
-            (post_id, user_id, parent_comment_id, comment_content)
-            VALUES ($1, $2, $3, $4)
-            RETURNING *
-        `;
+        const client = await pool.connect();
         
-        const result = await pool.query(query, [
-            commentData.post_id,
-            commentData.user_id,
-            commentData.parent_comment_id || null,
-            commentData.comment_content
-        ]);
+        try {
+            await client.query('BEGIN');
 
-        // 更新貼文的留言數
-        await this.updatePostCommentCount(commentData.post_id);
+            const query = `
+                INSERT INTO community_comments 
+                (post_id, user_id, parent_comment_id, comment_content)
+                VALUES ($1, $2, $3, $4)
+                RETURNING *
+            `;
+            
+            const result = await client.query(query, [
+                commentData.post_id,
+                commentData.user_id,
+                commentData.parent_comment_id || null,
+                commentData.comment_content
+            ]);
 
-        return await this.getCommentById(result.rows[0].comment_id);
+            // 更新貼文的留言數
+            await this.updatePostCommentCount(commentData.post_id, client);
+
+            await client.query('COMMIT');
+
+            return await this.getCommentById(result.rows[0].comment_id);
+
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
     }
 
-    // 獲取單一留言（含使用者資訊）
-    async getCommentById(commentId) {
+    // 獲取單一留言（含使用者資訊和點讚狀態）
+    async getCommentById(commentId, userId = null) {
+        const userStatusField = userId ? `
+            , EXISTS(
+                SELECT 1 FROM community_comment_likes 
+                WHERE comment_id = c.comment_id AND user_id = $2
+            ) as is_liked
+        ` : '';
+
         const query = `
             SELECT 
                 c.*,
                 u."userName" as username,
                 u."userPhoto" as avatar_url
+                ${userStatusField}
             FROM community_comments c
             LEFT JOIN "user" u ON c.user_id = u."userID"
             WHERE c.comment_id = $1 AND c.deleted_at IS NULL
         `;
         
-        const result = await pool.query(query, [commentId]);
+        const params = userId ? [commentId, userId] : [commentId];
+        const result = await pool.query(query, params);
         return result.rows[0];
     }
 
     // 獲取貼文的所有留言（樹狀結構）
-    async getCommentsByPostId(postId, options = {}) {
+    async getCommentsByPostId(postId, userId = null, options = {}) {
         const { limit = 50, offset = 0 } = options;
+
+        const userStatusField = userId ? `
+            , EXISTS(
+                SELECT 1 FROM community_comment_likes 
+                WHERE comment_id = c.comment_id AND user_id = $4
+            ) as is_liked
+        ` : '';
 
         // 先獲取所有主留言（parent_comment_id IS NULL）
         const mainCommentsQuery = `
@@ -56,6 +86,7 @@ class CommentService {
                     WHERE replies.parent_comment_id = c.comment_id 
                     AND replies.deleted_at IS NULL
                 ) as reply_count
+                ${userStatusField}
             FROM community_comments c
             LEFT JOIN "user" u ON c.user_id = u."userID"
             WHERE c.post_id = $1 
@@ -65,17 +96,29 @@ class CommentService {
             LIMIT $2 OFFSET $3
         `;
 
-        const mainComments = await pool.query(mainCommentsQuery, [postId, limit, offset]);
+        const params = userId 
+            ? [postId, limit, offset, userId]
+            : [postId, limit, offset];
+
+        const mainComments = await pool.query(mainCommentsQuery, params);
 
         // 為每個主留言獲取回覆
         const commentsWithReplies = await Promise.all(
             mainComments.rows.map(async (comment) => {
                 if (comment.reply_count > 0) {
+                    const repliesUserStatusField = userId ? `
+                        , EXISTS(
+                            SELECT 1 FROM community_comment_likes 
+                            WHERE comment_id = c.comment_id AND user_id = $2
+                        ) as is_liked
+                    ` : '';
+
                     const repliesQuery = `
                         SELECT 
                             c.*,
                             u."userName" as username,
                             u."userPhoto" as avatar_url
+                            ${repliesUserStatusField}
                         FROM community_comments c
                         LEFT JOIN "user" u ON c.user_id = u."userID"
                         WHERE c.parent_comment_id = $1 
@@ -83,7 +126,11 @@ class CommentService {
                         ORDER BY c.created_at ASC
                     `;
                     
-                    const replies = await pool.query(repliesQuery, [comment.comment_id]);
+                    const repliesParams = userId 
+                        ? [comment.comment_id, userId]
+                        : [comment.comment_id];
+
+                    const replies = await pool.query(repliesQuery, repliesParams);
                     comment.replies = replies.rows;
                 } else {
                     comment.replies = [];
@@ -97,14 +144,22 @@ class CommentService {
     }
 
     // 獲取留言的回覆列表
-    async getRepliesByCommentId(parentCommentId, options = {}) {
+    async getRepliesByCommentId(parentCommentId, userId = null, options = {}) {
         const { limit = 20, offset = 0 } = options;
+
+        const userStatusField = userId ? `
+            , EXISTS(
+                SELECT 1 FROM community_comment_likes 
+                WHERE comment_id = c.comment_id AND user_id = $4
+            ) as is_liked
+        ` : '';
 
         const query = `
             SELECT 
                 c.*,
                 u."userName" as username,
                 u."userPhoto" as avatar_url
+                ${userStatusField}
             FROM community_comments c
             LEFT JOIN "user" u ON c.user_id = u."userID"
             WHERE c.parent_comment_id = $1 
@@ -113,7 +168,11 @@ class CommentService {
             LIMIT $2 OFFSET $3
         `;
 
-        const result = await pool.query(query, [parentCommentId, limit, offset]);
+        const params = userId 
+            ? [parentCommentId, limit, offset, userId]
+            : [parentCommentId, limit, offset];
+
+        const result = await pool.query(query, params);
         return result.rows;
     }
 
