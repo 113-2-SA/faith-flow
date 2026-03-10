@@ -7,6 +7,8 @@ import { Image, Pressable, Switch, Text, View } from "react-native";
 
 import { auth } from "../../lib/firebase";
 import { loadPrefs, Preferences, savePrefs } from "../../lib/prefs";
+import { GlassCard } from "../../components/GlassCard";
+import { VideoBackground } from "../../components/VideoBackground";
 
 export default function SettingsScreen() {
   const [prefs, setPrefs] = useState<Preferences | null>(null);
@@ -69,53 +71,81 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={{ flex: 1, padding: 24, gap: 16 }}>
-      <Text style={{ fontSize: 22, fontWeight: "700" }}>設定</Text>
+    <VideoBackground source={require("../../assets/backgrounds/main.mp4")}>      
+      <View style={{ flex: 1, justifyContent: "center", padding: 24 }}>
+        <GlassCard style={{ padding: 20 }}>
+          <Text
+            style={{
+              fontSize: 22,
+              fontWeight: "700",
+              color: "rgba(255,255,255,0.95)",
+              marginBottom: 12,
+            }}
+          >
+            設定
+          </Text>
 
-      {/* 顯示使用者 */}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-        {photoURL ? (
-          <Image
-            source={{ uri: photoURL }}
-            style={{ width: 40, height: 40, borderRadius: 20 }}
+          {/* 顯示使用者 */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              marginBottom: 16,
+            }}
+          >
+            {photoURL ? (
+              <Image
+                source={{ uri: photoURL }}
+                style={{ width: 40, height: 40, borderRadius: 20 }}
+              />
+            ) : null}
+            <Text style={{ opacity: 0.85, color: "rgba(255,255,255,0.9)" }}>
+              你好，{name || "（尚未設定名字）"}
+            </Text>
+          </View>
+
+          <Link
+            href="/settings/profile"
+            style={{
+              color: "rgba(255,255,255,0.9)",
+              marginBottom: 16,
+            }}
+          >
+            → 個人資料（改名字/頭像）
+          </Link>
+
+          <Row
+            title="社群通知"
+            value={prefs.notifications}
+            onValueChange={(v) => setOne("notifications", v)}
           />
-        ) : null}
-        <Text style={{ opacity: 0.85 }}>
-          你好，{name || "（尚未設定名字）"}
-        </Text>
+          <Row
+            title="日記通知"
+            value={prefs.diary}
+            onValueChange={(v) => setOne("diary", v)}
+          />
+          <Row
+            title="抽卡通知"
+            value={prefs.cardDraw}
+            onValueChange={(v) => setOne("cardDraw", v)}
+          />
+
+          {/* 登出 */}
+          <Pressable
+            onPress={onLogout}
+            style={{
+              marginTop: 12,
+              padding: 14,
+              borderRadius: 12,
+              backgroundColor: "rgba(255, 255, 255, 0.12)",
+            }}
+          >
+            <Text style={{ color: "white", textAlign: "center" }}>登出</Text>
+          </Pressable>
+        </GlassCard>
       </View>
-
-      <Link href="/settings/profile">→ 個人資料（改名字/頭像）</Link>
-
-      <Row
-        title="社群通知"
-        value={prefs.notifications}
-        onValueChange={(v) => setOne("notifications", v)}
-      />
-      <Row
-        title="日記通知"
-        value={prefs.diary}
-        onValueChange={(v) => setOne("diary", v)}
-      />
-      <Row
-        title="抽卡通知"
-        value={prefs.cardDraw}
-        onValueChange={(v) => setOne("cardDraw", v)}
-      />
-
-      {/* 登出 */}
-      <Pressable
-        onPress={onLogout}
-        style={{
-          marginTop: 12,
-          padding: 14,
-          borderRadius: 12,
-          backgroundColor: "#b00020",
-        }}
-      >
-        <Text style={{ color: "white", textAlign: "center" }}>登出</Text>
-      </Pressable>
-    </View>
+    </VideoBackground>
   );
 }
 
