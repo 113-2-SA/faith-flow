@@ -7,6 +7,8 @@ import { useEffect, useMemo, useState } from "react";
 import { GoogleAuthProvider, signInWithCredential, onAuthStateChanged } from "firebase/auth";
 import { auth} from "../../lib/firebase";
 import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native";
+import { GlassCard } from "../../components/GlassCard";
+import { VideoBackground } from "../../components/VideoBackground";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -83,16 +85,14 @@ export default function LoginScreen() {
 
         console.log('========== 登入流程結束 ==========');
 
-        // 導航到主頁
-        router.replace("/");
-
+        router.replace("/home"); // 登入完直接進月曆頁（Home）
       } catch (e) {
         console.error("❌ 錯誤:", e);
       } finally {
         setBusy(false);
       }
     })();
-  }, [response]);
+  }, [response, router]);
 
   useEffect(() => {
   const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -112,46 +112,75 @@ export default function LoginScreen() {
   const disabled = !request || busy || !webClientId;
 
   return (
-    <View style={{ flex: 1, justifyContent: "center", padding: 24, gap: 12 }}>
-      <Text style={{ fontSize: 22, fontWeight: "700" }}>登入</Text>
-
-      {!webClientId ? (
-        <Text style={{ color: "tomato" }}>
-          缺少 EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID（請檢查 .env）
-        </Text>
-      ) : null}
-
-      <Pressable
-        disabled={disabled}
-        onPress={async () => {
-          try {
-            setBusy(true);
-            const r: any = await promptAsync();
-            if (r?.type !== "success") setBusy(false);
-          } catch (e) {
-            setBusy(false);
-            console.error("promptAsync failed:", e);
-          }
-        }}
-        style={{
-          padding: 14,
-          borderRadius: 12,
-          backgroundColor: "#111",
-          opacity: disabled ? 0.5 : 1,
-        }}
-      >
-        {busy ? (
-          <ActivityIndicator />
-        ) : (
-          <Text style={{ color: "white", textAlign: "center" }}>
-            使用 Google 登入（Web）
+    <VideoBackground source={require("../../assets/backgrounds/main.mp4")}>      
+      <View style={{ flex: 1, justifyContent: "center", padding: 24 }}>
+        <GlassCard style={{ padding: 20 }}>
+          <Text
+            style={{
+              fontSize: 22,
+              fontWeight: "700",
+              color: "rgba(255,255,255,0.95)",
+              marginBottom: 12,
+            }}
+          >
+            登入
           </Text>
-        )}
-      </Pressable>
 
-      <Text style={{ opacity: 0.6, fontSize: 12 }}>
-        Web 測試：redirectUri 以 console 印出的為準；Google Cloud 的 Authorized redirect URIs 要包含它。
-      </Text>
-    </View>
+          {!webClientId ? (
+            <Text style={{ color: "tomato" }}>
+              缺少 EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID（請檢查 .env）
+            </Text>
+          ) : null}
+
+          <GlassCard
+            style={{
+              borderRadius: 14,
+              marginTop: 14,
+              opacity: disabled ? 0.6 : 1,
+            }}
+          >
+            <Pressable
+              disabled={disabled}
+              onPress={async () => {
+                try {
+                  setBusy(true);
+                  const r: any = await promptAsync();
+                  if (r?.type !== "success") setBusy(false);
+                } catch (e) {
+                  setBusy(false);
+                  console.error("promptAsync failed:", e);
+                }
+              }}
+              style={({ pressed }) => [
+                {
+                  padding: 14,
+                  alignItems: "center",
+                },
+                pressed && { opacity: 0.72 },
+              ]}
+            >
+              {busy ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text style={{ color: "white", textAlign: "center" }}>
+                  使用 Google 登入（Web）
+                </Text>
+              )}
+            </Pressable>
+          </GlassCard>
+
+          <Text
+            style={{
+              opacity: 0.7,
+              fontSize: 12,
+              marginTop: 12,
+              color: "rgba(255,255,255,0.8)",
+            }}
+          >
+            Web 測試：redirectUri 以 console 印出的為準；Google Cloud 的 Authorized redirect URIs 要包含它。
+          </Text>
+        </GlassCard>
+      </View>
+    </VideoBackground>
   );
 }

@@ -1,6 +1,8 @@
 import { Redirect, Stack, useSegments } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
-import { AuthProvider, useAuth } from "./context/authcontext"  
+import { AuthProvider ,useAuth} from "./context/authcontext"  
+// import { useAuth } from "../hooks/useAuth";
+import { AppShellProvider } from "../components/AppShell";
 
 
 /**
@@ -26,18 +28,22 @@ function RootLayoutNav() {
     return <Redirect href="/auth/login" />;
   }
 
-  // 已登入：如果還在 auth 區（login 頁），就導回首頁
+  // ✅ 關鍵：已登入且還在 auth 區，導去 /home（月曆頁）
   if (currentUser && inAuth) {
-    return <Redirect href="/" />;
+    return <Redirect href="/home" />;
   }
 
-  return (
-    <Stack>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="auth/login" options={{ title: "登入" }} />
-      {/* 如果有其他路由，在這裡加 */}
-    </Stack>
-  );
+  // 已登入的情況，用共用 Layout 包裹（含側邊欄）
+  if (currentUser) {
+    return (
+      <AppShellProvider>
+        <Stack screenOptions={{ headerShown: false }} />
+      </AppShellProvider>
+    );
+  }
+
+  // 未登入但仍在 auth 區（登入頁）
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
 
 /**
