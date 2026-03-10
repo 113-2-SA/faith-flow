@@ -33,8 +33,8 @@ export function VideoBackground({ source, children }: Props) {
       <LinearGradient
         pointerEvents="none"
         colors={[
-          "rgba(185, 212, 228, 0.48)",
-          "rgba(185, 212, 228, 0.34)",
+          "rgba(63, 124, 160, 0.48)",
+          "rgba(48, 109, 145, 0.34)",
         ]}
         style={StyleSheet.absoluteFill}
       />

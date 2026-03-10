@@ -1,22 +1,23 @@
-import { signOut } from "firebase/auth";
-import { Pressable, Text, View } from "react-native";
 import { useAuth } from "../hooks/useAuth";
-import { auth } from "../lib/firebase";
+import { ScrollView, Text, View } from "react-native";
+
+import { CalendarCard } from "../components/CalendarCard";
+import { VideoBackground } from "../components/VideoBackground";
 
 export default function Home() {
   const { user } = useAuth();
 
   return (
-    <View style={{ flex: 1, justifyContent: "center", padding: 24, gap: 12 }}>
-      <Text style={{ fontSize: 22, fontWeight: "700" }}>Home</Text>
-      <Text>你已登入：{user?.email ?? "(no email)"}</Text>
+    <VideoBackground source={require("../assets/backgrounds/main.mp4")}>      
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+        <View style={{ flex: 1, padding: 24 }}>
+          <CalendarCard />
 
-      <Pressable
-        onPress={() => signOut(auth)}
-        style={{ padding: 14, borderRadius: 12, backgroundColor: "#b00020" }}
-      >
-        <Text style={{ color: "white", textAlign: "center" }}>登出</Text>
-      </Pressable>
-    </View>
+          <Text style={{ marginTop: 18, color: "rgba(255,255,255,0.72)" }}>
+            你已登入：{user?.email ?? "(no email)"}
+          </Text>
+        </View>
+      </ScrollView>
+    </VideoBackground>
   );
 }

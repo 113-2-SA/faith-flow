@@ -8,7 +8,7 @@ type Props = {
   intensity?: number; // 0~100
 };
 
-export function GlassCard({ children, style, intensity = 100 }: Props) {
+export function GlassCard({ children, style, intensity = 30 }: Props) {
   return (
     <View style={[styles.wrap, style]}>
       <BlurView intensity={intensity} tint="light" style={StyleSheet.absoluteFill} />
@@ -23,19 +23,19 @@ export function GlassCard({ children, style, intensity = 100 }: Props) {
 
 const styles = StyleSheet.create({
   wrap: {
-    borderRadius: 22,
+    borderRadius: 10, // 改成10，與border一致
     overflow: "hidden",
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(255,255,255,0.02)",
   },
   frost: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(255,255,255,0.01)",
   },
   border: {
     ...StyleSheet.absoluteFillObject,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
-    borderRadius: 22,
+    borderColor: "rgba(255,255,255,0.5)",
+    borderRadius: 10, // 改成10，讓圓角一致
   },
   content: {
     padding: 14,

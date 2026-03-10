@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import {
   Animated,
   Dimensions,
@@ -7,9 +7,10 @@ import {
   Text,
   View,
 } from "react-native";
+import { signOut } from "firebase/auth";
 import { useRouter } from "expo-router";
 
-type Item = { label: string; href: string };
+import { auth } from "../lib/firebase";
 
 type Props = {
   open: boolean;
@@ -22,16 +23,25 @@ export function SideDrawer({ open, onClose }: Props) {
   const drawerW = Math.min(320, Math.round(screenW * 0.78));
 
   const items = [
-  { label: "集典冊", href: "/diary" },
-  { label: "活水泉源", href: "/drawcard" },
-  { label: "有答大師", href: "/answer" },
-  { label: "心靈營火", href: "/community" },
-  { label: "朝聖之地", href: "/pilgrimage" },
-  { label: "思高聖經", href: "/bible" },
-  { label: "首頁", href: "/" },
-  { label: "說明", href: "/about" },
-  { label: "帳號設定", href: "/settings" },
-];
+    { label: "集典冊", href: "/diary" },
+    { label: "活水泉源", href: "/drawcard" },
+    { label: "有答大師", href: "/answer" },
+    { label: "心靈營火", href: "/community" },
+    { label: "朝聖之地", href: "/pilgrimage" },
+    { label: "思高聖經", href: "/bible" },
+    { label: "首頁", href: "/home" },
+    { label: "說明", href: "/about" },
+    { label: "帳號設定", href: "/settings" },
+  ];
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.replace("/auth/login");
+    } catch (e) {
+      console.error("signOut failed:", e);
+    }
+  };
   const x = useRef(new Animated.Value(-drawerW)).current;
   const overlay = useRef(new Animated.Value(0)).current;
 
@@ -69,14 +79,14 @@ export function SideDrawer({ open, onClose }: Props) {
   if (!open) return null;
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+    <View style={[StyleSheet.absoluteFill, styles.root]} pointerEvents="box-none">
       {/* Overlay（點空白處關閉） */}
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
         <Animated.View
           style={[
             StyleSheet.absoluteFill,
             {
-              backgroundColor: "rgba(0,0,0,0.45)",
+              backgroundColor: "rgba(0,0,0,0.25)",
               opacity: overlay,
             },
           ]}
@@ -113,8 +123,8 @@ export function SideDrawer({ open, onClose }: Props) {
         </View>
 
         <View style={styles.footer}>
-          <Pressable onPress={onClose} style={styles.closeBtn}>
-            <Text style={styles.closeText}>Close</Text>
+          <Pressable onPress={handleLogout} style={styles.logoutBtn}>
+            <Text style={styles.logoutText}>登出</Text>
           </Pressable>
         </View>
       </Animated.View>
@@ -123,14 +133,17 @@ export function SideDrawer({ open, onClose }: Props) {
 }
 
 const styles = StyleSheet.create({
+  root: {
+    zIndex: 999,
+  },
   drawer: {
     position: "absolute",
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: "rgba(20, 24, 28, 0.92)",
+    backgroundColor: "rgba(255,255,255,0.96)",
     borderRightWidth: 1,
-    borderRightColor: "rgba(255,255,255,0.12)",
+    borderRightColor: "rgba(0,0,0,0.08)",
     paddingTop: 56,
     paddingHorizontal: 14,
   },
@@ -140,20 +153,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.12)",
   },
-  title: { color: "rgba(255,255,255,0.85)", letterSpacing: 2 },
+  title: { color: "rgba(0,0,0,0.85)", letterSpacing: 2 },
   list: { marginTop: 14 },
   item: {
     paddingVertical: 14,
     paddingHorizontal: 10,
     borderRadius: 14,
   },
-  itemText: { color: "rgba(255,255,255,0.92)", fontSize: 16 },
+  itemText: { color: "rgba(0,0,0,0.88)", fontSize: 16 },
   footer: { marginTop: "auto", paddingBottom: 20 },
-  closeBtn: {
+  logoutBtn: {
     paddingVertical: 12,
     paddingHorizontal: 10,
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "rgba(0,0,0,0.08)",
   },
-  closeText: { color: "rgba(255,255,255,0.9)", textAlign: "center" },
+  logoutText: { color: "rgba(0,0,0,0.9)", textAlign: "center" },
 });
