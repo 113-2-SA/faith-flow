@@ -5,8 +5,8 @@ import { GlassCard } from "./GlassCard";
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
 
-// ✅ 動態載入，避免 SSR 時觸發 window
-const LeafletMap = lazy(() => import("./LeafletMap"));
+// ✅ 動態載入 Google Maps 組件，避免 SSR 時出錯
+const GoogleMapsComponent = lazy(() => import("./GoogleMapsComponent.web"));
 
 // ✅ 直接從 .native.tsx 共用的型別與資料（複製過來，避免跨平台 import 問題）
 export type Basilica = {
@@ -223,13 +223,14 @@ export function BasilicaMap() {
 
             <View style={styles.mapContainer}>
                 <Suspense fallback={
-                    <View style={{ width: "100%", height: 300, justifyContent: "center", alignItems: "center" }}>
-                        <Text style={{ color: "rgba(255,255,255,0.5)" }}>地圖載入中...</Text>
+                    <View style={{ width: "90%", height: 300, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.1)", borderRadius: 12 }}>
+                        <Text style={{ color: "rgba(255,255,255,0.5)" }}>🗺️ 地圖載入中...</Text>
                     </View>
                 }>
-                    <LeafletMap
+                    <GoogleMapsComponent
                         markers={filtered}
                         onMarkerPress={(id) => setSelectedId(id)}
+                        selectedId={selectedId}
                     />
                 </Suspense>
             </View>

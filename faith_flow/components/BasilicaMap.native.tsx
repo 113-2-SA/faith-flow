@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { GlassCard } from "./GlassCard";
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
+import { MAP_CONFIG } from "../config/mapConfig";
 
 export type Basilica = {
   id: string;
@@ -215,10 +216,11 @@ export function BasilicaMap() {
       {/* Map View - Centered */}
       <View style={styles.mapContainer}>
         <MapView
+          provider={PROVIDER_GOOGLE}
           style={styles.map}
           initialRegion={{
-            latitude: 41.9029,
-            longitude: 12.4534,
+            latitude: MAP_CONFIG.defaultCenter.lat,
+            longitude: MAP_CONFIG.defaultCenter.lng,
             latitudeDelta: 50,
             longitudeDelta: 50,
           }}
