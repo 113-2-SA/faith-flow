@@ -4,7 +4,7 @@ const router = express.Router();
 const postController = require('../controllers/postcontroller');
 const { verifyToken } = require('../middleware/auth');
 const attachUserId = require('../middleware/attachuserId');
-const { validateCreatePost, validatePostId } = require('../middleware/validation');
+const { validateCreatePost, validateUpdatePost, validatePostId } = require('../middleware/validation');
 
 // ⭐ 所有路由都需要 Firebase 認證 + 取得 userID
 router.use(verifyToken);      // 驗證 Firebase token
@@ -21,6 +21,9 @@ router.get('/', postController.getPosts);
 
 // 獲取單一貼文
 router.get('/:id', validatePostId, postController.getPostById);
+
+// 更新貼文
+router.put('/:id', validatePostId, validateUpdatePost, postController.updatePost);
 
 // 刪除貼文
 router.delete('/:id', validatePostId, postController.deletePost);

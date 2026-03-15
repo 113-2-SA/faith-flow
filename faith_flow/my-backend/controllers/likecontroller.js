@@ -10,18 +10,14 @@ class LikeController {
             const userId = req.userId;
 
             // 檢查貼文是否存在
-            const postExists = await postService.getPostById(postId);
-            if (!postExists) {
-                return res.status(404).json({
-                    ok: false,
-                    error: '找不到該貼文'
-                });
+            if (!await postService.postExists(postId)) {
+                return res.status(404).json({ ok: false, error: '找不到該貼文' });
             }
 
             const result = await likeService.toggleLike(postId, userId);
 
             res.json({
-                ok: result.success,
+                ok: true,
                 message: result.message,
                 data: {
                     isLiked: result.isLiked,
@@ -41,12 +37,8 @@ class LikeController {
             const postId = parseInt(req.params.postId);
             const userId = req.userId;
 
-            const postExists = await postService.getPostById(postId);
-            if (!postExists) {
-                return res.status(404).json({
-                    ok: false,
-                    error: '找不到該貼文'
-                });
+            if (!await postService.postExists(postId)) {
+                return res.status(404).json({ ok: false, error: '找不到該貼文' });
             }
 
             const result = await likeService.likePost(postId, userId);
@@ -96,12 +88,8 @@ class LikeController {
             const limit = parseInt(req.query.limit) || 50;
             const offset = parseInt(req.query.offset) || 0;
 
-            const postExists = await postService.getPostById(postId);
-            if (!postExists) {
-                return res.status(404).json({
-                    ok: false,
-                    error: '找不到該貼文'
-                });
+            if (!await postService.postExists(postId)) {
+                return res.status(404).json({ ok: false, error: '找不到該貼文' });
             }
 
             const [likes, total] = await Promise.all([

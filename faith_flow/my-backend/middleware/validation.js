@@ -8,12 +8,12 @@ const validateCreatePost = [
         .isLength({ max: 5000 }).withMessage('內文不能超過5000字'),
     
     body('post_type')
-        .isIn(['letter', 'diary', 'original']).withMessage('無效的貼文類型'),
+        .isIn(['letter', 'diary', 'normal']).withMessage('無效的貼文類型'),
     
     body('visibility')
         .optional()
-        .isIn(['public', 'private', 'friends']).withMessage('無效的可見性設定'),
-    
+        .isIn(['public', 'private', 'group']).withMessage('無效的可見性設定'),
+
     body('tags')
         .optional()
         .isArray().withMessage('標籤必須是陣列')
@@ -22,7 +22,7 @@ const validateCreatePost = [
             return tags.every(tag => typeof tag === 'string' && tag.length <= 50);
         })
         .withMessage('標籤格式錯誤或超過50字'),
-    
+
     body('letter_id')
         .optional()
         .isInt({ min: 1 }).withMessage('letter_id 必須是正整數'),
@@ -38,6 +38,34 @@ const validateCreatePost = [
                 ok: false,
                 errors: errors.array() 
             });
+        }
+        next();
+    }
+];
+
+const validateUpdatePost = [
+    body('post_text')
+        .trim()
+        .notEmpty().withMessage('內文不能為空')
+        .isLength({ max: 5000 }).withMessage('內文不能超過5000字'),
+
+    body('visibility')
+        .optional()
+        .isIn(['public', 'private', 'group']).withMessage('無效的可見性設定'),
+
+    body('tags')
+        .optional()
+        .isArray().withMessage('標籤必須是陣列')
+        .custom((tags) => {
+            if (!Array.isArray(tags)) return false;
+            return tags.every(tag => typeof tag === 'string' && tag.length <= 50);
+        })
+        .withMessage('標籤格式錯誤或超過50字'),
+
+    (req, res, next) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ ok: false, errors: errors.array() });
         }
         next();
     }
@@ -138,11 +166,12 @@ const validateSharePost = [
     }
 ];
 
-module.exports = { 
+module.exports = {
     validateCreatePost,
+    validateUpdatePost,
     validatePostId,
-    validateCreateComment,  
+    validateCreateComment,
     validateCommentId,
-    validateCommentIdParam,     
+    validateCommentIdParam,
     validateSharePost
 };

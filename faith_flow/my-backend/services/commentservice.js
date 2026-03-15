@@ -50,8 +50,8 @@ class CommentService {
         const query = `
             SELECT 
                 c.*,
-                u."userName" as username,
-                u."userPhoto" as avatar_url
+                u."user_name" as username,
+                u."user_pic" as avatar_url
                 ${userStatusField}
             FROM community_comments c
             LEFT JOIN "user" u ON c.user_id = u."userID"
@@ -78,8 +78,8 @@ class CommentService {
         const mainCommentsQuery = `
             SELECT 
                 c.*,
-                u."userName" as username,
-                u."userPhoto" as avatar_url,
+                u."user_name" as username,
+                u."user_pic" as avatar_url,
                 (
                     SELECT COUNT(*)::int 
                     FROM community_comments replies 
@@ -116,8 +116,8 @@ class CommentService {
                     const repliesQuery = `
                         SELECT 
                             c.*,
-                            u."userName" as username,
-                            u."userPhoto" as avatar_url
+                            u."user_name" as username,
+                            u."user_pic" as avatar_url
                             ${repliesUserStatusField}
                         FROM community_comments c
                         LEFT JOIN "user" u ON c.user_id = u."userID"
@@ -157,8 +157,8 @@ class CommentService {
         const query = `
             SELECT 
                 c.*,
-                u."userName" as username,
-                u."userPhoto" as avatar_url
+                u."user_name" as username,
+                u."user_pic" as avatar_url
                 ${userStatusField}
             FROM community_comments c
             LEFT JOIN "user" u ON c.user_id = u."userID"

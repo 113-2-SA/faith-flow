@@ -34,6 +34,7 @@ async function verifyToken(req, res, next) {
     
     console.log("[verifyToken] Token 驗證成功:", req.user.uid);
     next();
+    
   } catch (error) {
     console.error("[verifyToken] Token 驗證失敗:", error.message);
     return res.status(401).json({

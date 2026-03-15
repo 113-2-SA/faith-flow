@@ -1,6 +1,7 @@
 // services/postService.js
 const pool = require('../config/database');
 
+
 class PostService {
     // 新增貼文
     async createPost(postData) {
@@ -11,9 +12,9 @@ class PostService {
 
             // 插入主貼文
             const postQuery = `
-                INSERT INTO community_posts 
-                (author_user_id, post_text, post_type, visibility, letter_id, diary_id)
-                VALUES ($1, $2, $3, $4, $5, $6)
+               INSERT INTO community_posts 
+                (author_user_id, post_text, post_type, visibility, letter_id, diary_id, tags)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING *
             `;
             
@@ -23,22 +24,11 @@ class PostService {
                 postData.post_type,
                 postData.visibility || 'public',
                 postData.letter_id || null,
-                postData.diary_id || null
+                postData.diary_id || null,
+                postData.tags || null
             ]);
 
             const post = postResult.rows[0];
-
-            // 插入標籤
-            if (postData.tags && postData.tags.length > 0) {
-                const tagQuery = `
-                    INSERT INTO post_tags (community_post_id, tag_name)
-                    VALUES ($1, $2)
-                `;
-                
-                for (const tag of postData.tags) {
-                    await client.query(tagQuery, [post.community_post_id, tag.trim()]);
-                }
-            }
 
             await client.query('COMMIT');
             
@@ -53,24 +43,25 @@ class PostService {
         }
     }
 
+    // 輕量存在確認
+    async postExists(postId) {
+        const result = await pool.query(
+            `SELECT 1 FROM community_posts WHERE community_post_id = $1 AND deleted_at IS NULL`,
+            [postId]
+        );
+        return result.rowCount > 0;
+    }
+
     // ⭐ 獲取單一貼文（含標籤、作者資訊、點讚和轉發狀態）
     async getPostById(postId, userId = null) {
         const query = `
-            SELECT 
+            SELECT
                 p.*,
-                u."userName" as username,
-                u."userPhoto" as avatar_url,
-                COALESCE(
-                    json_agg(
-                        DISTINCT jsonb_build_object('tag_name', pt.tag_name)
-                    ) FILTER (WHERE pt.tag_name IS NOT NULL),
-                    '[]'
-                ) as tags
+                u."user_name" as username,
+                u."user_pic" as avatar_url
             FROM community_posts p
             LEFT JOIN "user" u ON p.author_user_id = u."userID"
-            LEFT JOIN post_tags pt ON p.community_post_id = pt.community_post_id
             WHERE p.community_post_id = $1 AND p.deleted_at IS NULL
-            GROUP BY p.community_post_id, u."userName", u."userPhoto"
         `;
         
         const result = await pool.query(query, [postId]);
@@ -83,20 +74,22 @@ class PostService {
 
         // ⭐ 如果提供了 userId，檢查點讚和轉發狀態
         if (userId) {
+            post.is_owner = Number(post.author_user_id) === Number(userId);
+
             const statusQuery = `
-                SELECT 
+                SELECT
                     EXISTS(
-                        SELECT 1 FROM community_post_likes 
+                        SELECT 1 FROM community_post_likes
                         WHERE post_id = $1 AND user_id = $2
                     ) as is_liked,
                     EXISTS(
-                        SELECT 1 FROM community_post_shares 
-                        WHERE original_post_id = $1 
-                        AND shared_by_user_id = $2 
+                        SELECT 1 FROM community_post_shares
+                        WHERE original_post_id = $1
+                        AND shared_by_user_id = $2
                         AND deleted_at IS NULL
                     ) as has_shared
             `;
-            
+
             const statusResult = await pool.query(statusQuery, [postId, userId]);
             post.is_liked = statusResult.rows[0].is_liked;
             post.has_shared = statusResult.rows[0].has_shared;
@@ -105,24 +98,16 @@ class PostService {
         // ⭐ 如果是轉發的貼文，獲取原始貼文資訊
         if (post.post_type === 'shared') {
             const originalPostQuery = `
-                SELECT 
+                SELECT
                     p.*,
-                    u."userName" as original_author_name,
-                    u."userPhoto" as original_author_avatar,
-                    COALESCE(
-                        json_agg(
-                            DISTINCT jsonb_build_object('tag_name', pt.tag_name)
-                        ) FILTER (WHERE pt.tag_name IS NOT NULL),
-                        '[]'
-                    ) as tags
+                    u."user_name" as original_author_name,
+                    u."user_pic" as original_author_avatar
                 FROM community_post_shares s
                 JOIN community_posts p ON s.original_post_id = p.community_post_id
                 LEFT JOIN "user" u ON p.author_user_id = u."userID"
-                LEFT JOIN post_tags pt ON p.community_post_id = pt.community_post_id
-                WHERE s.shared_post_id = $1 
+                WHERE s.shared_post_id = $1
                 AND s.deleted_at IS NULL
                 AND p.deleted_at IS NULL
-                GROUP BY p.community_post_id, u."userName", u."userPhoto"
             `;
             
             const originalResult = await pool.query(originalPostQuery, [postId]);
@@ -166,24 +151,21 @@ class PostService {
         }
 
         if (tag) {
-            conditions.push(`EXISTS (
-                SELECT 1 FROM post_tags pt 
-                WHERE pt.community_post_id = p.community_post_id 
-                AND pt.tag_name = $${paramIndex}
-            )`);
+            conditions.push(`$${paramIndex} = ANY(p.tags)`);
             params.push(tag);
             paramIndex++;
         }
 
         // ⭐ 如果有提供 userId，加入點讚和轉發狀態
         const userStatusFields = userId ? `
+            , (p.author_user_id = $${paramIndex}) as is_owner
             , EXISTS(
-                SELECT 1 FROM community_post_likes 
+                SELECT 1 FROM community_post_likes
                 WHERE post_id = p.community_post_id AND user_id = $${paramIndex}
             ) as is_liked
             , EXISTS(
-                SELECT 1 FROM community_post_shares 
-                WHERE original_post_id = p.community_post_id 
+                SELECT 1 FROM community_post_shares
+                WHERE original_post_id = p.community_post_id
                 AND shared_by_user_id = $${paramIndex}
                 AND deleted_at IS NULL
             ) as has_shared
@@ -197,22 +179,14 @@ class PostService {
         params.push(limit, offset);
 
         const query = `
-            SELECT 
+            SELECT
                 p.*,
-                u."userName" as username,
-                u."userPhoto" as avatar_url,
-                COALESCE(
-                    json_agg(
-                        DISTINCT jsonb_build_object('tag_name', pt.tag_name)
-                    ) FILTER (WHERE pt.tag_name IS NOT NULL),
-                    '[]'
-                ) as tags
+                u."user_name" as username,
+                u."user_pic" as avatar_url
                 ${userStatusFields}
             FROM community_posts p
             LEFT JOIN "user" u ON p.author_user_id = u."userID"
-            LEFT JOIN post_tags pt ON p.community_post_id = pt.community_post_id
             WHERE ${conditions.join(' AND ')}
-            GROUP BY p.community_post_id, u."userName", u."userPhoto"
             ORDER BY p.created_at DESC
             LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
         `;
@@ -280,6 +254,28 @@ class PostService {
         
         const result = await pool.query(query, [postId, userId]);
         return result.rows[0];
+    }
+
+    // 更新貼文
+    async updatePost(postId, userId, updateData) {
+        const { post_text, visibility, tags } = updateData;
+        const query = `
+            UPDATE community_posts
+            SET post_text = $3, visibility = $4, tags = $5
+            WHERE community_post_id = $1
+            AND author_user_id = $2
+            AND deleted_at IS NULL
+            RETURNING community_post_id
+        `;
+        const result = await pool.query(query, [
+            postId,
+            userId,
+            post_text,
+            visibility || 'public',
+            tags || null,
+        ]);
+        if (!result.rows[0]) return null;
+        return await this.getPostById(postId, userId);
     }
 
     // 驗證貼文擁有者
