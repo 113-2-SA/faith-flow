@@ -745,6 +745,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: "rgba(255,255,255,0.95)",
   },
+  detailInnerCard: {
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+  },
   detailCardTop: {
     maxHeight: 280,
     marginBottom: 12,

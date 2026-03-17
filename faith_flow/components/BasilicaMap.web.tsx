@@ -288,7 +288,9 @@ export function BasilicaMap() {
             {/* Header */}
             <View style={styles.headerSection}>
                 <ThemedText type="title" style={styles.headerTitle}>
+                    <Text style={{ color: "rgb(255, 255, 255)" }}>
                     🌍 朝聖之地
+                    </Text>
                 </ThemedText>
                 <ThemedText style={styles.headerSubtitle}>
                     探索世界教堂的靈修之旅
