@@ -175,10 +175,84 @@ const BASILICAS: Basilica[] = [
     significance: "台灣天主教高等教育的精神中心，輔仁大學的信仰象徵",
     description: "輔仁大學淨心堂是台灣重要的教堂，座落在輔仁大學校園內。作為天主教大學的精神中心，淨心堂承載著信仰教育的使命，每日為師生提供靈修空間。",
     viewerUrl: "jingxin"
+  },
+  {
+    id: "holy_sepulchre",
+    name: "聖墓教堂",
+    nameEn: "Church of the Holy Sepulchre",
+    location: "耶路撒冷",
+    coordinates: [31.7780, 35.2296],
+    type: "chapel",
+    founded: 335,
+    dedication: "耶穌基督的復活",
+    style: "拜占庭式、哥德式",
+    significance: "基督復活的傳統地點，是基督教最重要的朝聖地之一。",
+    description: "聖墓教堂內包含耶穌被釘十字架、埋葬與復活的場所，吸引來自世界各地的朝聖者。",
+    viewerUrl: "holy_sepulchre"
+  },
+  {
+    id: "church_of_the_nativity",
+    name: "聖誕教堂",
+    nameEn: "Church of the Nativity",
+    location: "伯利恆",
+    coordinates: [31.7054, 35.2024],
+    type: "chapel",
+    founded: 339,
+    dedication: "耶穌的誕生",
+    style: "羅馬式、拜占庭式",
+    significance: "傳統上被視為耶穌誕生地，是歷史最悠久的教堂之一。",
+    description: "教堂建於聖赫羅德時期，保有早期基督教建築遺跡，並為四大聖地之一。",
+    viewerUrl: "nativity"
+  },
+  {
+    id: "annunciation_church",
+    name: "聖母領報堂",
+    nameEn: "Basilica of the Annunciation",
+    location: "拿撒勒",
+    coordinates: [32.7040, 35.2954],
+    type: "chapel",
+    founded: 1969,
+    dedication: "聖母領報",
+    style: "現代主義",
+    significance: "傳統上認為是天使向聖母宣報耶穌降生的地點，是敬禮聖母的重要朝聖地。",
+    description: "教堂內保存了早期基督教和十字軍時期的遺跡，並於 20 世紀重建成多層設計的聖殿。",
+    viewerUrl: "annunciation"
+  },
+  {
+    id: "multiplication_church",
+    name: "五餅二魚堂",
+    nameEn: "Church of the Multiplication",
+    location: "塔布加，加利利海",
+    coordinates: [32.8771, 35.5694],
+    type: "chapel",
+    founded: 350,
+    dedication: "耶穌行五餅二魚奇蹟",
+    style: "拜占庭式",
+    significance: "傳說耶穌在此用五餅二魚餵飽了五千人，是信仰力量的象徵。",
+    description: "教堂內保存著傳統上相信是耶穌祝禱的五餅二魚石盤遺跡，吸引眾多朝聖者到訪。",
+    viewerUrl: "multiplication"
+  },
+  {
+    id: "st_peter_gallicantu",
+    name: "雞鳴堂",
+    nameEn: "St. Peter in Gallicantu",
+    location: "耶路撒冷",
+    coordinates: [31.7765, 35.2303],
+    type: "chapel",
+    founded: 1931,
+    dedication: "聖伯多祿的三次不認主",
+    style: "拜占庭復興式",
+    significance: "傳統上認為彼得在此三次不認主後悔，提醒信徒悔改與信德堅定。",
+    description: "教堂建於耶穌被囚禁的古羅馬宮殿遺址上，並保留了古代地下洞穴和鷹嘴石遺跡。",
+    viewerUrl: "gallicantu"
   }
 ];
 
 type FilterType = "all" | "major" | "cathedral" | "chapel";
+
+const CROSS_MARKER_IMAGE = {
+  uri: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='64' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='rgba(102,126,234,0.9)'/><line x1='32' y1='12' x2='32' y2='52' stroke='%23ffffff' stroke-width='10' stroke-linecap='round'/><line x1='20' y1='28' x2='44' y2='28' stroke='%23ffffff' stroke-width='10' stroke-linecap='round'/></svg>"
+};
 
 export function BasilicaMap() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -234,6 +308,7 @@ export function BasilicaMap() {
               }}
               title={basilica.name}
               description={basilica.location}
+              image={CROSS_MARKER_IMAGE}
               onPress={() => setSelectedId(basilica.id)}
             />
           ))}
@@ -255,6 +330,72 @@ export function BasilicaMap() {
           </Text>
         </View>
       </GlassCard>
+
+      {/* Selected Basilica Info (顯示於搜尋列下方) */}
+      {selectedBasilica ? (
+        <GlassCard style={styles.detailCardTop} intensity={90}>
+          <ScrollView
+            style={styles.detailTopScroll}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
+          >
+            <ThemedText type="title" style={styles.detailName}>
+              {selectedBasilica.name}
+            </ThemedText>
+            <ThemedText style={styles.detailNameEn}>
+              {selectedBasilica.nameEn}
+            </ThemedText>
+
+            <View style={styles.detailDivider} />
+
+            <View style={styles.detailInfoRow}>
+              <ThemedText style={styles.detailLabel}>📍 位置</ThemedText>
+              <ThemedText style={styles.detailValue}>
+                {selectedBasilica.location}
+              </ThemedText>
+            </View>
+
+            <View style={styles.detailInfoRow}>
+              <ThemedText style={styles.detailLabel}>⏰ 建立</ThemedText>
+              <ThemedText style={styles.detailValue}>
+                {selectedBasilica.founded} 年
+              </ThemedText>
+            </View>
+
+            <View style={styles.detailInfoRow}>
+              <ThemedText style={styles.detailLabel}>✝️ 奉獻</ThemedText>
+              <ThemedText style={styles.detailValue}>
+                {selectedBasilica.dedication}
+              </ThemedText>
+            </View>
+
+            <View style={styles.detailInfoRow}>
+              <ThemedText style={styles.detailLabel}>🎨 風格</ThemedText>
+              <ThemedText style={styles.detailValue}>
+                {selectedBasilica.style}
+              </ThemedText>
+            </View>
+
+            <View style={styles.detailSection2}>
+              <ThemedText type="defaultSemiBold" style={styles.detailSectionTitle}>
+                聖經關聯
+              </ThemedText>
+              <ThemedText style={styles.detailDescription}>
+                {selectedBasilica.significance}
+              </ThemedText>
+            </View>
+
+            <View style={styles.detailSection2}>
+              <ThemedText type="defaultSemiBold" style={styles.detailSectionTitle}>
+                介紹
+              </ThemedText>
+              <ThemedText style={styles.detailDescription}>
+                {selectedBasilica.description}
+              </ThemedText>
+            </View>
+          </ScrollView>
+        </GlassCard>
+      ) : null}
 
       {/* Filter Tabs */}
       <ScrollView
@@ -295,7 +436,7 @@ export function BasilicaMap() {
       {/* Content Grid */}
       <View style={styles.contentGrid}>
         {/* Left: Basilica List */}
-        <ScrollView style={styles.listSection}>
+        <ScrollView style={styles.listSection} nestedScrollEnabled={true}>
           {filtered.map((basilica) => (
             <Pressable
               key={basilica.id}
@@ -333,7 +474,12 @@ export function BasilicaMap() {
 
         {/* Right: Basilica Details */}
         {selectedBasilica ? (
-          <ScrollView style={styles.detailSection}>
+          <ScrollView
+            style={styles.detailSection}
+            nestedScrollEnabled={true}
+            showsVerticalScrollIndicator={true}
+            contentContainerStyle={styles.detailScrollContent}
+          >
             <GlassCard style={styles.detailCard} intensity={100}>
               {/* Header */}
               <View style={styles.detailHeader}>
@@ -547,9 +693,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   contentGrid: {
+    flex: 1,
     flexDirection: "row",
     gap: 12,
     marginBottom: 12,
+    minHeight: 200,
   },
   listSection: {
     flex: 1,
@@ -587,9 +735,23 @@ const styles = StyleSheet.create({
   detailSection: {
     flex: 1.2,
   },
+  detailScrollContent: {
+    flexGrow: 1,
+  },
   detailCard: {
     paddingHorizontal: 16,
     paddingVertical: 14,
+    backgroundColor: "rgba(255,255,255,0.95)",
+  },
+  detailCardTop: {
+    maxHeight: 280,
+    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: "rgba(255,255,255,0.95)",
+  },
+  detailTopScroll: {
+    flexGrow: 0,
   },
   detailHeader: {
     flexDirection: "row",
@@ -607,17 +769,17 @@ const styles = StyleSheet.create({
   detailName: {
     fontSize: 22,
     fontWeight: "700",
-    color: "rgba(255,255,255,0.95)",
+    color: "#000",
   },
   detailNameEn: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.6)",
+    color: "rgba(0,0,0,0.7)",
     fontStyle: "italic",
     marginTop: 2,
   },
   detailDivider: {
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "rgba(0,0,0,0.08)",
     marginVertical: 12,
   },
   detailInfoRow: {
@@ -625,25 +787,25 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 12,
-    color: "rgba(102, 126, 234, 0.9)",
+    color: "rgba(0,0,0,0.8)",
     fontWeight: "600",
     marginBottom: 4,
   },
   detailValue: {
     fontSize: 14,
-    color: "rgba(255,255,255,0.85)",
+    color: "rgba(0,0,0,0.9)",
   },
   detailSection2: {
     marginTop: 14,
   },
   detailSectionTitle: {
     fontSize: 13,
-    color: "rgba(102, 126, 234, 0.95)",
+    color: "rgba(0,0,0,0.85)",
     marginBottom: 6,
   },
   detailDescription: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.75)",
+    color: "rgba(0,0,0,0.8)",
     lineHeight: 18,
   },
   actionButton: {
