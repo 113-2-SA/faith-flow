@@ -496,34 +496,36 @@ export function BasilicaMap() {
 
               <View style={styles.detailDivider} />
 
-              {/* Info Rows */}
-              <View style={styles.detailInfoRow}>
-                <ThemedText style={styles.detailLabel}>📍 位置</ThemedText>
-                <ThemedText style={styles.detailValue}>
-                  {selectedBasilica.location}
-                </ThemedText>
-              </View>
+              {/* 教堂詳細區塊（套玻璃卡，套在外層 GlassCard 時同層轉透明） */}
+              <GlassCard style={styles.detailInnerCard} transparent>
+                <View style={styles.detailInfoRow}>
+                  <ThemedText style={styles.detailLabel}>📍 位置</ThemedText>
+                  <ThemedText style={styles.detailValue}>
+                    {selectedBasilica.location}
+                  </ThemedText>
+                </View>
 
-              <View style={styles.detailInfoRow}>
-                <ThemedText style={styles.detailLabel}>⏰ 建立</ThemedText>
-                <ThemedText style={styles.detailValue}>
-                  {selectedBasilica.founded} 年
-                </ThemedText>
-              </View>
+                <View style={styles.detailInfoRow}>
+                  <ThemedText style={styles.detailLabel}>⏰ 建立</ThemedText>
+                  <ThemedText style={styles.detailValue}>
+                    {selectedBasilica.founded} 年
+                  </ThemedText>
+                </View>
 
-              <View style={styles.detailInfoRow}>
-                <ThemedText style={styles.detailLabel}>✝️ 奉獻給</ThemedText>
-                <ThemedText style={styles.detailValue}>
-                  {selectedBasilica.dedication}
-                </ThemedText>
-              </View>
+                <View style={styles.detailInfoRow}>
+                  <ThemedText style={styles.detailLabel}>✝️ 奉獻給</ThemedText>
+                  <ThemedText style={styles.detailValue}>
+                    {selectedBasilica.dedication}
+                  </ThemedText>
+                </View>
 
-              <View style={styles.detailInfoRow}>
-                <ThemedText style={styles.detailLabel}>🎨 建築風格</ThemedText>
-                <ThemedText style={styles.detailValue}>
-                  {selectedBasilica.style}
-                </ThemedText>
-              </View>
+                <View style={styles.detailInfoRow}>
+                  <ThemedText style={styles.detailLabel}>🎨 建築風格</ThemedText>
+                  <ThemedText style={styles.detailValue}>
+                    {selectedBasilica.style}
+                  </ThemedText>
+                </View>
+              </GlassCard>
 
               {/* Description */}
               <View style={styles.detailSection2}>

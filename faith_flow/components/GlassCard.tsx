@@ -6,11 +6,18 @@ type Props = {
   children?: React.ReactNode;
   style?: ViewStyle;
   intensity?: number; // 0~100
+  transparent?: boolean;
 };
 
-export function GlassCard({ children, style, intensity = 30 }: Props) {
+export function GlassCard({ children, style, intensity = 30, transparent = false }: Props) {
   return (
-    <View style={[styles.wrap, style]}>
+    <View
+      style={[
+        styles.wrap,
+        transparent ? styles.wrapTransparent : null,
+        style,
+      ]}
+    >
       <BlurView intensity={intensity} tint="light" style={StyleSheet.absoluteFill} />
       {/* 淡白霧（讓玻璃更像） */}
       <View style={styles.frost} />
@@ -26,6 +33,9 @@ const styles = StyleSheet.create({
     borderRadius: 10, // 改成10，與border一致
     overflow: "hidden",
     backgroundColor: "rgba(255,255,255,0.02)",
+  },
+  wrapTransparent: {
+    backgroundColor: "transparent",
   },
   frost: {
     ...StyleSheet.absoluteFillObject,
