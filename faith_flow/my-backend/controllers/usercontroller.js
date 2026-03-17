@@ -125,6 +125,30 @@ exports.updateUserInfo = async (req, res) => {
   }
 };
 
+/**
+ * 取得指定使用者的公開個人資料
+ * GET /api/user/:userId
+ */
+exports.getUserById = async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    if (isNaN(userId)) {
+      return res.status(400).json({ ok: false, error: "無效的使用者 ID" });
+    }
+
+    const user = await userService.getUserProfileById(userId);
+
+    if (!user) {
+      return res.status(404).json({ ok: false, error: "找不到使用者" });
+    }
+
+    res.json({ ok: true, data: user });
+  } catch (error) {
+    console.error("[getUserById] 錯誤:", error);
+    res.status(500).json({ ok: false, error: "取得使用者資料失敗" });
+  }
+};
+
 // module.exports = {
 //   getMyProfile,
 //   updateProfile,

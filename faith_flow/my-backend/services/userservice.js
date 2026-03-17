@@ -8,7 +8,7 @@ const pool = require("../config/database");
  */
 async function getUserProfile(firebaseUid) {
   const result = await pool.query(
-    `SELECT "userID", firebase_uid, user_name, use_pic, profile, join_time
+    `SELECT "userID", firebase_uid, user_name, user_pic, user_profile, join_time
      FROM "user"
      WHERE firebase_uid = $1`,
     [firebaseUid]
@@ -22,9 +22,9 @@ async function getUserProfile(firebaseUid) {
 async function updateUserProfile(firebaseUid, profile) {
   const result = await pool.query(
     `UPDATE "user"
-     SET profile = $1
+     SET user_profile = $1
      WHERE firebase_uid = $2
-     RETURNING "userID", firebase_uid, user_name, use_pic, profile, join_time`,
+     RETURNING "userID", firebase_uid, user_name, user_pic, user_profile, join_time`,
     [profile, firebaseUid]
   );
   return result.rows[0] || null;
@@ -48,13 +48,13 @@ async function updateUserInfo(firebaseUid, updates) {
   }
   
   if (usePic !== undefined) {
-    fields.push(`use_pic = $${paramCount}`);
+    fields.push(`user_pic = $${paramCount}`);
     values.push(usePic);
     paramCount++;
   }
   
   if (profile !== undefined) {
-    fields.push(`profile = $${paramCount}`);
+    fields.push(`user_profile = $${paramCount}`);
     values.push(profile);
     paramCount++;
   }
@@ -70,15 +70,29 @@ async function updateUserInfo(firebaseUid, updates) {
     UPDATE "user"
     SET ${fields.join(", ")}
     WHERE firebase_uid = $${paramCount}
-    RETURNING "userID", firebase_uid, user_name, use_pic, profile, join_time
+    RETURNING "userID", firebase_uid, user_name, user_pic, user_profile, join_time
   `;
   
   const result = await pool.query(sql, values);
   return result.rows[0] || null;
 }
 
+/**
+ * 根據數字 userID 取得使用者公開資料
+ */
+async function getUserProfileById(userId) {
+  const result = await pool.query(
+    `SELECT "userID", user_name, user_pic, user_profile, join_time
+     FROM "user"
+     WHERE "userID" = $1`,
+    [userId]
+  );
+  return result.rows[0] || null;
+}
+
 module.exports = {
   getUserProfile,
+  getUserProfileById,
   updateUserProfile,
   updateUserInfo
 };

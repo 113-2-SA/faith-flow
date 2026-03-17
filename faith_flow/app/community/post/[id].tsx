@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
+  Image,
   FlatList,
   TextInput,
   TouchableOpacity,
@@ -23,6 +24,14 @@ interface Tag {
   tag_name: string;
 }
 
+interface OriginalPost {
+  community_post_id: number;
+  post_text: string;
+  created_at: string;
+  original_author_name: string | null;
+  original_author_avatar: string | null;
+}
+
 interface Post {
   community_post_id: number;
   author_user_id: number;
@@ -30,12 +39,14 @@ interface Post {
   post_type: string;
   visibility: string;
   username: string | null;
+  avatar_url: string | null;
   tags: Tag[];
   created_at: string;
   like_count?: number;
   comment_count?: number;
   is_liked?: boolean;
   is_owner?: boolean;
+  original_post?: OriginalPost;
 }
 
 interface Comment {
@@ -81,6 +92,7 @@ export default function PostDetailScreen() {
   const [post, setPost] = useState<Post | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [commentError, setCommentError] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
   const [replyTo, setReplyTo] = useState<{ id: number; username: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -107,7 +119,13 @@ export default function PostDetailScreen() {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();
-    if (data.ok) setComments(data.data);
+    if (data.ok) {
+      setComments(data.data ?? []);
+      setCommentError(null);
+    } else {
+      console.error('[fetchComments] 錯誤:', data.error, res.status);
+      setCommentError(data.error ?? '無法載入留言');
+    }
   }
 
   useEffect(() => {
@@ -299,14 +317,22 @@ export default function PostDetailScreen() {
               <GlassCard style={styles.postCard}>
                 {/* Author row */}
                 <View style={styles.postHeader}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>
-                      {post.username ? post.username[0] : '?'}
-                    </Text>
-                  </View>
+                  <TouchableOpacity onPress={() => router.push(`/user/${post.author_user_id}` as never)}>
+                    {post.avatar_url ? (
+                      <Image source={{ uri: post.avatar_url }} style={styles.avatarImage} />
+                    ) : (
+                      <View style={styles.avatar}>
+                        <Text style={styles.avatarText}>
+                          {post.username ? post.username[0] : '?'}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
                   <View style={{ flex: 1 }}>
                     <View style={styles.authorRow}>
-                      <Text style={styles.authorName}>{post.username ?? '匿名'}</Text>
+                      <TouchableOpacity onPress={() => router.push(`/user/${post.author_user_id}` as never)}>
+                        <Text style={styles.authorName}>{post.username ?? '匿名'}</Text>
+                      </TouchableOpacity>
                       {post.post_type !== 'original' && (
                         <Text style={styles.categoryLabel}>
                           {' › '}{POST_TYPE_LABELS[post.post_type] ?? post.post_type}
@@ -329,7 +355,33 @@ export default function PostDetailScreen() {
                 )}
 
                 {/* Content */}
-                <Text style={styles.postText}>{post.post_text}</Text>
+                {post.post_text ? <Text style={styles.postText}>{post.post_text}</Text> : null}
+
+                {/* Embedded original post for shared type */}
+                {post.post_type === 'shared' && post.original_post && (
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => router.push(`/community/post/${post.original_post!.community_post_id}` as never)}
+                    style={styles.quotedCard}
+                  >
+                    <View style={styles.quotedHeader}>
+                      {post.original_post.original_author_avatar ? (
+                        <Image source={{ uri: post.original_post.original_author_avatar }} style={styles.quotedAvatar} />
+                      ) : (
+                        <View style={styles.quotedAvatarPlaceholder}>
+                          <Text style={styles.quotedAvatarText}>
+                            {post.original_post.original_author_name?.[0] ?? '?'}
+                          </Text>
+                        </View>
+                      )}
+                      <Text style={styles.quotedAuthor}>
+                        {post.original_post.original_author_name ?? '匿名'}
+                      </Text>
+                      <Text style={styles.quotedTime}> · {timeAgo(post.original_post.created_at)}</Text>
+                    </View>
+                    <Text style={styles.quotedText}>{post.original_post.post_text}</Text>
+                  </TouchableOpacity>
+                )}
 
                 {/* Actions */}
                 <View style={styles.actions}>
@@ -362,7 +414,9 @@ export default function PostDetailScreen() {
           }
           ListEmptyComponent={
             <GlassCard style={styles.emptyCard}>
-              <Text style={styles.emptyText}>還沒有留言，來說第一句吧！</Text>
+              <Text style={styles.emptyText}>
+                {commentError ? `載入留言失敗：${commentError}` : '還沒有留言，來說第一句吧！'}
+              </Text>
             </GlassCard>
           }
           renderItem={({ item }) => (
@@ -435,6 +489,11 @@ const styles = StyleSheet.create({
 
   postCard: { marginBottom: 16 },
   postHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  avatarImage: {
+    width: 40, height: 40, borderRadius: 20,
+    marginRight: 10,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)',
+  },
   avatar: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.25)',
@@ -509,6 +568,42 @@ const styles = StyleSheet.create({
 
   emptyCard: { alignItems: 'center', paddingVertical: 24 },
   emptyText: { fontSize: 14, color: 'rgba(255,255,255,0.6)' },
+
+  // Quoted / embedded original post
+  quotedCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 14,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+  quotedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  quotedAvatar: {
+    width: 20, height: 20, borderRadius: 10, marginRight: 6,
+  },
+  quotedAvatarPlaceholder: {
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center', alignItems: 'center',
+    marginRight: 6,
+  },
+  quotedAvatarText: {
+    fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.9)',
+  },
+  quotedAuthor: {
+    fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.85)',
+  },
+  quotedTime: {
+    fontSize: 12, color: 'rgba(255,255,255,0.45)',
+  },
+  quotedText: {
+    fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 20,
+  },
 
   // Input bar
   inputBar: { margin: 12, marginTop: 0 },

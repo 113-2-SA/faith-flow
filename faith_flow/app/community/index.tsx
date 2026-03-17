@@ -2,8 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
+  Image,
   FlatList,
   TouchableOpacity,
+  TextInput,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
@@ -14,6 +19,14 @@ import { useAuth } from '../context/authcontext';
 import { API_BASE_URL } from '../../lib/api';
 import { VideoBackground } from '../../components/VideoBackground';
 import { GlassCard } from '../../components/GlassCard';
+
+interface OriginalPost {
+  community_post_id: number;
+  post_text: string;
+  created_at: string;
+  original_author_name: string | null;
+  original_author_avatar: string | null;
+}
 
 interface Post {
   community_post_id: number;
@@ -29,6 +42,7 @@ interface Post {
   comment_count?: number;
   is_liked?: boolean;
   is_owner?: boolean;
+  original_post?: OriginalPost;
 }
 
 const POST_TYPE_LABELS: Record<string, string> = {
@@ -60,6 +74,9 @@ export default function CommunityFeedScreen() {
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [shareTarget, setShareTarget] = useState<Post | null>(null);
+  const [shareCaption, setShareCaption] = useState('');
+  const [sharing, setSharing] = useState(false);
   const LIMIT = 20;
 
   const fetchPosts = useCallback(async (reset = false, tag?: string | null) => {
@@ -137,6 +154,31 @@ export default function CommunityFeedScreen() {
     ]);
   };
 
+  const submitShare = async () => {
+    if (!shareTarget || !currentUser) return;
+    setSharing(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${API_BASE_URL}/api/share/${shareTarget.community_post_id}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ share_caption: shareCaption.trim(), visibility: 'public' }),
+      });
+      const data = await res.json();
+      if (data.ok ?? data.success) {
+        setShareTarget(null);
+        setShareCaption('');
+        fetchPosts(true, selectedTag);
+      } else {
+        Alert.alert('錯誤', data.error ?? '轉發失敗');
+      }
+    } catch {
+      Alert.alert('錯誤', '網路連線失敗');
+    } finally {
+      setSharing(false);
+    }
+  };
+
   const toggleLike = async (postId: number, isLiked: boolean) => {
     if (!currentUser) return;
     // Optimistic update
@@ -192,14 +234,24 @@ export default function CommunityFeedScreen() {
       <GlassCard style={styles.postCard}>
         {/* Header */}
         <View style={styles.postHeader}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {item.username ? item.username[0] : '?'}
-            </Text>
-          </View>
+          <TouchableOpacity
+            onPress={(e) => { e.stopPropagation(); router.push(`/user/${item.author_user_id}` as never); }}
+          >
+            {item.avatar_url ? (
+              <Image source={{ uri: item.avatar_url }} style={styles.avatarImage} />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {item.username ? item.username[0] : '?'}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
           <View style={styles.postMeta}>
             <View style={styles.authorRow}>
-              <Text style={styles.authorName}>{item.username ?? '匿名'}</Text>
+              <TouchableOpacity onPress={(e) => { e.stopPropagation(); router.push(`/user/${item.author_user_id}` as never); }}>
+                <Text style={styles.authorName}>{item.username ?? '匿名'}</Text>
+              </TouchableOpacity>
               {item.is_owner && (
                 <TouchableOpacity
                   onPress={() => Alert.alert('操作', '', [
@@ -237,8 +289,39 @@ export default function CommunityFeedScreen() {
           </View>
         </View>
 
-        {/* Content */}
-        <Text style={styles.postText}>{item.post_text}</Text>
+        {/* Caption (for shared posts) */}
+        {item.post_text ? <Text style={styles.postText}>{item.post_text}</Text> : null}
+
+        {/* Embedded original post */}
+        {item.post_type === 'shared' && item.original_post && (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={(e) => {
+              e.stopPropagation();
+              router.push(`./community/post/${item.original_post!.community_post_id}`);
+            }}
+            style={styles.quotedCard}
+          >
+            <View style={styles.quotedHeader}>
+              {item.original_post.original_author_avatar ? (
+                <Image source={{ uri: item.original_post.original_author_avatar }} style={styles.quotedAvatar} />
+              ) : (
+                <View style={styles.quotedAvatarPlaceholder}>
+                  <Text style={styles.quotedAvatarText}>
+                    {item.original_post.original_author_name?.[0] ?? '?'}
+                  </Text>
+                </View>
+              )}
+              <Text style={styles.quotedAuthor}>
+                {item.original_post.original_author_name ?? '匿名'}
+              </Text>
+              <Text style={styles.quotedTime}> · {timeAgo(item.original_post.created_at)}</Text>
+            </View>
+            <Text style={styles.quotedText} numberOfLines={4}>
+              {item.original_post.post_text}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Actions */}
         <View style={styles.actions}>
@@ -264,7 +347,11 @@ export default function CommunityFeedScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionBtn}
-            onPress={(e) => e.stopPropagation()}
+            onPress={(e) => {
+              e.stopPropagation();
+              setShareTarget(item);
+              setShareCaption('');
+            }}
           >
             <Text style={styles.actionIcon}>🔄</Text>
           </TouchableOpacity>
@@ -278,7 +365,7 @@ export default function CommunityFeedScreen() {
       <View style={styles.container}>
         {/* Top bar */}
         <GlassCard style={styles.topBar}>
-          <Text style={styles.topBarTitle}>社群動態</Text>
+          <Text style={styles.topBarTitle}>心靈營火</Text>
         </GlassCard>
 
         {/* Active tag filter */}
@@ -315,7 +402,7 @@ export default function CommunityFeedScreen() {
             ListEmptyComponent={
               <GlassCard style={styles.emptyCard}>
                 <Text style={styles.emptyIcon}>🕊️</Text>
-                <Text style={styles.emptyText}>還沒有貼文，來分享第一篇吧！</Text>
+                <Text style={styles.emptyText}>尚未注入火苗，來分享第一篇吧！</Text>
               </GlassCard>
             }
             ListFooterComponent={
@@ -337,6 +424,74 @@ export default function CommunityFeedScreen() {
           <Text style={styles.fabText}>+</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Share Modal */}
+      <Modal
+        visible={!!shareTarget}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShareTarget(null)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>轉發貼文</Text>
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder="加入你的想法（可留空）"
+              placeholderTextColor="rgba(255,255,255,0.35)"
+              value={shareCaption}
+              onChangeText={setShareCaption}
+              multiline
+              maxLength={500}
+            />
+
+            {/* Preview of original post */}
+            {shareTarget && (
+              <View style={[styles.quotedCard, { marginBottom: 16 }]}>
+                <View style={styles.quotedHeader}>
+                  {shareTarget.avatar_url ? (
+                    <Image source={{ uri: shareTarget.avatar_url }} style={styles.quotedAvatar} />
+                  ) : (
+                    <View style={styles.quotedAvatarPlaceholder}>
+                      <Text style={styles.quotedAvatarText}>
+                        {shareTarget.username?.[0] ?? '?'}
+                      </Text>
+                    </View>
+                  )}
+                  <Text style={styles.quotedAuthor}>{shareTarget.username ?? '匿名'}</Text>
+                  <Text style={styles.quotedTime}> · {timeAgo(shareTarget.created_at)}</Text>
+                </View>
+                <Text style={styles.quotedText} numberOfLines={4}>
+                  {shareTarget.post_text}
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setShareTarget(null)}
+              >
+                <Text style={styles.modalCancelText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalSubmitBtn}
+                onPress={submitShare}
+                disabled={sharing}
+              >
+                {sharing
+                  ? <ActivityIndicator size="small" color="white" />
+                  : <Text style={styles.modalSubmitText}>轉發</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </VideoBackground>
   );
 }
@@ -375,6 +530,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
+  },
+  avatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
   },
   avatar: {
     width: 40,
@@ -530,5 +693,119 @@ const styles = StyleSheet.create({
   postMenuIcon: {
     fontSize: 18,
     color: 'rgba(255,255,255,0.6)',
+  },
+
+  // Quoted / embedded original post
+  quotedCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+  quotedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  quotedAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginRight: 6,
+  },
+  quotedAvatarPlaceholder: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 6,
+  },
+  quotedAvatarText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.9)',
+  },
+  quotedAuthor: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.85)',
+  },
+  quotedTime: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.45)',
+  },
+  quotedText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.75)',
+    lineHeight: 20,
+  },
+
+  // Share modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: 'rgba(30,30,50,0.97)',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 16,
+    paddingBottom: 32,
+    borderTopWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  modalInput: {
+    minHeight: 70,
+    maxHeight: 140,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    color: 'rgba(255,255,255,0.95)',
+    fontSize: 15,
+    padding: 10,
+    marginBottom: 12,
+    textAlignVertical: 'top',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  modalCancelText: {
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  modalSubmitBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,122,255,0.8)',
+    alignItems: 'center',
+  },
+  modalSubmitText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: 'white',
   },
 });

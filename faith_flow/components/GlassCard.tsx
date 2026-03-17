@@ -16,7 +16,7 @@ export function GlassCard({ children, style, intensity = 30 }: Props) {
       <View style={styles.frost} />
       {/* 細邊框 */}
       <View style={styles.border} />
-      <View style={styles.content}>{children}</View>
+      <View style={[styles.content, style]}>{children}</View>
     </View>
   );
 }

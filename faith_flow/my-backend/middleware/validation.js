@@ -8,7 +8,7 @@ const validateCreatePost = [
         .isLength({ max: 5000 }).withMessage('內文不能超過5000字'),
     
     body('post_type')
-        .isIn(['letter', 'diary', 'normal']).withMessage('無效的貼文類型'),
+        .isIn(['letter', 'diary', 'normal', 'shared']).withMessage('無效的貼文類型'),
     
     body('visibility')
         .optional()

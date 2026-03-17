@@ -184,15 +184,44 @@ class PostService {
                 u."user_name" as username,
                 u."user_pic" as avatar_url
                 ${userStatusFields}
+                , op.community_post_id   as orig_post_id
+                , op.post_text           as orig_post_text
+                , op.created_at          as orig_post_created_at
+                , ou."user_name"         as orig_author_name
+                , ou."user_pic"          as orig_author_avatar
+                , ps.share_caption       as orig_share_caption
             FROM community_posts p
             LEFT JOIN "user" u ON p.author_user_id = u."userID"
+            LEFT JOIN community_post_shares ps
+                ON ps.shared_post_id = p.community_post_id
+            LEFT JOIN community_posts op
+                ON ps.original_post_id = op.community_post_id AND op.deleted_at IS NULL
+            LEFT JOIN "user" ou ON op.author_user_id = ou."userID"
             WHERE ${conditions.join(' AND ')}
             ORDER BY p.created_at DESC
             LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
         `;
 
         const result = await pool.query(query, params);
-        return result.rows;
+        return result.rows.map(row => {
+            const post = { ...row };
+            if (row.post_type === 'shared' && row.orig_post_id) {
+                post.original_post = {
+                    community_post_id: row.orig_post_id,
+                    post_text: row.orig_post_text,
+                    created_at: row.orig_post_created_at,
+                    original_author_name: row.orig_author_name,
+                    original_author_avatar: row.orig_author_avatar,
+                };
+            }
+            delete post.orig_post_id;
+            delete post.orig_post_text;
+            delete post.orig_post_created_at;
+            delete post.orig_author_name;
+            delete post.orig_author_avatar;
+            delete post.orig_share_caption;
+            return post;
+        });
     }
 
     // 獲取貼文總數（用於分頁）

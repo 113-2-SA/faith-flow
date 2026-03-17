@@ -29,4 +29,10 @@ router.put("/profile", userController.updateProfile);
  */
 router.patch("/profile", userController.updateUserInfo);
 
+/**
+ * GET /api/user/:userId
+ * 取得指定使用者的公開個人資料
+ */
+router.get("/:userId", userController.getUserById);
+
 module.exports = router;

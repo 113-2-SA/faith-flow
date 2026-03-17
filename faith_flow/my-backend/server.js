@@ -70,12 +70,12 @@ app.use("/api/diary", diaryRoutes);
 app.use('/api/post', postRoutes);
 
 // 認證相關的路由
-// POST /auth/sync
-app.use("api/auth", authRoutes);
+// POST /api/auth/sync
+app.use("/api/auth", authRoutes);
 
 // 管理員相關的路由
-// POST /admin/import-firebase-auth-users
-app.use("api/admin", authRoutes);
+// POST /api/admin/import-firebase-auth-users
+app.use("/api/admin", authRoutes);
 
 // 留言相關路由
 app.use('/api/comments', commentRoutes);         

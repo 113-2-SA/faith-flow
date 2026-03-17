@@ -6,13 +6,13 @@ async function upsertUser(userData) {
   const { firebaseUid, displayName, photoUrl } = userData;
   
   const sql = `
-    INSERT INTO "user" (firebase_uid, user_name, use_pic, join_time)
+    INSERT INTO "user" (firebase_uid, user_name, user_pic, join_time)
     VALUES ($1, $2, $3, CURRENT_DATE)
     ON CONFLICT (firebase_uid)
     DO UPDATE SET
       user_name = EXCLUDED.user_name,
-      use_pic   = EXCLUDED.use_pic
-    RETURNING "userID", firebase_uid, user_name, use_pic, join_time;
+      user_pic  = EXCLUDED.user_pic
+    RETURNING "userID", firebase_uid, user_name, user_pic, join_time;
   `;
   
   const result = await pool.query(sql, [firebaseUid, displayName, photoUrl]);
@@ -38,12 +38,12 @@ async function importAllFirebaseUsers() {
       try {
         await pool.query(
           `
-          INSERT INTO "user" (firebase_uid, user_name, use_pic, join_time)
+          INSERT INTO "user" (firebase_uid, user_name, user_pic, join_time)
           VALUES ($1, $2, $3, CURRENT_DATE)
           ON CONFLICT (firebase_uid)
           DO UPDATE SET
             user_name = EXCLUDED.user_name,
-            use_pic   = EXCLUDED.use_pic
+            user_pic  = EXCLUDED.user_pic
           `,
           [firebaseUid, displayName, photoUrl]
         );
@@ -64,7 +64,7 @@ async function importAllFirebaseUsers() {
 
 async function getAllUsers(limit = 50) {
   const result = await pool.query(
-    `SELECT "userID", firebase_uid, user_name, use_pic, join_time
+    `SELECT "userID", firebase_uid, user_name, user_pic, join_time
      FROM "user"
      ORDER BY "userID" DESC
      LIMIT $1`,
