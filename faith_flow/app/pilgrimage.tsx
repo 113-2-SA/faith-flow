@@ -18,7 +18,7 @@ export default function PilgrimageTab() {
             color: 'rgba(255,255,255,0.95)',
             marginBottom: 14,
           }}>
-            朝聖之地
+            
           </Text>
 
           <View style={{ flex: 1, minHeight: 400, borderRadius: 14, overflow: 'hidden' }}>
