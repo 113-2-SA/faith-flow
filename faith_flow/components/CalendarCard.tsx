@@ -1,20 +1,43 @@
 import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
+import { useRouter } from "expo-router";  // ⭐ 新增
 import { buildMonthGrid, addMonths, monthNameEn } from "./calendarUtils";
 import { GlassCard } from "./GlassCard";
-
 
 const WEEK = ["Sun", "Mon", "Tue", "WED", "THU", "FRI", "SAT"];
 
 export function CalendarCard() {
+  const router = useRouter();  // ⭐ 新增
   const [viewDate, setViewDate] = useState(() => new Date());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);  // ⭐ 新增
 
   const year = viewDate.getFullYear();
   const monthTitle = monthNameEn(viewDate);
   const cells = useMemo(() => buildMonthGrid(viewDate), [viewDate]);
 
-return (
-  <GlassCard style={styles.card}>
+  // ⭐ 處理日期點擊
+  const handleDateClick = (date: Date, inMonth: boolean) => {
+    // 只處理本月的日期
+    if (!inMonth) return;
+
+    // 格式化日期為 YYYY-MM-DD
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateString = `${year}-${month}-${day}`;
+    
+    console.log('📅 點擊日期:', dateString);
+    setSelectedDate(dateString);
+    
+    // ⭐ 導航到日記列表頁面
+    router.push({
+      pathname: '../diary/list',
+      params: { date: dateString }
+    });
+  };
+
+  return (
+    <GlassCard style={styles.card}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable
@@ -55,13 +78,20 @@ return (
       <View style={styles.grid}>
         {cells.map((c, idx) => {
           const day = c.date.getDate();
+          
+          // ⭐ 檢查是否為選中的日期
+          const dateString = `${c.date.getFullYear()}-${String(c.date.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const isSelected = selectedDate === dateString;
+          
           return (
             <Pressable
               key={`${c.date.toISOString()}-${idx}`}
-              disabled
+              disabled={!c.inMonth}  // ⭐ 改為只禁用非本月的日期
+              onPress={() => handleDateClick(c.date, c.inMonth)}  // ⭐ 加上點擊事件
               style={[
                 styles.cell,
                 c.isToday && styles.cellToday,
+                isSelected && styles.cellSelected,  // ⭐ 選中的樣式
               ]}
             >
               <Text
@@ -69,6 +99,7 @@ return (
                   styles.cellText,
                   !c.inMonth && styles.cellTextDim,
                   c.isToday && styles.cellTextToday,
+                  isSelected && styles.cellTextSelected,  // ⭐ 選中的文字樣式
                 ]}
               >
                 {day}
@@ -77,12 +108,19 @@ return (
           );
         })}
       </View>
+
+      {/* ⭐ 底部提示（選中日期時顯示）*/}
+      {selectedDate && (
+        <View style={styles.footer}>
+          <Text style={styles.footerDate}>{selectedDate}</Text>
+          <Text style={styles.footerText}>向上拉動瀏覽今日日記</Text>
+        </View>
+      )}
     </GlassCard>
   );
 }
 
 const styles = StyleSheet.create({
-
   card: {
     flex: 1,
   },
@@ -165,5 +203,35 @@ const styles = StyleSheet.create({
   cellTextToday: {
     color: "rgba(255,255,255,0.95)",
     fontWeight: "700",
+  },
+
+  // ⭐ 新增：選中日期的樣式
+  cellSelected: {
+    backgroundColor: "rgba(0, 122, 255, 0.5)",  // 藍色半透明背景
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.8)",
+  },
+  cellTextSelected: {
+    color: "rgba(255,255,255,1)",
+    fontWeight: "700",
+  },
+
+  // ⭐ 新增：底部提示區域
+  footer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.22)",
+    alignItems: "center",
+  },
+  footerDate: {
+    color: "rgba(255,255,255,0.95)",
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  footerText: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 12,
   },
 });
