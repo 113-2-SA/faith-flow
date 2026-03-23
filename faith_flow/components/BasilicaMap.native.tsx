@@ -753,6 +753,10 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.01)",
     borderWidth: 1,
   },
+  detailInnerCard: {
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+  },
   detailCardTop: {
     maxHeight: 280,
     marginBottom: 12,
