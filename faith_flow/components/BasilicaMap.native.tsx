@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useEffect } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions } from "react-native";
+import React, { useMemo, useState, useEffect, useRef } from "react";
+import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { GlassCard } from "./GlassCard";
 import { ThemedText } from "./themed-text";
@@ -32,6 +32,9 @@ export function BasilicaMap() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<FilterType>("all");
   const [searchText, setSearchText] = useState("");
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [detailY, setDetailY] = useState(0);
+  const [displayCount, setDisplayCount] = useState(3);
 
   useEffect(() => {
     const fetchBasilicas = async () => {
@@ -81,13 +84,32 @@ export function BasilicaMap() {
     });
   }, [basilicas, filterType, searchText]);
 
+  // 當篩選條件改變時，重置顯示數量為 3
+  useEffect(() => {
+    setDisplayCount(3);
+  }, [filterType, searchText]);
+
+  const displayedBasilicas = filtered.slice(0, displayCount);
+
   const selectedBasilica = selectedId
     ? basilicas.find((b) => b.id === selectedId)
     : null;
 
+  // 當選中教堂時，畫面自動滾動到教堂介紹區塊
+  useEffect(() => {
+    if (selectedId && detailY > 0) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({
+          y: detailY - 10,
+          animated: true,
+        });
+      }, 100);
+    }
+  }, [selectedId, detailY]);
+
   if (loading) {
     return (
-      <ThemedView style={styles.container}>
+      <ThemedView style={styles.scrollRoot}>
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>載入教堂資料中...</Text>
         </View>
@@ -97,7 +119,7 @@ export function BasilicaMap() {
 
   if (error) {
     return (
-      <ThemedView style={styles.container}>
+      <ThemedView style={styles.scrollRoot}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
         </View>
@@ -106,345 +128,283 @@ export function BasilicaMap() {
   }
 
   return (
-    <ThemedView style={styles.container}>
-      {/* Header */}
-      <View style={styles.headerSection}>
-        <ThemedText type="title" style={styles.headerTitle}>
-          🌍 朝聖之地
-        </ThemedText>
-        <ThemedText style={styles.headerSubtitle}>
-          探索世界教堂的靈修之旅
-        </ThemedText>
-      </View>
+    <ThemedView style={styles.scrollRoot}>
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.headerSection}>
+          <ThemedText type="title" style={styles.headerTitle}>
+            🌍 朝聖之地
+          </ThemedText>
+          <ThemedText style={styles.headerSubtitle}>
+            探索世界教堂的靈修之旅
+          </ThemedText>
+        </View>
 
-      {/* Map View - Centered */}
-      <View style={styles.mapContainer}>
-        <MapView
-          provider={PROVIDER_GOOGLE}
-          style={styles.map}
-          initialRegion={{
-            latitude: MAP_CONFIG.defaultCenter.lat,
-            longitude: MAP_CONFIG.defaultCenter.lng,
-            latitudeDelta: 50,
-            longitudeDelta: 50,
-          }}
-        >
-          {filtered.map((basilica) => (
-            <Marker
-              key={basilica.id}
-              coordinate={{
-                latitude: basilica.coordinates[0],
-                longitude: basilica.coordinates[1],
-              }}
-              title={basilica.name}
-              description={basilica.location}
-              onPress={() => setSelectedId(basilica.id)}
-            >
-              <View style={styles.customMarker}>
-                <View style={styles.crossVertical} />
-                <View style={styles.crossHorizontal} />
-              </View>
-            </Marker>
-          ))}
-        </MapView>
-      </View>
-
-      {/* Search */}
-      <GlassCard style={styles.searchCard} intensity={85} glassColor="transparent">
-        <ThemedText style={styles.searchLabel}>搜尋教堂</ThemedText>
-        <View style={styles.searchInput}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <Text
-            style={styles.searchPlaceholder}
-            onPress={() => {
-              // 搜尋框提示
+        {/* Map View - Centered */}
+        <View style={styles.mapContainer}>
+          <MapView
+            provider={PROVIDER_GOOGLE}
+            style={styles.map}
+            initialRegion={{
+              latitude: MAP_CONFIG.defaultCenter.lat,
+              longitude: MAP_CONFIG.defaultCenter.lng,
+              latitudeDelta: 50,
+              longitudeDelta: 50,
             }}
           >
-            {searchText || "教堂名稱、位置、奉獻對象..."}
-          </Text>
+            {filtered.map((basilica) => (
+              <Marker
+                key={basilica.id}
+                coordinate={{
+                  latitude: basilica.coordinates[0],
+                  longitude: basilica.coordinates[1],
+                }}
+                title={basilica.name}
+                description={basilica.location}
+                onPress={() => setSelectedId(basilica.id)}
+              >
+                <View style={styles.customMarker}>
+                  <View style={styles.crossVertical} />
+                  <View style={styles.crossHorizontal} />
+                </View>
+              </Marker>
+            ))}
+          </MapView>
         </View>
-      </GlassCard>
 
-      {/* Selected Basilica Info (顯示於搜尋列下方) */}
-      {selectedBasilica ? (
-        <GlassCard style={styles.detailCardTop} intensity={90} glassColor="transparent">
-          <ScrollView
-            style={styles.detailTopScroll}
-            showsVerticalScrollIndicator={true}
-            nestedScrollEnabled={true}
-          >
-            <ThemedText type="title" style={styles.detailName}>
-              {selectedBasilica.name}
-            </ThemedText>
-            <ThemedText style={styles.detailNameEn}>
-              {selectedBasilica.nameEn}
-            </ThemedText>
-
-            <View style={styles.detailDivider} />
-
-            <View style={styles.detailInfoRow}>
-              <ThemedText style={styles.detailLabel}>📍 位置</ThemedText>
-              <ThemedText style={styles.detailValue}>
-                {selectedBasilica.location}
-              </ThemedText>
-            </View>
-
-            <View style={styles.detailInfoRow}>
-              <ThemedText style={styles.detailLabel}>⏰ 建立</ThemedText>
-              <ThemedText style={styles.detailValue}>
-                {selectedBasilica.founded} 年
-              </ThemedText>
-            </View>
-
-            <View style={styles.detailInfoRow}>
-              <ThemedText style={styles.detailLabel}>✝️ 奉獻</ThemedText>
-              <ThemedText style={styles.detailValue}>
-                {selectedBasilica.dedication}
-              </ThemedText>
-            </View>
-
-            <View style={styles.detailInfoRow}>
-              <ThemedText style={styles.detailLabel}>🎨 風格</ThemedText>
-              <ThemedText style={styles.detailValue}>
-                {selectedBasilica.style}
-              </ThemedText>
-            </View>
-
-            <View style={styles.detailSection2}>
-              <ThemedText type="defaultSemiBold" style={styles.detailSectionTitle}>
-                聖經關聯
-              </ThemedText>
-              <ThemedText style={styles.detailDescription}>
-                {selectedBasilica.significance}
-              </ThemedText>
-            </View>
-
-            <View style={styles.detailSection2}>
-              <ThemedText type="defaultSemiBold" style={styles.detailSectionTitle}>
-                介紹
-              </ThemedText>
-              <ThemedText style={styles.detailDescription}>
-                {selectedBasilica.description}
-              </ThemedText>
-            </View>
-          </ScrollView>
-        </GlassCard>
-      ) : null}
-
-      {/* Filter Tabs */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterScroll}
-        contentContainerStyle={styles.filterContent}
-      >
-        {(["all", "major", "cathedral", "chapel"] as FilterType[]).map(
-          (type) => (
-            <Pressable
-              key={type}
-              onPress={() => setFilterType(type)}
-              style={[
-                styles.filterBtn,
-                filterType === type && styles.filterBtnActive,
-              ]}
+        {/* Search */}
+        <GlassCard style={styles.searchCard} intensity={85}>
+          <ThemedText style={styles.searchLabel}>搜尋教堂</ThemedText>
+          <View style={styles.searchInput}>
+            <Text style={styles.searchIcon}>🔍</Text>
+            <Text
+              style={styles.searchPlaceholder}
+              onPress={() => {
+                // 搜尋框提示
+              }}
             >
-              <ThemedText
+              {searchText || "教堂名稱、位置、奉獻對象..."}
+            </Text>
+          </View>
+        </GlassCard>
+
+        
+
+        {/* Basilica Details Panel */}
+        <View onLayout={(e) => setDetailY(e.nativeEvent.layout.y)}>
+          {selectedBasilica ? (
+            <View style={styles.detailSection}>
+              <GlassCard style={styles.detailCard} intensity={100}>
+                {/* Header */}
+                <View style={styles.detailHeader}>
+                  <Text style={styles.detailIcon}>⛪</Text>
+                  <View style={styles.detailHeaderText}>
+                    <ThemedText type="title" style={styles.detailName}>
+                      {selectedBasilica.name}
+                    </ThemedText>
+                    <ThemedText style={styles.detailNameEn}>
+                      {selectedBasilica.nameEn}
+                    </ThemedText>
+                  </View>
+                </View>
+
+                <View style={styles.detailDivider} />
+
+                <GlassCard style={styles.detailInnerCard}>
+                  <View style={styles.detailInfoRow}>
+                    <ThemedText style={styles.detailLabel}>📍 位置</ThemedText>
+                    <ThemedText style={styles.detailValue}>
+                      {selectedBasilica.location}
+                    </ThemedText>
+                  </View>
+
+                  <View style={styles.detailInfoRow}>
+                    <ThemedText style={styles.detailLabel}>⏰ 建立</ThemedText>
+                    <ThemedText style={styles.detailValue}>
+                      {selectedBasilica.founded} 年
+                    </ThemedText>
+                  </View>
+
+                  <View style={styles.detailInfoRow}>
+                    <ThemedText style={styles.detailLabel}>✝️ 奉獻給</ThemedText>
+                    <ThemedText style={styles.detailValue}>
+                      {selectedBasilica.dedication}
+                    </ThemedText>
+                  </View>
+
+                  <View style={styles.detailInfoRow}>
+                    <ThemedText style={styles.detailLabel}>🎨 建築風格</ThemedText>
+                    <ThemedText style={styles.detailValue}>
+                      {selectedBasilica.style}
+                    </ThemedText>
+                  </View>
+                </GlassCard>
+
+                {/* Description */}
+                <View style={styles.detailSection2}>
+                  <ThemedText type="defaultSemiBold" style={styles.detailSectionTitle}>
+                    宗教意義
+                  </ThemedText>
+                  <ThemedText style={styles.detailDescription}>
+                    {selectedBasilica.significance}
+                  </ThemedText>
+                </View>
+
+                {/* Full Description */}
+                <View style={styles.detailSection2}>
+                  <ThemedText type="defaultSemiBold" style={styles.detailSectionTitle}>
+                    介紹
+                  </ThemedText>
+                  <ThemedText style={styles.detailDescription}>
+                    {selectedBasilica.description}
+                  </ThemedText>
+                </View>
+
+                {/* Action Button */}
+                <Pressable
+                  onPress={() => {
+                    console.log("進入 360 環景:", selectedBasilica.viewerUrl);
+                  }}
+                  style={styles.actionButton}
+                >
+                  <Text style={styles.actionButtonIcon}>🌐</Text>
+                  <ThemedText style={styles.actionButtonText}>
+                    進入 360 環景
+                  </ThemedText>
+                </Pressable>
+              </GlassCard>
+            </View>
+          ) : (
+            <View style={styles.detailSection}>
+              <GlassCard style={styles.detailCard} intensity={70}>
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyIcon}>🗺️</Text>
+                  <ThemedText type="subtitle" style={styles.emptyTitle}>
+                    選擇教堂
+                  </ThemedText>
+                  <ThemedText style={styles.emptyText}>
+                    點擊下方教堂列表或地圖
+                  </ThemedText>
+                  <ThemedText style={styles.emptyText}>
+                    查看詳細信息
+                  </ThemedText>
+                </View>
+              </GlassCard>
+            </View>
+          )}
+        </View>
+
+{/* Filter Tabs */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterScroll}
+          contentContainerStyle={styles.filterContent}
+        >
+          {(["all", "major", "cathedral", "chapel"] as FilterType[]).map(
+            (type) => (
+              <Pressable
+                key={type}
+                onPress={() => setFilterType(type)}
                 style={[
-                  styles.filterText,
-                  filterType === type && styles.filterTextActive,
+                  styles.filterBtn,
+                  filterType === type && styles.filterBtnActive,
                 ]}
               >
-                {type === "all"
-                  ? "全部"
-                  : type === "major"
-                    ? "聖殿"
-                    : type === "cathedral"
-                      ? "主教座堂"
-                      : "聖堂"}
-              </ThemedText>
-            </Pressable>
-          )
-        )}
-      </ScrollView>
-
-      {/* Content Grid */}
-      <View style={styles.contentGrid}>
-        {/* Left: Basilica List */}
-        <ScrollView style={styles.listSection} nestedScrollEnabled={true}>
-          {filtered.map((basilica) => (
-            <Pressable
-              key={basilica.id}
-              onPress={() => setSelectedId(basilica.id)}
-              style={[
-                styles.listItem,
-                selectedId === basilica.id && styles.listItemActive,
-              ]}
-            >
-              <GlassCard
-                intensity={selectedId === basilica.id ? 100 : 70}
-                style={styles.listItemCard}
-                glassColor="transparent"
-              >
-                <View style={styles.listItemIcon}>
-                  <Text style={styles.listIcon}>⛪</Text>
-                </View>
-                <View style={styles.listItemContent}>
-                  <ThemedText
-                    type="defaultSemiBold"
-                    style={styles.listItemName}
-                  >
-                    {basilica.name}
-                  </ThemedText>
-                  <ThemedText style={styles.listItemLocation}>
-                    📍 {basilica.location}
-                  </ThemedText>
-                  <ThemedText style={styles.listItemYear}>
-                    ⏰ {basilica.founded} 年建立
-                  </ThemedText>
-                </View>
-              </GlassCard>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        {/* Right: Basilica Details */}
-        {selectedBasilica ? (
-          <ScrollView
-            style={styles.detailSection}
-            nestedScrollEnabled={true}
-            showsVerticalScrollIndicator={true}
-            contentContainerStyle={styles.detailScrollContent}
-          >
-            <GlassCard style={styles.detailCard} intensity={100} glassColor="transparent">
-              {/* Header */}
-              <View style={styles.detailHeader}>
-                <Text style={styles.detailIcon}>⛪</Text>
-                <View style={styles.detailHeaderText}>
-                  <ThemedText type="title" style={styles.detailName}>
-                    {selectedBasilica.name}
-                  </ThemedText>
-                  <ThemedText style={styles.detailNameEn}>
-                    {selectedBasilica.nameEn}
-                  </ThemedText>
-                </View>
-              </View>
-
-              <View style={styles.detailDivider} />
-
-              {/* 教堂詳細區塊（套玻璃卡，套在外層 GlassCard 時同層轉透明） */}
-              <GlassCard style={styles.detailInnerCard} transparent>
-                <View style={styles.detailInfoRow}>
-                  <ThemedText style={styles.detailLabel}>📍 位置</ThemedText>
-                  <ThemedText style={styles.detailValue}>
-                    {selectedBasilica.location}
-                  </ThemedText>
-                </View>
-
-                <View style={styles.detailInfoRow}>
-                  <ThemedText style={styles.detailLabel}>⏰ 建立</ThemedText>
-                  <ThemedText style={styles.detailValue}>
-                    {selectedBasilica.founded} 年
-                  </ThemedText>
-                </View>
-
-                <View style={styles.detailInfoRow}>
-                  <ThemedText style={styles.detailLabel}>✝️ 奉獻給</ThemedText>
-                  <ThemedText style={styles.detailValue}>
-                    {selectedBasilica.dedication}
-                  </ThemedText>
-                </View>
-
-                <View style={styles.detailInfoRow}>
-                  <ThemedText style={styles.detailLabel}>🎨 建築風格</ThemedText>
-                  <ThemedText style={styles.detailValue}>
-                    {selectedBasilica.style}
-                  </ThemedText>
-                </View>
-              </GlassCard>
-
-              {/* Description */}
-              <View style={styles.detailSection2}>
-                <ThemedText type="defaultSemiBold" style={styles.detailSectionTitle}>
-                  宗教意義
-                </ThemedText>
-                <ThemedText style={styles.detailDescription}>
-                  {selectedBasilica.significance}
-                </ThemedText>
-              </View>
-
-              {/* Full Description */}
-              <View style={styles.detailSection2}>
-                <ThemedText type="defaultSemiBold" style={styles.detailSectionTitle}>
-                  介紹
-                </ThemedText>
-                <ThemedText style={styles.detailDescription}>
-                  {selectedBasilica.description}
-                </ThemedText>
-              </View>
-
-              {/* Action Button */}
-              <Pressable
-                onPress={() => {
-                  // TODO: 導航到360環景查看器
-                  console.log("進入 360 環景:", selectedBasilica.viewerUrl);
-                }}
-                style={styles.actionButton}
-              >
-                <Text style={styles.actionButtonIcon}>🌐</Text>
-                <ThemedText style={styles.actionButtonText}>
-                  進入 360 環景
+                <ThemedText
+                  style={[
+                    styles.filterText,
+                    filterType === type && styles.filterTextActive,
+                  ]}
+                >
+                  {type === "all"
+                    ? "全部"
+                    : type === "major"
+                      ? "聖殿"
+                      : type === "cathedral"
+                        ? "主教座堂"
+                        : "聖堂"}
                 </ThemedText>
               </Pressable>
-            </GlassCard>
-          </ScrollView>
-        ) : (
-          <View style={styles.detailSection}>
-            <GlassCard style={styles.detailCard} intensity={70} glassColor="transparent">
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyIcon}>🗺️</Text>
-                <ThemedText type="subtitle" style={styles.emptyTitle}>
-                  選擇教堂
-                </ThemedText>
-                <ThemedText style={styles.emptyText}>
-                  點擊左側教堂列表
-                </ThemedText>
-                <ThemedText style={styles.emptyText}>
-                  查看詳細信息
-                </ThemedText>
-              </View>
-            </GlassCard>
-          </View>
-        )}
-      </View>
+            )
+          )}
+        </ScrollView>
 
-      {/* Stats Footer */}
-      <GlassCard style={styles.footerCard} intensity={80} glassColor="transparent">
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <ThemedText style={styles.statValue}>{basilicas.length}</ThemedText>
-            <ThemedText style={styles.statLabel}>教堂</ThemedText>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <ThemedText style={styles.statValue}>{filtered.length}</ThemedText>
-            <ThemedText style={styles.statLabel}>篩選結果</ThemedText>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <ThemedText style={styles.statValue}>11+</ThemedText>
-            <ThemedText style={styles.statLabel}>個國家</ThemedText>
-          </View>
+        {/* Basilica List */}
+        <View style={styles.listSection}>
+          {displayedBasilicas.length > 0 ? (
+            <>
+              {displayedBasilicas.map((basilica) => (
+                <Pressable
+                  key={basilica.id}
+                  onPress={() => setSelectedId(basilica.id)}
+                  style={[
+                    styles.listItem,
+                    selectedId === basilica.id && styles.listItemActive,
+                  ]}
+                >
+                  <GlassCard
+                    intensity={selectedId === basilica.id ? 100 : 70}
+                    style={styles.listItemCard}
+                  >
+                    <View style={styles.listItemIcon}>
+                      <Text style={styles.listIcon}>⛪</Text>
+                    </View>
+                    <View style={styles.listItemContent}>
+                      <ThemedText
+                        type="defaultSemiBold"
+                        style={styles.listItemName}
+                      >
+                        {basilica.name}
+                      </ThemedText>
+                      <ThemedText style={styles.listItemLocation}>
+                        📍 {basilica.location}
+                      </ThemedText>
+                      <ThemedText style={styles.listItemYear}>
+                        ⏰ {basilica.founded} 年建立
+                      </ThemedText>
+                    </View>
+                  </GlassCard>
+                </Pressable>
+              ))}
+              {filtered.length > displayCount && (
+                <Pressable
+                  onPress={() => setDisplayCount((prev) => prev + 3)}
+                  style={styles.viewMoreBtn}
+                >
+                  <ThemedText style={styles.viewMoreBtnText}>查看更多</ThemedText>
+                </Pressable>
+              )}
+            </>
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>🔍</Text>
+              <ThemedText type="subtitle" style={styles.emptyTitle}>
+                未找到教堂
+              </ThemedText>
+              <ThemedText style={styles.emptyText}>
+                試試其他搜尋或篩選條件
+              </ThemedText>
+            </View>
+          )}
         </View>
-      </GlassCard>
+      </ScrollView>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  scrollRoot: {
     flex: 1,
+  },
+  container: {
     paddingHorizontal: 12,
     paddingVertical: 10,
+    paddingBottom: 32,
   },
   headerSection: {
     marginTop: 8,
@@ -532,15 +492,8 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.95)",
     fontWeight: "600",
   },
-  contentGrid: {
-    flex: 1,
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 12,
-    minHeight: 200,
-  },
   listSection: {
-    flex: 1,
+    marginBottom: 12,
   },
   listItem: {
     marginBottom: 10,
@@ -574,32 +527,50 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "rgba(255,255,255,0.5)",
   },
-  detailSection: {
-    flex: 1.2,
+  viewMoreBtn: {
+    alignItems: "center",
+    paddingVertical: 12,
+    marginTop: 4,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
   },
-  detailScrollContent: {
-    flexGrow: 1,
+  viewMoreBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.8)",
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+    gap: 8,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 8,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    color: "rgba(255,255,255,0.8)",
+  },
+  emptyText: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.5)",
+  },
+  detailSection: {
+    marginBottom: 12,
   },
   detailCard: {
     paddingHorizontal: 16,
     paddingVertical: 14,
-
     borderColor: "rgba(255,255,255,0.01)",
     borderWidth: 1,
   },
   detailInnerCard: {
     paddingHorizontal: 0,
     paddingVertical: 0,
-  },
-  detailCardTop: {
-    maxHeight: 280,
-    marginBottom: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: "rgba(255,255,255,0.95)",
-  },
-  detailTopScroll: {
-    flexGrow: 0,
   },
   detailHeader: {
     flexDirection: "row",
@@ -617,17 +588,17 @@ const styles = StyleSheet.create({
   detailName: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#000",
+    color: "rgba(255,255,255,0.95)",
   },
   detailNameEn: {
     fontSize: 12,
-    color: "rgba(0,0,0,0.7)",
+    color: "rgba(255,255,255,0.7)",
     fontStyle: "italic",
     marginTop: 2,
   },
   detailDivider: {
     height: 1,
-    backgroundColor: "rgba(0,0,0,0.08)",
+    backgroundColor: "rgba(255,255,255,0.15)",
     marginVertical: 12,
   },
   detailInfoRow: {
@@ -635,25 +606,25 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 12,
-    color: "rgba(0,0,0,0.8)",
+    color: "rgba(255,255,255,0.8)",
     fontWeight: "600",
     marginBottom: 4,
   },
   detailValue: {
     fontSize: 14,
-    color: "rgba(0,0,0,0.9)",
+    color: "rgba(255,255,255,0.9)",
   },
   detailSection2: {
     marginTop: 14,
   },
   detailSectionTitle: {
     fontSize: 13,
-    color: "rgba(0,0,0,0.85)",
+    color: "rgba(255,255,255,0.85)",
     marginBottom: 6,
   },
   detailDescription: {
     fontSize: 12,
-    color: "rgba(0,0,0,0.8)",
+    color: "rgba(255,255,255,0.8)",
     lineHeight: 18,
   },
   actionButton: {
@@ -676,54 +647,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: "rgba(255,255,255,0.95)",
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 40,
-    gap: 8,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 8,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    color: "rgba(255,255,255,0.8)",
-  },
-  emptyText: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.5)",
-  },
-  footerCard: {
-    marginTop: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-  },
-  statItem: {
-    flex: 1,
-    alignItems: "center",
-    gap: 4,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "rgba(102, 126, 234, 0.95)",
-  },
-  statLabel: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.6)",
-  },
-  statDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    marginHorizontal: 8,
   },
   loadingContainer: {
     flex: 1,
