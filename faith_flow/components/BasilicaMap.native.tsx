@@ -150,7 +150,7 @@ export function BasilicaMap() {
       </View>
 
       {/* Search */}
-      <GlassCard style={styles.searchCard} intensity={85}>
+      <GlassCard style={styles.searchCard} intensity={85} glassColor="transparent">
         <ThemedText style={styles.searchLabel}>搜尋教堂</ThemedText>
         <View style={styles.searchInput}>
           <Text style={styles.searchIcon}>🔍</Text>
@@ -167,7 +167,7 @@ export function BasilicaMap() {
 
       {/* Selected Basilica Info (顯示於搜尋列下方) */}
       {selectedBasilica ? (
-        <GlassCard style={styles.detailCardTop} intensity={90}>
+        <GlassCard style={styles.detailCardTop} intensity={90} glassColor="transparent">
           <ScrollView
             style={styles.detailTopScroll}
             showsVerticalScrollIndicator={true}
@@ -283,6 +283,7 @@ export function BasilicaMap() {
               <GlassCard
                 intensity={selectedId === basilica.id ? 100 : 70}
                 style={styles.listItemCard}
+                glassColor="transparent"
               >
                 <View style={styles.listItemIcon}>
                   <Text style={styles.listIcon}>⛪</Text>
@@ -314,7 +315,7 @@ export function BasilicaMap() {
             showsVerticalScrollIndicator={true}
             contentContainerStyle={styles.detailScrollContent}
           >
-            <GlassCard style={styles.detailCard} intensity={100}>
+            <GlassCard style={styles.detailCard} intensity={100} glassColor="transparent">
               {/* Header */}
               <View style={styles.detailHeader}>
                 <Text style={styles.detailIcon}>⛪</Text>
@@ -330,34 +331,36 @@ export function BasilicaMap() {
 
               <View style={styles.detailDivider} />
 
-              {/* Info Rows */}
-              <View style={styles.detailInfoRow}>
-                <ThemedText style={styles.detailLabel}>📍 位置</ThemedText>
-                <ThemedText style={styles.detailValue}>
-                  {selectedBasilica.location}
-                </ThemedText>
-              </View>
+              {/* 教堂詳細區塊（套玻璃卡，套在外層 GlassCard 時同層轉透明） */}
+              <GlassCard style={styles.detailInnerCard} transparent>
+                <View style={styles.detailInfoRow}>
+                  <ThemedText style={styles.detailLabel}>📍 位置</ThemedText>
+                  <ThemedText style={styles.detailValue}>
+                    {selectedBasilica.location}
+                  </ThemedText>
+                </View>
 
-              <View style={styles.detailInfoRow}>
-                <ThemedText style={styles.detailLabel}>⏰ 建立</ThemedText>
-                <ThemedText style={styles.detailValue}>
-                  {selectedBasilica.founded} 年
-                </ThemedText>
-              </View>
+                <View style={styles.detailInfoRow}>
+                  <ThemedText style={styles.detailLabel}>⏰ 建立</ThemedText>
+                  <ThemedText style={styles.detailValue}>
+                    {selectedBasilica.founded} 年
+                  </ThemedText>
+                </View>
 
-              <View style={styles.detailInfoRow}>
-                <ThemedText style={styles.detailLabel}>✝️ 奉獻給</ThemedText>
-                <ThemedText style={styles.detailValue}>
-                  {selectedBasilica.dedication}
-                </ThemedText>
-              </View>
+                <View style={styles.detailInfoRow}>
+                  <ThemedText style={styles.detailLabel}>✝️ 奉獻給</ThemedText>
+                  <ThemedText style={styles.detailValue}>
+                    {selectedBasilica.dedication}
+                  </ThemedText>
+                </View>
 
-              <View style={styles.detailInfoRow}>
-                <ThemedText style={styles.detailLabel}>🎨 建築風格</ThemedText>
-                <ThemedText style={styles.detailValue}>
-                  {selectedBasilica.style}
-                </ThemedText>
-              </View>
+                <View style={styles.detailInfoRow}>
+                  <ThemedText style={styles.detailLabel}>🎨 建築風格</ThemedText>
+                  <ThemedText style={styles.detailValue}>
+                    {selectedBasilica.style}
+                  </ThemedText>
+                </View>
+              </GlassCard>
 
               {/* Description */}
               <View style={styles.detailSection2}>
@@ -396,7 +399,7 @@ export function BasilicaMap() {
           </ScrollView>
         ) : (
           <View style={styles.detailSection}>
-            <GlassCard style={styles.detailCard} intensity={70}>
+            <GlassCard style={styles.detailCard} intensity={70} glassColor="transparent">
               <View style={styles.emptyState}>
                 <Text style={styles.emptyIcon}>🗺️</Text>
                 <ThemedText type="subtitle" style={styles.emptyTitle}>
@@ -415,7 +418,7 @@ export function BasilicaMap() {
       </View>
 
       {/* Stats Footer */}
-      <GlassCard style={styles.footerCard} intensity={80}>
+      <GlassCard style={styles.footerCard} intensity={80} glassColor="transparent">
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
             <ThemedText style={styles.statValue}>{basilicas.length}</ThemedText>
@@ -473,6 +476,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
+
+    borderColor: "rgba(255,255,255,0.01)",
+    borderWidth: 1,
   },
   searchLabel: {
     fontSize: 12,
@@ -543,6 +549,8 @@ const styles = StyleSheet.create({
   listItemCard: {
     paddingHorizontal: 12,
     paddingVertical: 10,
+    borderColor: "rgba(255,255,255,0.01)",
+    borderWidth: 1,
   },
   listItemIcon: {
     alignItems: "center",
@@ -575,7 +583,13 @@ const styles = StyleSheet.create({
   detailCard: {
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: "rgba(255,255,255,0.95)",
+
+    borderColor: "rgba(255,255,255,0.01)",
+    borderWidth: 1,
+  },
+  detailInnerCard: {
+    paddingHorizontal: 0,
+    paddingVertical: 0,
   },
   detailCardTop: {
     maxHeight: 280,
