@@ -1,10 +1,12 @@
-import React, { useMemo, useState, useEffect } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions } from "react-native";
+import React, { useMemo, useState, useEffect, useRef } from "react";
+import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { GlassCard } from "./GlassCard";
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
-import { MAP_CONFIG, GLASS_RELIGIOUS_MAP_STYLE } from "../config/mapConfig";
+import { MAP_CONFIG } from "../config/mapConfig";
+import { db } from "../lib/firebase";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
 
 export type Basilica = {
   id: string;
@@ -21,246 +23,57 @@ export type Basilica = {
   viewerUrl: string;
 };
 
-const BASILICAS: Basilica[] = [
-  {
-    id: "stpeter_vatican",
-    name: "聖彼得大教堂",
-    nameEn: "St. Peter's Basilica",
-    location: "梵諦岡",
-    coordinates: [41.9029, 12.4534],
-    type: "major",
-    founded: 1626,
-    dedication: "聖彼得",
-    style: "文藝復興、巴洛克",
-    significance: "天主教會的精神中心，教宗主持彌撒的地點",
-    description: "世界上最大的教堂，容納 60,000 人，是基督教的象徵。聖彼得被埋葬在教堂下方。",
-    viewerUrl: "stpeter"
-  },
-  {
-    id: "stpaul_vatican",
-    name: "聖保羅大教堂",
-    nameEn: "St. Paul's Basilica",
-    location: "梵諦岡、羅馬",
-    coordinates: [41.8584, 12.4767],
-    type: "major",
-    founded: 386,
-    dedication: "聖保羅",
-    style: "早期基督教、文藝復興、巴洛克",
-    significance: "紀念聖保羅殉教的聖地，四大聖殿之一",
-    description: "容納 3,000 人，以金色馬賽克和聖保羅遺骨聞名。",
-    viewerUrl: "stpaul"
-  },
-  {
-    id: "santa_maria_maggiore",
-    name: "聖母瑪利亞大殿",
-    nameEn: "Basilica of St. Mary Major",
-    location: "羅馬",
-    coordinates: [41.8986, 12.4982],
-    type: "major",
-    founded: 432,
-    dedication: "聖母瑪利亞",
-    style: "早期基督教、文藝復興",
-    significance: "紀念聖母瑪利亞的四大聖殿之一",
-    description: "擁有最古老的馬賽克天花板，象徵聖母的榮耀。",
-    viewerUrl: "santa_maria"
-  },
-  {
-    id: "san_giovanni",
-    name: "聖若望聖殿",
-    nameEn: "Basilica of St. John Lateran",
-    location: "羅馬",
-    coordinates: [41.8832, 12.5033],
-    type: "major",
-    founded: 324,
-    dedication: "聖若望洗者",
-    style: "早期基督教、巴洛克",
-    significance: "教宗的主座聖殿，四大聖殿之一",
-    description: "羅馬最古老的教堂，見證了 1700 年的信仰歷史。",
-    viewerUrl: "san_giovanni"
-  },
-  {
-    id: "basilica_assisi",
-    name: "聖方濟各大殿",
-    nameEn: "Basilica of St. Francis of Assisi",
-    location: "亞西西",
-    coordinates: [43.0730, 12.5987],
-    type: "major",
-    founded: 1253,
-    dedication: "聖方濟各",
-    style: "哥德式、文藝復興",
-    significance: "聖方濟各的聖骨地，朝聖的重要地點",
-    description: "包含美麗的濕壁畫，講述聖方濟各的生平故事。",
-    viewerUrl: "assisi"
-  },
-  {
-    id: "santiago_compostela",
-    name: "聖地亞哥聖殿",
-    nameEn: "Cathedral of Santiago de Compostela",
-    location: "西班牙",
-    coordinates: [42.5806, -8.5457],
-    type: "cathedral",
-    founded: 1211,
-    dedication: "聖地亞哥（聖雅各）",
-    style: "羅馬式、巴洛克",
-    significance: "朝聖之路的終點，重要的朝聖地點",
-    description: "擁有聖雅各的遺骨，吸引無數朝聖者。",
-    viewerUrl: "santiago"
-  },
-  {
-    id: "reims_cathedral",
-    name: "蘭斯聖母聖殿",
-    nameEn: "Reims Cathedral",
-    location: "法國",
-    coordinates: [49.2514, 4.0361],
-    type: "cathedral",
-    founded: 1211,
-    dedication: "聖母瑪利亞",
-    style: "法國哥德式",
-    significance: "法國國王加冕的聖地，聖靈的傳承地",
-    description: "傳統上，法國國王在此舉行加冕典禮。",
-    viewerUrl: "reims"
-  },
-  {
-    id: "chartres_cathedral",
-    name: "沙特爾聖母聖殿",
-    nameEn: "Chartres Cathedral",
-    location: "法國",
-    coordinates: [48.4408, 1.4901],
-    type: "cathedral",
-    founded: 1220,
-    dedication: "聖母瑪利亞",
-    style: "法國哥德式",
-    significance: "聖母的聖衣之地，朝聖中心",
-    description: "以美麗的彩繪玻璃窗和高尖塔聞名。",
-    viewerUrl: "chartres"
-  },
-  {
-    id: "notre_dame_paris",
-    name: "巴黎聖母院",
-    nameEn: "Notre-Dame de Paris",
-    location: "法國",
-    coordinates: [48.8530, 2.3499],
-    type: "cathedral",
-    founded: 1345,
-    dedication: "聖母瑪利亞",
-    style: "法國哥德式",
-    significance: "法國文化象徵，聖母信仰中心",
-    description: "以其宏偉的建築和豐富的宗教藝術聞名。",
-    viewerUrl: "notre_dame"
-  },
-  {
-    id: "cologne_cathedral",
-    name: "科隆大教堂",
-    nameEn: "Cologne Cathedral",
-    location: "德國",
-    coordinates: [50.9406, 6.9585],
-    type: "cathedral",
-    founded: 1322,
-    dedication: "聖母瑪利亞及聖王",
-    style: "德國哥德式",
-    significance: "聖三王遺骨之地，中世紀信仰中心",
-    description: "世界遺產，以雙尖塔和精美工藝聞名。",
-    viewerUrl: "cologne"
-  },
-  {
-    id: "jingxin_chapel_fujen",
-    name: "輔仁大學淨心堂",
-    nameEn: "Jingxin Chapel, Fujen University",
-    location: "台灣、新北市、新莊",
-    coordinates: [25.0324, 121.4286],
-    type: "chapel",
-    founded: 1961,
-    dedication: "聖母與聖若望",
-    style: "現代教堂建築",
-    significance: "台灣天主教高等教育的精神中心，輔仁大學的信仰象徵",
-    description: "輔仁大學淨心堂是台灣重要的教堂，座落在輔仁大學校園內。作為天主教大學的精神中心，淨心堂承載著信仰教育的使命，每日為師生提供靈修空間。",
-    viewerUrl: "jingxin"
-  },
-  {
-    id: "holy_sepulchre",
-    name: "聖墓教堂",
-    nameEn: "Church of the Holy Sepulchre",
-    location: "耶路撒冷",
-    coordinates: [31.7780, 35.2296],
-    type: "chapel",
-    founded: 335,
-    dedication: "耶穌基督的復活",
-    style: "拜占庭式、哥德式",
-    significance: "基督復活的傳統地點，是基督教最重要的朝聖地之一。",
-    description: "聖墓教堂內包含耶穌被釘十字架、埋葬與復活的場所，吸引來自世界各地的朝聖者。",
-    viewerUrl: "holy_sepulchre"
-  },
-  {
-    id: "church_of_the_nativity",
-    name: "聖誕教堂",
-    nameEn: "Church of the Nativity",
-    location: "伯利恆",
-    coordinates: [31.7054, 35.2024],
-    type: "chapel",
-    founded: 339,
-    dedication: "耶穌的誕生",
-    style: "羅馬式、拜占庭式",
-    significance: "傳統上被視為耶穌誕生地，是歷史最悠久的教堂之一。",
-    description: "教堂建於聖赫羅德時期，保有早期基督教建築遺跡，並為四大聖地之一。",
-    viewerUrl: "nativity"
-  },
-  {
-    id: "annunciation_church",
-    name: "聖母領報堂",
-    nameEn: "Basilica of the Annunciation",
-    location: "拿撒勒",
-    coordinates: [32.7040, 35.2954],
-    type: "chapel",
-    founded: 1969,
-    dedication: "聖母領報",
-    style: "現代主義",
-    significance: "傳統上認為是天使向聖母宣報耶穌降生的地點，是敬禮聖母的重要朝聖地。",
-    description: "教堂內保存了早期基督教和十字軍時期的遺跡，並於 20 世紀重建成多層設計的聖殿。",
-    viewerUrl: "annunciation"
-  },
-  {
-    id: "multiplication_church",
-    name: "五餅二魚堂",
-    nameEn: "Church of the Multiplication",
-    location: "塔布加，加利利海",
-    coordinates: [32.8771, 35.5694],
-    type: "chapel",
-    founded: 350,
-    dedication: "耶穌行五餅二魚奇蹟",
-    style: "拜占庭式",
-    significance: "傳說耶穌在此用五餅二魚餵飽了五千人，是信仰力量的象徵。",
-    description: "教堂內保存著傳統上相信是耶穌祝禱的五餅二魚石盤遺跡，吸引眾多朝聖者到訪。",
-    viewerUrl: "multiplication"
-  },
-  {
-    id: "st_peter_gallicantu",
-    name: "雞鳴堂",
-    nameEn: "St. Peter in Gallicantu",
-    location: "耶路撒冷",
-    coordinates: [31.7765, 35.2303],
-    type: "chapel",
-    founded: 1931,
-    dedication: "聖伯多祿的三次不認主",
-    style: "拜占庭復興式",
-    significance: "傳統上認為彼得在此三次不認主後悔，提醒信徒悔改與信德堅定。",
-    description: "教堂建於耶穌被囚禁的古羅馬宮殿遺址上，並保留了古代地下洞穴和鷹嘴石遺跡。",
-    viewerUrl: "gallicantu"
-  }
-];
-
 type FilterType = "all" | "major" | "cathedral" | "chapel";
 
-const CROSS_MARKER_IMAGE = {
-  uri: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='64' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='rgba(102,126,234,0.9)'/><line x1='32' y1='12' x2='32' y2='52' stroke='%23ffffff' stroke-width='10' stroke-linecap='round'/><line x1='20' y1='28' x2='44' y2='28' stroke='%23ffffff' stroke-width='10' stroke-linecap='round'/></svg>"
-};
-
 export function BasilicaMap() {
+  const [basilicas, setBasilicas] = useState<Basilica[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<FilterType>("all");
   const [searchText, setSearchText] = useState("");
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [detailY, setDetailY] = useState(0);
+  const [displayCount, setDisplayCount] = useState(3);
+
+  useEffect(() => {
+    const fetchBasilicas = async () => {
+      try {
+        setLoading(true);
+        const q = query(collection(db, "basilicas"), orderBy("name"));
+        const querySnapshot = await getDocs(q);
+        const basilicasData: Basilica[] = [];
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          basilicasData.push({
+            id: doc.id,
+            name: data.name,
+            nameEn: data.nameEn,
+            location: data.location,
+            coordinates: data.coordinates,
+            type: data.type,
+            founded: data.founded,
+            dedication: data.dedication,
+            style: data.style,
+            significance: data.significance,
+            description: data.description,
+            viewerUrl: data.viewerUrl,
+          });
+        });
+        setBasilicas(basilicasData);
+      } catch (err) {
+        console.error("Error fetching basilicas:", err);
+        setError("Failed to load basilicas data");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBasilicas();
+  }, []);
 
   const filtered = useMemo(() => {
-    return BASILICAS.filter((b) => {
+    return basilicas.filter((b) => {
       const matchType = filterType === "all" || b.type === filterType;
       const matchSearch =
         searchText === "" ||
@@ -269,30 +82,73 @@ export function BasilicaMap() {
         b.dedication.toLowerCase().includes(searchText.toLowerCase());
       return matchType && matchSearch;
     });
+  }, [basilicas, filterType, searchText]);
+
+  // 當篩選條件改變時，重置顯示數量為 3
+  useEffect(() => {
+    setDisplayCount(3);
   }, [filterType, searchText]);
 
+  const displayedBasilicas = filtered.slice(0, displayCount);
+
   const selectedBasilica = selectedId
-    ? BASILICAS.find((b) => b.id === selectedId)
+    ? basilicas.find((b) => b.id === selectedId)
     : null;
 
+  // 當選中教堂時，畫面自動滾動到教堂介紹區塊
+  useEffect(() => {
+    if (selectedId && detailY > 0) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({
+          y: detailY - 10,
+          animated: true,
+        });
+      }, 100);
+    }
+  }, [selectedId, detailY]);
+
+  if (loading) {
+    return (
+      <ThemedView style={styles.scrollRoot}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>載入教堂資料中...</Text>
+        </View>
+      </ThemedView>
+    );
+  }
+
+  if (error) {
+    return (
+      <ThemedView style={styles.scrollRoot}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      </ThemedView>
+    );
+  }
+
   return (
-    <ThemedView style={styles.container}>
-      {/* Header */}
-      <View style={styles.headerSection}>
-        <ThemedText type="title" style={styles.headerTitle}>
-          🌍 朝聖之地
-        </ThemedText>
-        <ThemedText style={styles.headerSubtitle}>
-          探索世界教堂的靈修之旅
-        </ThemedText>
-      </View>
+    <ThemedView style={styles.scrollRoot}>
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.headerSection}>
+          <ThemedText type="title" style={styles.headerTitle}>
+            🌍 朝聖之地
+          </ThemedText>
+          <ThemedText style={styles.headerSubtitle}>
+            探索世界教堂的靈修之旅
+          </ThemedText>
+        </View>
 
       {/* Map View - Centered */}
       <View style={styles.mapContainer}>
         <MapView
           provider={PROVIDER_GOOGLE}
           style={styles.map}
-          customMapStyle={GLASS_RELIGIOUS_MAP_STYLE}
           initialRegion={{
             latitude: MAP_CONFIG.defaultCenter.lat,
             longitude: MAP_CONFIG.defaultCenter.lng,
@@ -309,15 +165,19 @@ export function BasilicaMap() {
               }}
               title={basilica.name}
               description={basilica.location}
-              image={CROSS_MARKER_IMAGE}
               onPress={() => setSelectedId(basilica.id)}
-            />
+            >
+              <View style={styles.customMarker}>
+                <View style={styles.crossVertical} />
+                <View style={styles.crossHorizontal} />
+              </View>
+            </Marker>
           ))}
         </MapView>
       </View>
 
       {/* Search */}
-      <GlassCard style={styles.searchCard} intensity={0} glassColor="transparent">
+      <GlassCard style={styles.searchCard} intensity={85}>
         <ThemedText style={styles.searchLabel}>搜尋教堂</ThemedText>
         <View style={styles.searchInput}>
           <Text style={styles.searchIcon}>🔍</Text>
@@ -334,7 +194,7 @@ export function BasilicaMap() {
 
       {/* Selected Basilica Info (顯示於搜尋列下方) */}
       {selectedBasilica ? (
-        <GlassCard style={styles.detailCardTop} intensity={0} glassColor="transparent">
+        <GlassCard style={styles.detailCardTop} intensity={90}>
           <ScrollView
             style={styles.detailTopScroll}
             showsVerticalScrollIndicator={true}
@@ -434,161 +294,70 @@ export function BasilicaMap() {
         )}
       </ScrollView>
 
-      {/* Content Grid */}
-      <View style={styles.contentGrid}>
-        {/* Left: Basilica List */}
-        <ScrollView style={styles.listSection} nestedScrollEnabled={true}>
-          {filtered.map((basilica) => (
-            <Pressable
-              key={basilica.id}
-              onPress={() => setSelectedId(basilica.id)}
-              style={[
-                styles.listItem,
-                selectedId === basilica.id && styles.listItemActive,
-              ]}
-            >
-              <GlassCard
-                intensity={0}
-                style={styles.listItemCard}
-                glassColor="transparent"
-              >
-                <View style={styles.listItemIcon}>
-                  <Text style={styles.listIcon}>⛪</Text>
-                </View>
-                <View style={styles.listItemContent}>
-                  <ThemedText
-                    type="defaultSemiBold"
-                    style={styles.listItemName}
-                  >
-                    {basilica.name}
-                  </ThemedText>
-                  <ThemedText style={styles.listItemLocation}>
-                    📍 {basilica.location}
-                  </ThemedText>
-                  <ThemedText style={styles.listItemYear}>
-                    ⏰ {basilica.founded} 年建立
-                  </ThemedText>
-                </View>
-              </GlassCard>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        {/* Right: Basilica Details */}
-        {selectedBasilica ? (
-          <ScrollView
-            style={styles.detailSection}
-            nestedScrollEnabled={true}
-            showsVerticalScrollIndicator={true}
-            contentContainerStyle={styles.detailScrollContent}
-          >
-            <GlassCard style={styles.detailCard} intensity={0} glassColor="transparent">
-              {/* Header */}
-              <View style={styles.detailHeader}>
-                <Text style={styles.detailIcon}>⛪</Text>
-                <View style={styles.detailHeaderText}>
-                  <ThemedText type="title" style={styles.detailName}>
-                    {selectedBasilica.name}
-                  </ThemedText>
-                  <ThemedText style={styles.detailNameEn}>
-                    {selectedBasilica.nameEn}
-                  </ThemedText>
-                </View>
-              </View>
-
-              <View style={styles.detailDivider} />
-
-              {/* 教堂詳細區塊（套玻璃卡，套在外層 GlassCard 時同層轉透明） */}
-              <GlassCard style={styles.detailInnerCard} transparent>
-                <View style={styles.detailInfoRow}>
-                  <ThemedText style={styles.detailLabel}>📍 位置</ThemedText>
-                  <ThemedText style={styles.detailValue}>
-                    {selectedBasilica.location}
-                  </ThemedText>
-                </View>
-
-                <View style={styles.detailInfoRow}>
-                  <ThemedText style={styles.detailLabel}>⏰ 建立</ThemedText>
-                  <ThemedText style={styles.detailValue}>
-                    {selectedBasilica.founded} 年
-                  </ThemedText>
-                </View>
-
-                <View style={styles.detailInfoRow}>
-                  <ThemedText style={styles.detailLabel}>✝️ 奉獻給</ThemedText>
-                  <ThemedText style={styles.detailValue}>
-                    {selectedBasilica.dedication}
-                  </ThemedText>
-                </View>
-
-                <View style={styles.detailInfoRow}>
-                  <ThemedText style={styles.detailLabel}>🎨 建築風格</ThemedText>
-                  <ThemedText style={styles.detailValue}>
-                    {selectedBasilica.style}
-                  </ThemedText>
-                </View>
-              </GlassCard>
-
-              {/* Description */}
-              <View style={styles.detailSection2}>
-                <ThemedText type="defaultSemiBold" style={styles.detailSectionTitle}>
-                  宗教意義
-                </ThemedText>
-                <ThemedText style={styles.detailDescription}>
-                  {selectedBasilica.significance}
-                </ThemedText>
-              </View>
-
-              {/* Full Description */}
-              <View style={styles.detailSection2}>
-                <ThemedText type="defaultSemiBold" style={styles.detailSectionTitle}>
-                  介紹
-                </ThemedText>
-                <ThemedText style={styles.detailDescription}>
-                  {selectedBasilica.description}
-                </ThemedText>
-              </View>
-
-              {/* Action Button */}
+      {/* Basilica List */}
+      <View style={styles.listSection}>
+        {displayedBasilicas.length > 0 ? (
+          <>
+            {displayedBasilicas.map((basilica) => (
               <Pressable
-                onPress={() => {
-                  // TODO: 導航到360環景查看器
-                  console.log("進入 360 環景:", selectedBasilica.viewerUrl);
-                }}
-                style={styles.actionButton}
+                key={basilica.id}
+                onPress={() => setSelectedId(basilica.id)}
+                style={[
+                  styles.listItem,
+                  selectedId === basilica.id && styles.listItemActive,
+                ]}
               >
-                <Text style={styles.actionButtonIcon}>🌐</Text>
-                <ThemedText style={styles.actionButtonText}>
-                  進入 360 環景
-                </ThemedText>
+                <GlassCard
+                  intensity={selectedId === basilica.id ? 100 : 70}
+                  style={styles.listItemCard}
+                >
+                  <View style={styles.listItemIcon}>
+                    <Text style={styles.listIcon}>⛪</Text>
+                  </View>
+                  <View style={styles.listItemContent}>
+                    <ThemedText
+                      type="defaultSemiBold"
+                      style={styles.listItemName}
+                    >
+                      {basilica.name}
+                    </ThemedText>
+                    <ThemedText style={styles.listItemLocation}>
+                      📍 {basilica.location}
+                    </ThemedText>
+                    <ThemedText style={styles.listItemYear}>
+                      ⏰ {basilica.founded} 年建立
+                    </ThemedText>
+                  </View>
+                </GlassCard>
               </Pressable>
-            </GlassCard>
-          </ScrollView>
+            ))}
+            {filtered.length > displayCount && (
+              <Pressable
+                onPress={() => setDisplayCount((prev) => prev + 3)}
+                style={styles.viewMoreBtn}
+              >
+                <ThemedText style={styles.viewMoreBtnText}>查看更多</ThemedText>
+              </Pressable>
+            )}
+          </>
         ) : (
-          <View style={styles.detailSection}>
-            <GlassCard style={styles.detailCard} intensity={0} glassColor="transparent">
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyIcon}>🗺️</Text>
-                <ThemedText type="subtitle" style={styles.emptyTitle}>
-                  選擇教堂
-                </ThemedText>
-                <ThemedText style={styles.emptyText}>
-                  點擊左側教堂列表
-                </ThemedText>
-                <ThemedText style={styles.emptyText}>
-                  查看詳細信息
-                </ThemedText>
-              </View>
-            </GlassCard>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>🔍</Text>
+            <ThemedText type="subtitle" style={styles.emptyTitle}>
+              未找到教堂
+            </ThemedText>
+            <ThemedText style={styles.emptyText}>
+              試試其他搜尋或篩選條件
+            </ThemedText>
           </View>
         )}
       </View>
 
       {/* Stats Footer */}
-      <GlassCard style={styles.footerCard} intensity={0} glassColor="transparent">
+      <GlassCard style={styles.footerCard} intensity={80}>
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <ThemedText style={styles.statValue}>{BASILICAS.length}</ThemedText>
+            <ThemedText style={styles.statValue}>{basilicas.length}</ThemedText>
             <ThemedText style={styles.statLabel}>教堂</ThemedText>
           </View>
           <View style={styles.statDivider} />
@@ -603,15 +372,19 @@ export function BasilicaMap() {
           </View>
         </View>
       </GlassCard>
+      </ScrollView>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  scrollRoot: {
     flex: 1,
+  },
+  container: {
     paddingHorizontal: 12,
     paddingVertical: 10,
+    paddingBottom: 32,
   },
   headerSection: {
     marginTop: 8,
@@ -636,7 +409,7 @@ const styles = StyleSheet.create({
   },
   map: {
     width: '90%',
-    height: 'auto',
+    height: 300,
     borderRadius: 12,
   },
   searchCard: {
@@ -699,15 +472,8 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.95)",
     fontWeight: "600",
   },
-  contentGrid: {
-    flex: 1,
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 12,
-    minHeight: 200,
-  },
   listSection: {
-    flex: 1,
+    marginBottom: 12,
   },
   listItem: {
     marginBottom: 10,
@@ -741,31 +507,52 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "rgba(255,255,255,0.5)",
   },
-  detailSection: {
-    flex: 1.2,
+  viewMoreBtn: {
+    alignItems: "center",
+    paddingVertical: 12,
+    marginTop: 4,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
   },
-  detailScrollContent: {
-    flexGrow: 1,
+  viewMoreBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.8)",
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+    gap: 8,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 8,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    color: "rgba(255,255,255,0.8)",
+  },
+  detailSection: {
+    marginBottom: 12,
   },
   detailCard: {
     paddingHorizontal: 16,
     paddingVertical: 14,
-
     borderColor: "rgba(255,255,255,0.01)",
     borderWidth: 1,
   },
-  detailInnerCard: {
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-  },
   detailCardTop: {
-    maxHeight: 280,
-    marginBottom: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
+    borderColor: "rgba(255,255,255,0.01)",
+    borderWidth: 1,
+    maxHeight: 400,
   },
   detailTopScroll: {
-    flexGrow: 0,
+    flex: 1,
   },
   detailHeader: {
     flexDirection: "row",
@@ -793,7 +580,7 @@ const styles = StyleSheet.create({
   },
   detailDivider: {
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(0,0,0,0.08)",
     marginVertical: 12,
   },
   detailInfoRow: {
@@ -843,30 +630,28 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "rgba(255,255,255,0.95)",
   },
-  emptyState: {
-    alignItems: "center",
+  loadingContainer: {
+    flex: 1,
     justifyContent: "center",
-    paddingVertical: 40,
-    gap: 8,
+    alignItems: "center",
   },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 8,
-  },
-  emptyTitle: {
+  loadingText: {
     fontSize: 18,
     color: "#FFFFFF",
   },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   emptyText: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.8)",
+    color: "rgba(255,255,255,0.5)",
   },
   footerCard: {
     marginTop: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderColor: "rgba(255,255,255,0.01)",
-    borderWidth: 1,
   },
   statsRow: {
     flexDirection: "row",
@@ -892,5 +677,38 @@ const styles = StyleSheet.create({
     height: 24,
     backgroundColor: "rgba(255,255,255,0.15)",
     marginHorizontal: 8,
+  },
+  errorText: {
+    fontSize: 16,
+    color: "rgba(255,0,0,0.8)",
+  },
+  customMarker: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(102,126,234,0.9)',
+    alignItems: 'center',
+    // 加上陰影讓地圖標記更立體
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 4,
+  },
+  crossVertical: {
+    position: 'absolute',
+    width: 4,
+    height: 20,
+    backgroundColor: '#ffffff',
+    borderRadius: 2,
+    top: 6,
+  },
+  crossHorizontal: {
+    position: 'absolute',
+    width: 14,
+    height: 4,
+    backgroundColor: '#ffffff',
+    borderRadius: 2,
+    top: 11, // 稍微偏上，呈現十字架而非加號
   },
 });
