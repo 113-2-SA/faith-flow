@@ -312,7 +312,7 @@ export function BasilicaMap() {
             </View>
 
             {/* Search */}
-            <GlassCard style={styles.searchCard} intensity={85} glassColor="transparent">
+            <GlassCard style={styles.searchCard} intensity={0} glassColor="transparent">
                 <ThemedText style={styles.searchLabel}>搜尋教堂</ThemedText>
                 <View style={styles.searchInput}>
                     <Text style={styles.searchIcon}>🔍</Text>
@@ -329,7 +329,7 @@ export function BasilicaMap() {
 
             {/* Selected Basilica Info (顯示於搜尋列下方) */}
             {selectedBasilica ? (
-                <GlassCard style={styles.detailCard} intensity={90} glassColor="transparent">
+                <GlassCard style={styles.detailCard} intensity={0} glassColor="transparent">
                     <ThemedText type="title" style={styles.detailName}>
                         {selectedBasilica.name}
                     </ThemedText>
@@ -436,7 +436,7 @@ export function BasilicaMap() {
                             ]}
                         >
                             <GlassCard
-                                intensity={selectedId === basilica.id ? 100 : 70}
+                                intensity={0}
                                 style={styles.listItemCard}
                                 glassColor="transparent"
                             >
@@ -476,7 +476,7 @@ export function BasilicaMap() {
             {/* Basilica Details Panel */}
             {selectedBasilica ? (
                 <View style={styles.detailSection}>
-                    <GlassCard style={styles.detailCard} intensity={100}>
+                    <GlassCard style={styles.detailCard} intensity={0} glassColor="transparent">
                         {/* Header */}
                         <View style={styles.detailHeader}>
                             <Text style={styles.detailIcon}>⛪</Text>
@@ -558,7 +558,7 @@ export function BasilicaMap() {
                 </View>
             ) : (
                 <View style={styles.detailSection}>
-                    <GlassCard style={styles.detailCard} intensity={70} glassColor="transparent">
+                    <GlassCard style={styles.detailCard} intensity={0} glassColor="transparent">
                         <View style={styles.emptyState}>
                             <Text style={styles.emptyIcon}>🗺️</Text>
                             <ThemedText type="subtitle" style={styles.emptyTitle}>
@@ -576,7 +576,7 @@ export function BasilicaMap() {
             )}
 
             {/* Stats Footer */}
-            <GlassCard style={styles.footerCard} intensity={80} glassColor="rgba(255,255,255,0.01)">
+            <GlassCard style={styles.footerCard} intensity={0} glassColor="transparent">
                 <View style={styles.statsRow}>
                     <View style={styles.statItem}>
                         <ThemedText style={styles.statValue}>{BASILICAS.length}</ThemedText>
@@ -759,17 +759,17 @@ const styles = StyleSheet.create({
     detailName: {
         fontSize: 22,
         fontWeight: "700",
-        color: "#000",
+        color: "rgba(255,255,255,0.95)",
     },
     detailNameEn: {
         fontSize: 12,
-        color: "rgba(0,0,0,0.7)",
+        color: "rgba(255,255,255,0.7)",
         fontStyle: "italic",
         marginTop: 2,
     },
     detailDivider: {
         height: 1,
-        backgroundColor: "rgba(0,0,0,0.08)",
+        backgroundColor: "rgba(255,255,255,0.08)",
         marginVertical: 12,
     },
     detailInfoRow: {
@@ -777,25 +777,25 @@ const styles = StyleSheet.create({
     },
     detailLabel: {
         fontSize: 12,
-        color: "rgba(0,0,0,0.8)",
+        color: "rgba(255,255,255,0.8)",
         fontWeight: "600",
         marginBottom: 4,
     },
     detailValue: {
         fontSize: 14,
-        color: "rgba(0,0,0,0.9)",
+        color: "rgba(255,255,255,0.9)",
     },
     detailSection2: {
         marginTop: 14,
     },
     detailSectionTitle: {
         fontSize: 13,
-        color: "rgba(0,0,0,0.85)",
+        color: "rgba(255,255,255,0.85)",
         marginBottom: 6,
     },
     detailDescription: {
         fontSize: 12,
-        color: "rgba(0,0,0,0.8)",
+        color: "rgba(255,255,255,0.8)",
         lineHeight: 18,
     },
     actionButton: {
@@ -831,16 +831,18 @@ const styles = StyleSheet.create({
     },
     emptyTitle: {
         fontSize: 18,
-        color: "rgba(255,255,255,0.8)",
+        color: "#FFFFFF",
     },
     emptyText: {
         fontSize: 12,
-        color: "rgba(255,255,255,0.5)",
+        color: "rgba(255,255,255,0.8)",
     },
     footerCard: {
         marginTop: 12,
         paddingHorizontal: 14,
         paddingVertical: 10,
+        borderColor: "rgba(255,255,255,0.01)",
+        borderWidth: 1,
     },
     statsRow: {
         flexDirection: "row",

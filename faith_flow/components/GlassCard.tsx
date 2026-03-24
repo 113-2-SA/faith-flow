@@ -13,6 +13,7 @@ type Props = {
 export function GlassCard({ children, style, intensity = 30, transparent = false, glassColor }: Props) {
   const isTransparent = transparent || glassColor === "transparent";
   const frostedColor = isTransparent ? "transparent" : glassColor ?? "rgba(255,255,255,0.01)";
+  const showBlur = intensity > 0;
 
   return (
     <View
@@ -22,7 +23,7 @@ export function GlassCard({ children, style, intensity = 30, transparent = false
         style,
       ]}
     >
-      <BlurView intensity={intensity} tint="light" style={StyleSheet.absoluteFill} />
+      {showBlur && <BlurView intensity={intensity} tint="light" style={StyleSheet.absoluteFill} />}
       {/* 淡白霧（讓玻璃更像） */}
       <View style={[styles.frost, { backgroundColor: frostedColor }]} />
       {/* 細邊框 */}
