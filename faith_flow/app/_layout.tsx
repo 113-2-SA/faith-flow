@@ -1,7 +1,8 @@
 // app/_layout.tsx
 import { Redirect, Stack, useSegments } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
-import { AuthProvider, useAuth } from "./context/authcontext"  
+import { AuthProvider, useAuth } from "./context/authcontext";
+import { PreferencesProvider } from './context/preferencesContext';
 
 /**
  * ⭐ 內部路由保護元件
@@ -34,10 +35,12 @@ function RootLayoutNav() {
 
   return (
     <Stack>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="auth/login" options={{ title: "登入" }} />
-      {/* 如果有其他路由，在這裡加 */}
-    </Stack>
+  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+  <Stack.Screen name="auth/login" options={{ title: "登入" }} />
+  <Stack.Screen name="settings/index" options={{ title: "偏好設定" }} />
+  <Stack.Screen name="notifications/index" options={{ title: "通知" }} />
+  <Stack.Screen name="chat/index" options={{ title: "有答大師" }} />
+</Stack>
   );
 }
 
@@ -48,7 +51,9 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+  <PreferencesProvider>
+    <RootLayoutNav />
+  </PreferencesProvider>
+</AuthProvider>
   );
 }
