@@ -1,18 +1,51 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { useRouter } from "expo-router";  // ⭐ 新增
 import { buildMonthGrid, addMonths, monthNameEn } from "./calendarUtils";
 import { GlassCard } from "./GlassCard";
+import { useAuth } from "../hooks/useAuth";
+import { API_BASE_URL } from "../lib/api";
 
 const WEEK = ["Sun", "Mon", "Tue", "WED", "THU", "FRI", "SAT"];
 
 export function CalendarCard() {
   const router = useRouter();  // ⭐ 新增
+  const { user } = useAuth();
   const [viewDate, setViewDate] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);  // ⭐ 新增
+  const [diaryDates, setDiaryDates] = useState<Set<string>>(new Set());
 
   const year = viewDate.getFullYear();
   const monthTitle = monthNameEn(viewDate);
+
+  // 每次月份切換時撈該月有日記的日期
+  useEffect(() => {
+    if (!user) return;
+    const month = viewDate.getMonth() + 1;
+    user.getIdToken().then((token) => {
+      fetch(`${API_BASE_URL}/api/diary?year=${year}&month=${month}&limit=100`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.ok) {
+            const dates = new Set<string>(
+              data.data.items.map((d: { diary_date: string }) => {
+                // pg 可能把 DATE 序列化成 UTC 時間戳（如 2025-03-14T16:00:00.000Z）
+                // 直接取本地時間的年月日，確保與月曆格子的 dateString 一致
+                const dt = new Date(d.diary_date);
+                const y = dt.getFullYear();
+                const m = String(dt.getMonth() + 1).padStart(2, '0');
+                const day = String(dt.getDate()).padStart(2, '0');
+                return `${y}-${m}-${day}`;
+              })
+            );
+            setDiaryDates(dates);
+          }
+        })
+        .catch(() => {});
+    });
+  }, [year, viewDate.getMonth(), user]);
   const cells = useMemo(() => buildMonthGrid(viewDate), [viewDate]);
 
   // ⭐ 處理日期點擊
@@ -83,6 +116,8 @@ export function CalendarCard() {
           const dateString = `${c.date.getFullYear()}-${String(c.date.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
           const isSelected = selectedDate === dateString;
           
+          const hasDiary = c.inMonth && diaryDates.has(dateString);
+
           return (
             <Pressable
               key={`${c.date.toISOString()}-${idx}`}
@@ -104,6 +139,7 @@ export function CalendarCard() {
               >
                 {day}
               </Text>
+              {hasDiary && <View style={styles.dot} />}
             </Pressable>
           );
         })}
@@ -186,6 +222,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 14,
     marginBottom: 6,
+    paddingBottom: 2,
   },
   cellText: {
     color: "rgba(255,255,255,0.85)",
@@ -207,13 +244,21 @@ const styles = StyleSheet.create({
 
   // ⭐ 新增：選中日期的樣式
   cellSelected: {
-    backgroundColor: "rgba(0, 122, 255, 0.5)",  // 藍色半透明背景
+    backgroundColor: "rgba(91, 168, 250, 0.28)",  // 藍色半透明背景
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.8)",
   },
   cellTextSelected: {
     color: "rgba(255,255,255,1)",
     fontWeight: "700",
+  },
+
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "rgba(135, 206, 250, 0.9)",
+    marginTop: 2,
   },
 
   // ⭐ 新增：底部提示區域

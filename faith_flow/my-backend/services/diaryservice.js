@@ -227,12 +227,10 @@ async function getUserDiaries(userId, options = {}) {
  * userId 參數：firebase uid
  */
 async function getDiaryById(diaryId, userId) {
-  const dbUserID = await getUserIDByFirebaseUid(userId);
-
   const result = await pool.query(
     `SELECT * FROM diary
      WHERE diary_id = $1 AND "user_id" = $2`,
-    [diaryId, dbUserID]
+    [diaryId, userId]
   );
   return result.rows[0] || null;
 }

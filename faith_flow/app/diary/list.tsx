@@ -89,7 +89,7 @@ export default function DiaryListScreen() {
   // 渲染單篇日記
   const renderDiary = ({ item }: { item: Diary }) => (
     <TouchableOpacity
-      onPress={() => router.push(`./diary/${item.diary_id}`)}
+      onPress={() => router.push({ pathname: '/diary/[id]', params: { id: item.diary_id } })}
     >
       <GlassCard style={styles.diaryCard}>
         {/* 日期 */}
