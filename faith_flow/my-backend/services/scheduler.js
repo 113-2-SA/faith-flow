@@ -20,7 +20,7 @@ class Scheduler {
         console.error('定時任務執行失敗:', error);
       }
     }, {
-      timezone: "Asia/Taipei" // 使用台北時區
+      timezone: "Asia/Taipei"
     });
 
     this.jobs.push(weeklyJob);
@@ -41,6 +41,33 @@ class Scheduler {
     });
 
     this.jobs.push(dailyCheckJob);
+  }
+
+  /**
+   * 伺服器啟動時檢查上周統整是否有遺漏，若有則補生成
+   */
+  async checkAndBackfillLastWeek() {
+    const { year, weekNumber } = DateUtils.getLastWeek();
+    const now = new Date();
+
+    // 只在週日結束後（週一以後）才需要補，週日當天讓 cron 自己跑
+    if (now.getDay() === 0) {
+      console.log('📅 今天是週日，跳過補生成（等 cron job 執行）');
+      return;
+    }
+
+    console.log(`🔍 啟動檢查：確認 ${year} 年第 ${weekNumber} 周統整是否已生成...`);
+
+    try {
+      const results = await this.weeklySummaryService.autoGenerateWeeklySummaries();
+      if (results.success > 0) {
+        console.log(`✅ 補生成完成：成功 ${results.success} 位用戶`);
+      } else if (results.skipped > 0) {
+        console.log(`✅ 上周統整皆已存在，無需補生成`);
+      }
+    } catch (error) {
+      console.error('啟動補生成失敗:', error);
+    }
   }
 
   /**

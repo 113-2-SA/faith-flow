@@ -5,21 +5,24 @@ class DateUtils {
    * @returns {number} 周數 (1-53)
    */
   static getWeekNumberSunday(date) {
-    const target = new Date(date.valueOf());
-    const dayNum = (target.getDay() + 6) % 7; // 轉換：星期日=6, 星期一=0
-    
-    // 調整到該周的星期日
-    target.setDate(target.getDate() - dayNum + 6);
-    
+    const d = new Date(date.valueOf());
+
+    // 調整到本周的星期日（往回推）
+    const weekStart = new Date(d);
+    weekStart.setDate(d.getDate() - d.getDay());
+
     // 獲取年初第一個星期日
-    const yearStart = new Date(target.getFullYear(), 0, 1);
-    const yearStartDay = yearStart.getDay();
-    const firstSunday = new Date(target.getFullYear(), 0, 1 + (7 - yearStartDay) % 7);
-    
-    // 計算周數
-    const weekNumber = Math.ceil(((target - firstSunday) / 86400000 + 1) / 7);
-    
-    return weekNumber;
+    const yearStart = new Date(weekStart.getFullYear(), 0, 1);
+    const firstSunday = new Date(weekStart.getFullYear(), 0, 1 + (7 - yearStart.getDay()) % 7);
+
+    if (weekStart < firstSunday) {
+      // 落在年初第一個星期日之前，屬於上一年最後一周
+      const prevYearStart = new Date(weekStart.getFullYear() - 1, 0, 1);
+      const prevFirstSunday = new Date(weekStart.getFullYear() - 1, 0, 1 + (7 - prevYearStart.getDay()) % 7);
+      return Math.floor((weekStart - prevFirstSunday) / (7 * 86400000)) + 1;
+    }
+
+    return Math.floor((weekStart - firstSunday) / (7 * 86400000)) + 1;
   }
 
   /**
@@ -58,6 +61,18 @@ class DateUtils {
    */
   static isSunday() {
     return new Date().getDay() === 0;
+  }
+
+  /**
+   * 獲取本周的年份和周數
+   * @returns {{year: number, weekNumber: number}}
+   */
+  static getCurrentWeek() {
+    const today = new Date();
+    return {
+      year: today.getFullYear(),
+      weekNumber: this.getWeekNumberSunday(today)
+    };
   }
 
   /**

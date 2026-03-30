@@ -1,6 +1,6 @@
 // ==================== controllers/diarycontroller.js ====================
 const diaryService = require("../services/diaryservice");
-const prayerService = require("../services/prayerService");
+const prayerService = require("../services/prayservice");
 console.log("[diarycontroller] hit /api/diary");
 
 /**

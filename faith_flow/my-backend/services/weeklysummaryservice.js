@@ -133,7 +133,7 @@ ${diaries.map((d, i) => `
       try {
         // 檢查是否已經生成過
         const existingQuery = `
-          SELECT "summaryID" FROM "weekly_summary"
+          SELECT "summary_id" FROM "weekly_summary"
           WHERE "user_id" = $1 AND "year" = $2 AND "week_number" = $3
         `;
         const existing = await pool.query(existingQuery, [user_id, year, weekNumber]);
@@ -150,9 +150,6 @@ ${diaries.map((d, i) => `
         if (diaries.length === 0) {
           console.log(`📭 用戶 ${user_id} 上周沒有日記，跳過`);
           results.skipped++;
-          
-          // 記錄跳過日誌
-          await this.logGeneration(user_id, year, weekNumber, 'skipped', '無日記');
           continue;
         }
 
@@ -165,9 +162,6 @@ ${diaries.map((d, i) => `
         console.log(`✅ 用戶 ${user_id} 的第 ${weekNumber} 周回顧已生成 (${diaries.length} 篇日記)`);
         results.success++;
 
-        // 記錄成功日誌
-        await this.logGeneration(user_id, year, weekNumber, 'success');
-
         // 防止 API rate limit，加入延遲
         await this.sleep(1000);
 
@@ -175,30 +169,11 @@ ${diaries.map((d, i) => `
         console.error(`❌ 用戶 ${user_id} 生成失敗:`, error.message);
         results.failed++;
         results.errors.push({ user_id, error: error.message });
-
-        // 記錄失敗日誌
-        await this.logGeneration(user_id, year, weekNumber, 'failed', error.message);
       }
     }
 
     console.log(`\n📊 自動生成完成: 成功 ${results.success}, 失敗 ${results.failed}, 跳過 ${results.skipped}`);
     return results;
-  }
-
-  /**
-   * 記錄生成日誌
-   */
-  async logGeneration(user_id, year, weekNumber, status, errorMessage = null) {
-    const query = `
-      INSERT INTO "summary_generation_log" ("user_id", "year", "week_number", "status", "error_message")
-      VALUES ($1, $2, $3, $4, $5)
-    `;
-    
-    try {
-      await pool.query(query, [user_id, year, weekNumber, status, errorMessage]);
-    } catch (err) {
-      console.error('記錄日誌失敗:', err);
-    }
   }
 
   /**

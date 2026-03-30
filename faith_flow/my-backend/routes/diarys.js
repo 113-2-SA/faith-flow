@@ -48,7 +48,7 @@ router.delete("/:id", verifyToken, attachUserId, diarycontroller.deleteDiary);
 // GET /api/diary/date/:date
 router.get("/date/:date", verifyToken, attachUserId, diarycontroller.getDiaryByDate);
 
-// POST /api/diary/from-prayer
-router.post('/from-prayer', auth, diaryController.createFromPrayer);
-router.post('/preview-prayer', auth, diaryController.previewPrayer);
+// POST /api/diary/pray
+router.post('/from-prayer', auth, diarycontroller.createFromPrayer);
+router.post('/preview-prayer', auth, diarycontroller.previewPrayer);
 module.exports = router;

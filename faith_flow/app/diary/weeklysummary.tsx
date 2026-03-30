@@ -153,11 +153,6 @@ export default function WeeklySummaryScreen() {
             <View style={styles.weekBadge}>
               <Text style={styles.weekBadgeText}>第 {summary.week_number} 週</Text>
             </View>
-            {summary.is_auto_generated && (
-              <View style={styles.autoBadge}>
-                <Text style={styles.autoBadgeText}>🤖</Text>
-              </View>
-            )}
           </View>
 
           {/* 標題 */}

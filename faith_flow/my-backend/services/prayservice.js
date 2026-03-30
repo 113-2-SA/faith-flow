@@ -44,6 +44,9 @@ ${prayerText}
       
       if (jsonMatch) {
         const result = JSON.parse(jsonMatch[0]);
+        if (!result.tags.includes('祈禱')) {
+          result.tags.push('祈禱');
+        }
         console.log('✅ [prayerService] 生成成功:', result);
         return result;
       }
@@ -64,7 +67,7 @@ ${prayerText}
   }
 
   /**
-   * 可選：從聖經中推薦相關經文  mistral-ai暫用
+   * 可選：從聖經中推薦相關經文
    */
   async generateBibleQuote(prayerText) {
     console.log('📖 [prayerService] 開始生成聖經經文...');

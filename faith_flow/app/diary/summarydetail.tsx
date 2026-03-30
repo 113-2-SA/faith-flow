@@ -168,7 +168,7 @@ ${summary.bible_quote ? `📖 ${summary.bible_quote}` : ''}
         <View style={styles.errorContainer}>
           <Text style={styles.errorIcon}>😕</Text>
           <Text style={styles.errorText}>找不到這週的回顧</Text>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/diary/weeklysummary')}>
             <Text style={styles.backButtonText}>返回</Text>
           </TouchableOpacity>
         </View>
@@ -201,11 +201,6 @@ ${summary.bible_quote ? `📖 ${summary.bible_quote}` : ''}
         {/* 標題卡片 */}
         <BlurView intensity={80} tint="light" style={styles.glassCard}>
           <Text style={styles.summaryTitle}>{summary.summary_title}</Text>
-          {summary.is_auto_generated && (
-            <View style={styles.autoBadge}>
-              <Text style={styles.autoBadgeText}>🤖 自動生成</Text>
-            </View>
-          )}
         </BlurView>
 
         {/* 日期與資訊 */}

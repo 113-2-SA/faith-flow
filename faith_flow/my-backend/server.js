@@ -1,6 +1,8 @@
 // ==================== server.js ====================
 require("dotenv").config();
 const express = require("express");
+const http = require("http"); // ⭐ 新增：用於建立 HTTP server
+const WebSocket = require("ws"); // ⭐ 新增：WebSocket 支援
 const cors = require("cors");
 
 const app = express();
@@ -52,17 +54,45 @@ weeklySummaryController.scheduler = scheduler;
 // ⭐ 5. 啟動定時任務
 scheduler.start();
 
+// ⭐ 6. 啟動時補生成上周漏掉的統整（延遲 5 秒等資料庫連線穩定）
+setTimeout(() => scheduler.checkAndBackfillLastWeek(), 5000);
+
+// ⭐ 用於儲存 server 和 wss 實例（優雅關閉時使用）
+let server, wss;
+
 // ==================== 優雅關閉 ====================
 process.on('SIGTERM', () => {
   console.log('收到 SIGTERM 信號，正在關閉...');
   scheduler.stop();
-  process.exit(0);
+  if (wss) {
+    wss.close(() => {
+      if (server) {
+        server.close(() => {
+          console.log('✅ Server 已安全關閉');
+          process.exit(0);
+        });
+      }
+    });
+  } else {
+    process.exit(0);
+  }
 });
 
 process.on('SIGINT', () => {
   console.log('收到 SIGINT 信號，正在關閉...');
   scheduler.stop();
-  process.exit(0);
+  if (wss) {
+    wss.close(() => {
+      if (server) {
+        server.close(() => {
+          console.log('✅ Server 已安全關閉');
+          process.exit(0);
+        });
+      }
+    });
+  } else {
+    process.exit(0);
+  }
 });
 
 // ==================== 匯入路由 ====================
@@ -173,10 +203,36 @@ app.use((err, req, res, next) => {
 // ==================== 啟動伺服器 ====================
 const port = Number(process.env.PORT || 3000);
 
-app.listen(port, () => {
+// ⭐ 建立 HTTP server（不能直接用 app.listen）
+server = http.createServer(app);
+
+// ⭐ 建立 WebSocket Server（用於語音轉錄）
+wss = new WebSocket.Server({ 
+  server,
+  path: '/ws/transcribe'
+});
+
+// ⭐ 匯入轉錄服務
+const transcriptionService = require('./services/transervice');
+
+console.log('🎙️ WebSocket 轉錄服務初始化中...');
+
+// ⭐ 處理 WebSocket 連線
+wss.on('connection', (ws, req) => {
+  console.log('🙏 [WebSocket] 新的轉錄連線');
+  transcriptionService.handleConnection(ws);
+});
+
+wss.on('error', (error) => {
+  console.error('❌ [WebSocket] Server 錯誤:', error);
+});
+
+// ⭐ 使用 server.listen 而不是 app.listen
+server.listen(port, () => {
   console.log("✝️  ==========================================");
   console.log("✝️  Faith-Flow API Server");
-  console.log(`✝️  Running on: http://localhost:${port}`);
+  console.log(`✝️  HTTP API: http://localhost:${port}`);
+  console.log(`✝️  WebSocket: ws://localhost:${port}/ws/transcribe`); // ⭐ 新增
   console.log("✝️  ==========================================");
   console.log("📍 Available API endpoints:");
   console.log("   GET  /health");
@@ -185,8 +241,11 @@ app.listen(port, () => {
   console.log("   POST /admin/import-firebase-auth-users");
   console.log("   GET  /api/weekly-summary");
   console.log("   POST /api/weekly-summary/generate");
+  console.log("   POST /api/diary/from-prayer"); 
+  console.log("   POST /api/diary/preview-prayer"); 
   console.log("✝️  ==========================================");
   console.log("📅 定時任務已啟動：每週日 02:00 自動生成周回顧");
+  console.log("🎙️ 語音轉錄服務已啟動：WebSocket 連線可用");
 });
 
 module.exports = app;

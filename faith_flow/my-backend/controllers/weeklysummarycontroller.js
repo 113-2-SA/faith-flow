@@ -14,6 +14,16 @@ class WeeklySummaryController {
       const { year, weekNumber } = req.body;
       const userID = req.userId; // ⭐ 從 attachUserId middleware 取得
 
+      // 不允許生成當周（尚未結束）
+      const DateUtils = require('../utils/dateutils');
+      const current = DateUtils.getCurrentWeek();
+      if (Number(year) === current.year && Number(weekNumber) === current.weekNumber) {
+        return res.status(400).json({
+          ok: false,
+          error: '當周尚未結束，請於下周再生成本周回顧'
+        });
+      }
+
       const diaries = await this.service.getDiariesByWeek(userID, year, weekNumber);
 
       if (diaries.length === 0) {
@@ -25,7 +35,7 @@ class WeeklySummaryController {
 
       // 檢查是否已有回顧
       const existingQuery = `
-        SELECT "summaryID", "generated_at" FROM "weekly_summary"
+        SELECT "summary_id", "generated_at" FROM "weekly_summary"
         WHERE "user_id" = $1 AND "year" = $2 AND "week_number" = $3
       `;
       const existing = await pool.query(existingQuery, [userID, year, weekNumber]);
@@ -177,7 +187,7 @@ class WeeklySummaryController {
       const query = `
         DELETE FROM "weekly_summary"
         WHERE "user_id" = $1 AND "year" = $2 AND "week_number" = $3
-        RETURNING "summaryID"
+        RETURNING "summary_id"
       `;
 
       const result = await pool.query(query, [userID, year, weekNumber]);
