@@ -28,7 +28,7 @@ export function GlassCard({ children, style, intensity = 30, transparent = false
       <View style={[styles.frost, { backgroundColor: frostedColor }]} />
       {/* 細邊框 */}
       <View style={styles.border} />
-      <View style={styles.content}>{children}</View>
+      <View style={[styles.content, style]}>{children}</View>
     </View>
   );
 }

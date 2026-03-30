@@ -4,10 +4,9 @@ import * as Google from "expo-auth-session/providers/google";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, useMemo, useState } from "react";
+import { GoogleAuthProvider, signInWithCredential, onAuthStateChanged } from "firebase/auth";
+import { auth} from "../../lib/firebase";
 import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native";
-
-import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
-import { auth } from "../../lib/firebase";
 import { GlassCard } from "../../components/GlassCard";
 import { VideoBackground } from "../../components/VideoBackground";
 
@@ -43,8 +42,9 @@ export default function LoginScreen() {
 
     const url = (request as any)?.url as string | undefined;
     if (!url) return;
-
     console.log("authUrl =", url);
+
+  // ⭐ 處理 Google 登入（AuthContext 會自動處理同步）
     try {
       const u = new URL(url);
       console.log("client_id =", u.searchParams.get("client_id"));
@@ -66,26 +66,48 @@ export default function LoginScreen() {
       try {
         setBusy(true);
 
-        const idToken =
-          (response.params as any)?.id_token ??
-          (response.authentication as any)?.idToken;
+        const idToken = (response.params as any)?.id_token ?? 
+                        (response.authentication as any)?.idToken;
+
+        console.log('========== 登入流程開始 ==========');
+        console.log('1. ✅ 取得 ID Token:', idToken ? '有' : '沒有');
 
         if (!idToken) throw new Error("Missing id_token");
 
+        // ⭐ Firebase 登入（AuthContext 的 onAuthStateChanged 會自動觸發同步）
         const credential = GoogleAuthProvider.credential(idToken);
         const userCred = await signInWithCredential(auth, credential);
 
-        console.log("✅ Firebase signed in uid =", userCred.user.uid);
-        console.log("✅ Firebase signed in email =", userCred.user.email);
+        console.log('2. ✅ Firebase 登入成功');
+        console.log('   - UID:', userCred.user.uid);
+        console.log('   - Email:', userCred.user.email);
+        console.log('   - AuthContext 會自動同步到 PostgreSQL');
+
+        console.log('========== 登入流程結束 ==========');
 
         router.replace("/home"); // 登入完直接進月曆頁（Home）
       } catch (e) {
-        console.error("❌ Firebase signInWithCredential failed:", e);
+        console.error("❌ 錯誤:", e);
       } finally {
         setBusy(false);
       }
     })();
   }, [response, router]);
+
+  useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      const idToken = await user.getIdToken();
+      
+      await fetch('http://localhost:3000/api/auth/sync', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
+    }
+  });
+  return unsubscribe;
+}, []);
+
 
   const disabled = !request || busy || !webClientId;
 
@@ -162,4 +184,3 @@ export default function LoginScreen() {
     </VideoBackground>
   );
 }
-
