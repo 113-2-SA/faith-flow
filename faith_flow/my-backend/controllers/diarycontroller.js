@@ -1,5 +1,6 @@
 // ==================== controllers/diarycontroller.js ====================
 const diaryService = require("../services/diaryservice");
+const prayerService = require("../services/prayerService");
 console.log("[diarycontroller] hit /api/diary");
 
 /**
@@ -403,6 +404,94 @@ exports.getStats = async (req, res) => {
       ok: false, 
       error: "取得統計失敗",
       detail: error.message 
+    });
+  }
+};
+
+/**
+ * ⭐ 從祈禱轉錄建立日記
+ * POST /api/diary/from-prayer
+ */
+exports.createFromPrayer = async (req, res) => {
+  try {
+    console.log('🙏 [createFromPrayer] 收到祈禱轉日記請求');
+    
+    const userId = req.userId; // 從 attachUserId middleware 取得
+    const { transcript, collectId } = req.body;
+
+    console.log('👤 使用者 ID:', userId);
+    console.log('📝 祈禱文字長度:', transcript?.length);
+
+    // 驗證輸入
+    if (!transcript || transcript.trim().length === 0) {
+      console.log('❌ [createFromPrayer] 祈禱內容為空');
+      return res.status(400).json({ 
+        ok: false,
+        error: '祈禱內容不能為空' 
+      });
+    }
+
+    // 使用 prayerService 轉換為日記
+    const diary = await prayerService.convertPrayerToDiary(
+      userId,
+      transcript.trim(),
+      collectId
+    );
+
+    console.log('✅ [createFromPrayer] 祈禱日記建立成功! ID:', diary.diary_id);
+
+    // ⭐ 回傳成功訊息（前端會顯示通知）
+    res.status(201).json({
+      ok: true,
+      message: '✨ 祈禱已轉換為日記！', // 這個會在前端顯示
+      notification: {
+        type: 'success',
+        title: '祈禱已記錄',
+        body: `標題：${diary.diary_title}`
+      },
+      data: diary
+    });
+  } catch (error) {
+    console.error('❌ [createFromPrayer] 錯誤:', error);
+    res.status(500).json({
+      ok: false,
+      error: '轉換失敗',
+      detail: error.message
+    });
+  }
+};
+
+/**
+ * ⭐ 預覽祈禱轉日記（不儲存）
+ * POST /api/diary/preview-prayer
+ */
+exports.previewPrayer = async (req, res) => {
+  try {
+    console.log('👁️ [previewPrayer] 收到預覽請求');
+    
+    const { transcript } = req.body;
+
+    if (!transcript || transcript.trim().length === 0) {
+      return res.status(400).json({ 
+        ok: false,
+        error: '需要提供祈禱內容' 
+      });
+    }
+
+    const preview = await prayerService.previewDiary(transcript.trim());
+
+    console.log('✅ [previewPrayer] 預覽生成成功');
+
+    res.json({
+      ok: true,
+      data: preview
+    });
+  } catch (error) {
+    console.error('❌ [previewPrayer] 錯誤:', error);
+    res.status(500).json({
+      ok: false,
+      error: '預覽生成失敗',
+      detail: error.message
     });
   }
 };
