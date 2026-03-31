@@ -35,11 +35,12 @@ export function ChurchPanoramaViewer({ panoramaId, basilicaName, onClose }: Prop
 
   return (
     <Modal
-      animationType="slide"
-      presentationStyle="fullScreen"
+      animationType="fade"
+      transparent={true}
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
+      <View style={styles.overlay}>
+        <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -76,22 +77,33 @@ export function ChurchPanoramaViewer({ panoramaId, basilicaName, onClose }: Prop
           <Text style={styles.hintText}>拖曳旋轉視角・雙指縮放</Text>
         </View>
       </View>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  overlay: {
     flex: 1,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  container: {
+    width: "92%",
+    height: "85%",
     backgroundColor: "#0a0a14",
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(102,126,234,0.4)",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === "ios" ? 54 : 16,
-    paddingBottom: 12,
+    paddingVertical: 12,
     backgroundColor: "rgba(10,10,20,0.95)",
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.1)",

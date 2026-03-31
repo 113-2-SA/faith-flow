@@ -6,7 +6,7 @@
  */
 
 import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, Text, StyleSheet, Pressable, Modal } from "react-native";
 import { ThemedText } from "./themed-text";
 import { GOOGLE_MAPS_API_KEY } from "../config/mapConfig";
 
@@ -22,8 +22,9 @@ export function ChurchPanoramaViewer({ panoramaId, basilicaName, onClose }: Prop
     `?key=${GOOGLE_MAPS_API_KEY}&pano=${panoramaId}&heading=0&pitch=0&fov=90`;
 
   return (
-    <View style={styles.overlay}>
-      <View style={styles.container}>
+    <Modal visible={true} transparent={true} animationType="fade" onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -58,19 +59,15 @@ export function ChurchPanoramaViewer({ panoramaId, basilicaName, onClose }: Prop
           <Text style={styles.hintText}>拖曳旋轉視角・滾輪縮放</Text>
         </View>
       </View>
-    </View>
+      </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    position: "fixed" as "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
     backgroundColor: "rgba(0,0,0,0.82)",
-    zIndex: 999,
     alignItems: "center",
     justifyContent: "center",
   },

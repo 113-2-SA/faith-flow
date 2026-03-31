@@ -145,6 +145,7 @@ export function BasilicaMap() {
             ref={scrollViewRef}
             style={styles.scrollRoot}
             contentContainerStyle={styles.container}
+            scrollEnabled={!showPanorama}
             showsVerticalScrollIndicator={false}
         >
             {/* Header */}
@@ -261,10 +262,7 @@ export function BasilicaMap() {
                             {/* 360° 全景按鈕 */}
                             {selectedBasilica.panoramaId ? (
                                 <Pressable
-                                    onPress={() => {
-                                        setShowPanorama(true);
-                                        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-                                    }}
+                                    onPress={() => setShowPanorama(true)}
                                     style={({ pressed }) => [
                                         styles.panoramaBtn,
                                         pressed && styles.panoramaBtnPressed,
