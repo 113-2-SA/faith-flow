@@ -1,14 +1,13 @@
-// app/_layout.tsx
 import { Redirect, Stack, useSegments } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import { useAuth } from "../hooks/useAuth";
+import { AppShellProvider } from "../components/AppShell";
 
 export default function RootLayout() {
   const { user, loading } = useAuth();
   const segments = useSegments();
 
-  // 你的 login 路徑是 /auth/login（因為資料夾叫 app/auth）
-  const inAuthRoute = segments[0] === "auth";
+  const inAuth = segments[0] === "auth";
 
   if (loading) {
     return (
@@ -18,15 +17,25 @@ export default function RootLayout() {
     );
   }
 
-  // 未登入：只在「不在 auth 區」時才導去 login（避免 loop）
-  if (!user && !inAuthRoute) {
+  if (!user && !inAuth) {
     return <Redirect href="/auth/login" />;
   }
 
-  // 已登入：如果還在 auth 區（login 頁），就導回首頁
-  if (user && inAuthRoute) {
-    return <Redirect href="/" />;
+  // ✅ 關鍵：已登入且還在 auth 區，導去 /home（月曆頁）
+  if (user && inAuth) {
+    return <Redirect href="/home" />;
   }
 
-  return <Stack />;
+  // 已登入的情況，用共用 Layout 包裹（含側邊欄）
+  if (user) {
+    return (
+      <AppShellProvider>
+        <Stack screenOptions={{ headerShown: false }} />
+      </AppShellProvider>
+    );
+  }
+
+  // 未登入但仍在 auth 區（登入頁）
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
+

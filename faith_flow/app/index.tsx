@@ -16,4 +16,3 @@ export default function Index() {
   if (!user) return <Redirect href="/auth/login" />;
   return <Redirect href="/home" />;
 }
-
