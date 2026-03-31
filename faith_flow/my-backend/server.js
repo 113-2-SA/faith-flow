@@ -35,20 +35,21 @@ require("./config/firebase");
 // ==================== 匯入路由 ====================
 const healthRoutes = require("./routes/health");
 const authRoutes = require("./routes/routesauth");
-const userRoutes = require("./routes/user"); // 新增使用者個人資料相關的路由
-const diaryRoutes = require("./routes/diarys"); // 新增日記相關的路由
-const postRoutes = require('./routes/post'); // 新增貼文相關的路由
-const commentRoutes = require('./routes/comment');           
-const commentLikeRoutes = require('./routes/clike');  
-const likeRoutes = require('./routes/like');        
-const shareRoutes = require('./routes/share');      
+const userRoutes = require("./routes/user");
+const diaryRoutes = require("./routes/diarys");
+const postRoutes = require('./routes/post');
+const commentRoutes = require('./routes/comment');
+const commentLikeRoutes = require('./routes/clike');
+const likeRoutes = require('./routes/like');
+const shareRoutes = require('./routes/share');
+const livingwaterRoutes = require('./routes/livingwater'); // 活水泉源路由
 
 // ==================== 註冊路由 ====================
 
 // 健康檢查
 app.use("/health", healthRoutes);
 
-// 除錯端點（保持原有的 /debug/user 路徑）
+// 除錯端點
 app.get("/debug/user", async (req, res) => {
   try {
     const authService = require("./services/authservice");
@@ -70,29 +71,25 @@ app.use("/api/diary", diaryRoutes);
 app.use('/api/post', postRoutes);
 
 // 認證相關的路由
-// POST /api/auth/sync
 app.use("/api/auth", authRoutes);
 
 // 管理員相關的路由
-// POST /api/admin/import-firebase-auth-users
 app.use("/api/admin", authRoutes);
 
 // 留言相關路由
-app.use('/api/comments', commentRoutes);         
+app.use('/api/comments', commentRoutes);
 
 // 留言點讚相關路由
-app.use('/api/comment-likes', commentLikeRoutes); 
+app.use('/api/comment-likes', commentLikeRoutes);
 
 // 點讚相關路由
 app.use('/api/like', likeRoutes);
 
 // 轉發相關路由
-app.use('/api/share', shareRoutes);    
+app.use('/api/share', shareRoutes);
 
-
-
-
-
+// 活水泉源相關路由
+app.use('/api/livingwater', livingwaterRoutes);
 
 // ==================== 根路徑 ====================
 app.get("/", (req, res) => {
@@ -112,8 +109,10 @@ app.use((req, res) => {
     availableEndpoints: [
       "GET  /health",
       "GET  /debug/user",
-      "POST /auth/sync",
-      "POST /admin/import-firebase-auth-users"
+      "POST /api/auth/sync",
+      "POST /api/admin/import-firebase-auth-users",
+      "POST /api/livingwater/generate-letter",
+      "POST /api/livingwater/generate-image"
     ]
   });
 });
@@ -139,10 +138,10 @@ app.listen(port, () => {
   console.log("📍 Available API endpoints:");
   console.log("   GET  /health");
   console.log("   GET  /debug/user");
-  console.log("   POST /auth/sync");
-  console.log("   POST /admin/import-firebase-auth-users");
+  console.log("   POST /api/auth/sync");
+  console.log("   POST /api/livingwater/generate-letter");
+  console.log("   POST /api/livingwater/generate-image");
   console.log("✝️  ==========================================");
 });
 
 module.exports = app;
-
