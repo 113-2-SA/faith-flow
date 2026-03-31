@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, Image, ActivityIndicator } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { GlassCard } from "./GlassCard";
 import { ThemedText } from "./themed-text";
@@ -7,6 +7,52 @@ import { ThemedView } from "./themed-view";
 import { MAP_CONFIG } from "../config/mapConfig";
 import { db } from "../lib/firebase";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { useChurchPhoto } from "../hooks/useChurchPhoto";
+import { ChurchPanoramaViewer } from "./ChurchPanoramaViewer";
+
+function ChurchPhoto({ nameEn, nameCh }: { nameEn: string; nameCh?: string }) {
+  const { photoUrl, loading, error } = useChurchPhoto(nameEn, nameCh);
+
+  if (loading) {
+    return (
+      <View style={photoStyles.container}>
+        <ActivityIndicator size="small" color="rgba(255,255,255,0.6)" />
+        <ThemedText style={photoStyles.hint}>載入教堂圖片中...</ThemedText>
+      </View>
+    );
+  }
+  if (error || !photoUrl) return null;
+
+  return (
+    <Image
+      source={{ uri: photoUrl }}
+      style={photoStyles.image}
+      resizeMode="cover"
+    />
+  );
+}
+
+const photoStyles = StyleSheet.create({
+  container: {
+    height: 160,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  hint: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.5)",
+  },
+  image: {
+    width: "100%",
+    height: 160,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+});
 
 export type Basilica = {
   id: string;
@@ -21,6 +67,7 @@ export type Basilica = {
   significance: string;
   description: string;
   viewerUrl: string;
+  panoramaId?: string | null;
 };
 
 type FilterType = "all" | "major" | "cathedral" | "chapel";
@@ -33,8 +80,15 @@ export function BasilicaMap() {
   const [filterType, setFilterType] = useState<FilterType>("all");
   const [searchText, setSearchText] = useState("");
   const scrollViewRef = useRef<ScrollView>(null);
+  const mapRef = useRef<MapView>(null);
   const [detailY, setDetailY] = useState(0);
   const [displayCount, setDisplayCount] = useState(3);
+  const [showPanorama, setShowPanorama] = useState(false);
+
+  // 切換教堂時關閉全景
+  useEffect(() => {
+    setShowPanorama(false);
+  }, [selectedId]);
 
   useEffect(() => {
     const fetchBasilicas = async () => {
@@ -58,6 +112,7 @@ export function BasilicaMap() {
             significance: data.significance,
             description: data.description,
             viewerUrl: data.viewerUrl,
+            panoramaId: data.panoramaId || null,
           });
         });
         setBasilicas(basilicasData);
@@ -95,17 +150,29 @@ export function BasilicaMap() {
     ? basilicas.find((b) => b.id === selectedId)
     : null;
 
-  // 當選中教堂時，畫面自動滾動到教堂介紹區塊
+  // 當選中教堂時，地圖自動置中，並且畫面自動滾動到教堂介紹區塊
   useEffect(() => {
-    if (selectedId && detailY > 0) {
-      setTimeout(() => {
-        scrollViewRef.current?.scrollTo({
-          y: detailY - 10,
-          animated: true,
-        });
-      }, 100);
+    if (selectedId) {
+      const selected = basilicas.find((b) => b.id === selectedId);
+      if (selected && mapRef.current) {
+        mapRef.current.animateToRegion({
+          latitude: selected.coordinates[0],
+          longitude: selected.coordinates[1],
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }, 1000);
+      }
+
+      if (detailY > 0) {
+        setTimeout(() => {
+          scrollViewRef.current?.scrollTo({
+            y: detailY - 10,
+            animated: true,
+          });
+        }, 100);
+      }
     }
-  }, [selectedId, detailY]);
+  }, [selectedId, detailY, basilicas]);
 
   if (loading) {
     return (
@@ -147,6 +214,7 @@ export function BasilicaMap() {
       {/* Map View - Centered */}
       <View style={styles.mapContainer}>
         <MapView
+          ref={mapRef}
           provider={PROVIDER_GOOGLE}
           style={styles.map}
           initialRegion={{
@@ -194,12 +262,15 @@ export function BasilicaMap() {
 
       {/* Selected Basilica Info (顯示於搜尋列下方) */}
       {selectedBasilica ? (
+        <View onLayout={(e) => setDetailY(e.nativeEvent.layout.y)}>
         <GlassCard style={styles.detailCardTop} intensity={90}>
           <ScrollView
             style={styles.detailTopScroll}
             showsVerticalScrollIndicator={true}
             nestedScrollEnabled={true}
           >
+            <ChurchPhoto nameEn={selectedBasilica.nameEn} nameCh={selectedBasilica.name} />
+
             <ThemedText type="title" style={styles.detailName}>
               {selectedBasilica.name}
             </ThemedText>
@@ -254,8 +325,42 @@ export function BasilicaMap() {
                 {selectedBasilica.description}
               </ThemedText>
             </View>
+
+            {/* 360° 全景按鈕 */}
+            {selectedBasilica.panoramaId ? (
+              <Pressable
+                onPress={() => {
+                  setShowPanorama(true);
+                  scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+                }}
+                style={({ pressed }) => [
+                  styles.panoramaBtn,
+                  pressed && styles.panoramaBtnPressed,
+                ]}
+              >
+                <View style={styles.panoramaBtnInner}>
+                  <Text style={styles.panoramaBtnIcon}>🌐</Text>
+                  <View>
+                    <ThemedText style={styles.panoramaBtnLabel}>
+                      進入 360° 全景
+                    </ThemedText>
+                    <ThemedText style={styles.panoramaBtnSub}>
+                      互動式環景體驗
+                    </ThemedText>
+                  </View>
+                  <Text style={styles.panoramaBtnArrow}>›</Text>
+                </View>
+              </Pressable>
+            ) : (
+              <View style={styles.noPanoramaHint}>
+                <ThemedText style={styles.noPanoramaText}>
+                  此教堂暫無全景資料
+                </ThemedText>
+              </View>
+            )}
           </ScrollView>
         </GlassCard>
+        </View>
       ) : null}
 
       {/* Filter Tabs */}
@@ -373,6 +478,15 @@ export function BasilicaMap() {
         </View>
       </GlassCard>
       </ScrollView>
+
+      {/* 360° 全景檢視器改放置於 ScrollView 外以防佈局干擾 */}
+      {showPanorama && selectedBasilica?.panoramaId && (
+        <ChurchPanoramaViewer
+          panoramaId={selectedBasilica.panoramaId}
+          basilicaName={selectedBasilica.name}
+          onClose={() => setShowPanorama(false)}
+        />
+      )}
     </ThemedView>
   );
 }
@@ -709,6 +823,56 @@ const styles = StyleSheet.create({
     height: 4,
     backgroundColor: '#ffffff',
     borderRadius: 2,
-    top: 11, // 稍微偏上，呈現十字架而非加號
+    top: 11,
+  },
+  noPanoramaHint: {
+    marginTop: 12,
+    paddingVertical: 8,
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  noPanoramaText: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.4)",
+  },
+  panoramaBtn: {
+    marginTop: 16,
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(102,126,234,0.6)",
+    backgroundColor: "rgba(102,126,234,0.18)",
+  },
+  panoramaBtnPressed: {
+    backgroundColor: "rgba(102,126,234,0.38)",
+    borderColor: "rgba(102,126,234,1)",
+  },
+  panoramaBtnInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  panoramaBtnIcon: {
+    fontSize: 28,
+  },
+  panoramaBtnLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.95)",
+  },
+  panoramaBtnSub: {
+    fontSize: 11,
+    color: "rgba(102,126,234,0.9)",
+    marginTop: 2,
+  },
+  panoramaBtnArrow: {
+    fontSize: 24,
+    color: "rgba(102,126,234,0.8)",
+    marginLeft: "auto",
   },
 });
