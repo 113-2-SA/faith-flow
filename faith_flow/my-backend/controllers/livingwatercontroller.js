@@ -71,7 +71,12 @@ const generateLetterController = async (req, res) => {
         message: 'AI 服務暫時無法連線，請確認 VM 是否開機',
       });
     }
-
+console.error('[詳細錯誤]', {
+  message: error.message,
+  status: error.response?.status,
+  url: error.config?.url,
+  data: error.response?.data,
+});
     // 其他未知錯誤
     return res.status(500).json({
       success: false,

@@ -63,7 +63,7 @@ ${conversation}
   const response = await axios.post(
     `${QWEN_BASE_URL}/v1/chat/completions`,
     {
-      model: 'qwen2.5-72b-instruct', // 確認你們 VM 上跑的模型名稱
+      model: 'qwen2.5:14b', // 確認你們 VM 上跑的模型名稱
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user',   content: userPrompt   },
@@ -72,8 +72,11 @@ ${conversation}
       max_tokens: 1000,
     },
     {
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 30000, // 30 秒 timeout，避免 Qwen 沒回應就一直等
+      headers: {
+  'Content-Type': 'application/json',
+  'ngrok-skip-browser-warning': 'true',
+},
+      timeout: 300000, // 120 秒 timeout，避免 Qwen 沒回應就一直等
     }
   );
 
@@ -101,13 +104,16 @@ const generateImage = async (image_prompt) => {
   const response = await axios.post(
     `${QWEN_BASE_URL}/v1/images/generations`,
     {
-      model: 'qwen2.5-72b-instruct', // 先佔位，確認後修改
+      model: 'qwen2.5:14b', // 確認你們 VM 上跑的模型名稱, // 先佔位，確認後修改
       prompt: image_prompt,
       n: 1,
       size: '1024x1024',
     },
     {
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+  'Content-Type': 'application/json',
+  'ngrok-skip-browser-warning': 'true',
+},
       timeout: 60000, // 圖片生成比較久，給 60 秒
     }
   );
