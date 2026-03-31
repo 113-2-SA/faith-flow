@@ -1,7 +1,9 @@
 // lib/firebase.ts
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { initializeAuth, getAuth, getReactNativePersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { Platform } from "react-native";
+import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -13,5 +15,23 @@ const firebaseConfig = {
 };
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+
+// 手機用 AsyncStorage 持久化；Web 用預設 localStorage
+// 用 try/catch 防止熱重載時 initializeAuth 重複呼叫報錯
+function createAuth() {
+  if (Platform.OS === "web") {
+    return getAuth(app);
+  }
+  try {
+    return initializeAuth(app, {
+      persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+    });
+  } catch {
+    // Auth 已初始化（熱重載場景），直接取得現有實例
+    return getAuth(app);
+  }
+}
+
+export const auth = createAuth();
+
 export const db = getFirestore(app);

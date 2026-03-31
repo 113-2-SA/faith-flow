@@ -4,7 +4,7 @@ import * as Google from "expo-auth-session/providers/google";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, useMemo, useState } from "react";
-import { GoogleAuthProvider, signInWithCredential, onAuthStateChanged } from "firebase/auth";
+import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
 import { auth} from "../../lib/firebase";
 import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native";
 import Constants, { ExecutionEnvironment } from "expo-constants";
@@ -118,19 +118,7 @@ export default function LoginScreen() {
     })();
   }, [response, router]);
 
-  useEffect(() => {
-  const unsubscribe = onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      const idToken = await user.getIdToken();
-      
-      await fetch('http://localhost:3000/api/auth/sync', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${idToken}` }
-      });
-    }
-  });
-  return unsubscribe;
-}, []);
+  // 注意：sync 邏輯已由 AuthContext 的 onAuthStateChanged 統一處理，此處不重複
 
 
   const disabled = !request || busy || !webClientId;
