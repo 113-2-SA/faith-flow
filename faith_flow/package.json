@@ -11,6 +11,7 @@
     "lint": "expo lint"
   },
   "dependencies": {
+    "@expo/metro-runtime": "^6.1.2",
     "@expo/vector-icons": "^15.0.3",
     "@react-google-maps/api": "^2.20.8",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -38,7 +39,6 @@
     "expo-video": "~3.0.16",
     "expo-web-browser": "~15.0.10",
     "firebase": "^12.8.0",
-    "firebase-admin": "^13.7.0",
     "leaflet": "^1.9.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",

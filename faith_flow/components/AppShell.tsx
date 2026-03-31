@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SideDrawer } from "./SideDrawer";
 
@@ -29,9 +30,11 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
         {children}
 
         {/* 固定在左上角的漢堡按鈕（所有頁面位置一致） */}
-        <SafeAreaView style={styles.hamburgerArea} edges={["top"]}>
+        <SafeAreaView style={styles.hamburgerArea} edges={["top"]} pointerEvents="box-none">
           <Pressable onPress={openDrawer} style={styles.hamburgerButton}>
-            <Text style={styles.hamburgerText}>☰</Text>
+            <View style={styles.bar} />
+            <View style={styles.bar} />
+            <View style={styles.bar} />
           </Pressable>
         </SafeAreaView>
 
@@ -49,23 +52,24 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     left: 0,
-    right: 0,
     zIndex: 1001,
-    paddingHorizontal: 16,
+    paddingLeft: 16,
     paddingTop: 10,
   },
   hamburgerButton: {
-    width: 44,
+    width: 52,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.22)",
+    backgroundColor: "rgba(255,255,255,0.9)",
+    gap: 5,
   },
-  hamburgerText: {
-    color: "white",
-    fontSize: 24,
-    lineHeight: 24,
+  bar: {
+    width: 22,
+    height: 2.5,
+    borderRadius: 1.5,
+    backgroundColor: "rgba(0,0,0,0.75)",
   },
 });
 
