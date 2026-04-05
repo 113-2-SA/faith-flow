@@ -96,29 +96,48 @@ ${conversation}
 // 輸入：image_prompt 字串
 // 輸出：圖片 URL 或 base64（依你們 VM 的 Qwen 設定而定）
 // ============================================================
+// ============================================================
+// 【功能二】生成圖片
+// 用 Hugging Face Inference API 生成意境圖
+// 輸入：image_prompt 字串
+// 輸出：圖片的 base64 字串
+// ============================================================
 const generateImage = async (image_prompt) => {
 
-  // ⚠️ 注意：圖像生成的 API 端點可能和文字不同
-  // 請確認你們 VM 上 Qwen 有沒有開圖像生成功能
-  // 若沒有，這個函式先保留，之後確認後再填入正確端點
+  const HF_API_TOKEN = process.env.HF_API_TOKEN;
+
+  // 使用 FLUX 模型（免費、品質好、適合藝術風格）
+  const MODEL = 'black-forest-labs/FLUX.1-schnell';
+
   const response = await axios.post(
-    `${QWEN_BASE_URL}/v1/images/generations`,
+    `https://router.huggingface.co/hf-inference/models/${MODEL}`,
     {
-      model: 'qwen2.5:14b', // 確認你們 VM 上跑的模型名稱, // 先佔位，確認後修改
-      prompt: image_prompt,
-      n: 1,
-      size: '1024x1024',
+      inputs: image_prompt,
+      parameters: {
+        num_inference_steps: 4,   // schnell 模型建議 4 步
+        width: 768,
+        height: 768,
+      }
     },
     {
       headers: {
-  'Content-Type': 'application/json',
-  'ngrok-skip-browser-warning': 'true',
-},
-      timeout: 60000, // 圖片生成比較久，給 60 秒
+        'Authorization': `Bearer ${HF_API_TOKEN}`,
+        'Content-Type': 'application/json',
+        'Accept': 'image/jpeg',  // ← 加這行
+      },
+      responseType: 'arraybuffer', // 圖片是二進位資料
+      timeout: 60000,
     }
   );
 
-  return response.data;
+  // 把二進位圖片轉成 base64，前端可以直接用 <Image source={{uri: `data:image/jpeg;base64,${base64}`}} />
+  const base64 = Buffer.from(response.data).toString('base64');
+
+  return {
+    base64,
+    mimeType: 'image/jpeg',
+    dataUrl: `data:image/jpeg;base64,${base64}`,
+  };
 };
 
 // 匯出給 Controller 使用

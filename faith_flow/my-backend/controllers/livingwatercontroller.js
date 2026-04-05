@@ -110,6 +110,11 @@ const generateImageController = async (req, res) => {
 
   } catch (error) {
     console.error('[活水泉源] generateImage 錯誤：', error.message);
+    console.error('[活水泉源] generateImage 錯誤：', {
+  message: error.message,
+  status: error.response?.status,
+  data: error.response?.data ? Buffer.from(error.response.data).toString('utf8') : undefined,
+});
 
     return res.status(500).json({
       success: false,
