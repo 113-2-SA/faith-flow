@@ -124,5 +124,122 @@ const generateImageController = async (req, res) => {
   }
 };
 
+// ============================================================
+// GET /api/livingwater/daily-card
+// 取得今日抽卡題目
+// ============================================================
+const getDailyCardController = async (req, res) => {
+  try {
+    const questions = require('../scripts/faithflow_questions_with_assets.json');
+
+    // ── 計算本週是第幾週（用來決定本週的5題）──
+    const now = new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const weekNumber = Math.floor((now - startOfYear) / (7 * 24 * 60 * 60 * 1000));
+
+    // ── 用週數當 seed，固定本週5題 ──
+    // 簡單的 seed 算法：讓同一週永遠抽到同樣5題
+    const seededRandom = (seed) => {
+      const x = Math.sin(seed + 1) * 10000;
+      return x - Math.floor(x);
+    };
+
+    // 選出本週5題的 index
+    const weeklyIndexes = [];
+    let seed = weekNumber * 100;
+    while (weeklyIndexes.length < 5) {
+      const idx = Math.floor(seededRandom(seed) * questions.length);
+      if (!weeklyIndexes.includes(idx)) {
+        weeklyIndexes.push(idx);
+      }
+      seed++;
+    }
+
+    // ── 今天是週幾（0=週日, 1=週一...5=週五）──
+    // 週一到週五各對應一題，週六/週日用週五的題
+    const dayOfWeek = Math.min(now.getDay() === 0 ? 4 : now.getDay() - 1, 4);
+    const todayQuestion = questions[weeklyIndexes[dayOfWeek]];
+
+    // ── 回傳（不含 image_base64，圖片另外用 /get-card-image 取）──
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: todayQuestion.id,
+        question: todayQuestion.question,
+        theme: todayQuestion.theme,
+        depth: todayQuestion.depth,
+        quote: todayQuestion.quote,
+        quote_source: todayQuestion.quote_source,
+        image_prompt: todayQuestion.image_prompt,
+        // 圖片先一起回傳，之後 DB 版改成回傳 image_url
+        image_base64: todayQuestion.image_base64,
+      }
+    });
+
+  } catch (error) {
+    console.error('[活水泉源] getDailyCard 錯誤：', error.message);
+    return res.status(500).json({
+      success: false,
+      message: '取得今日題目失敗',
+      error: error.message,
+    });
+  }
+};
+
+// ============================================================
+// GET /api/livingwater/weekly-cards
+// 取得本週五題（不含圖片，給卡冊列表用）
+// ============================================================
+const getWeeklyCardsController = async (req, res) => {
+  try {
+    const questions = require('../scripts/faithflow_questions_with_assets.json');
+
+    const now = new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const weekNumber = Math.floor((now - startOfYear) / (7 * 24 * 60 * 60 * 1000));
+
+    const seededRandom = (seed) => {
+      const x = Math.sin(seed + 1) * 10000;
+      return x - Math.floor(x);
+    };
+
+    const weeklyIndexes = [];
+    let seed = weekNumber * 100;
+    while (weeklyIndexes.length < 5) {
+      const idx = Math.floor(seededRandom(seed) * questions.length);
+      if (!weeklyIndexes.includes(idx)) weeklyIndexes.push(idx);
+      seed++;
+    }
+
+    const weeklyCards = weeklyIndexes.map((idx, i) => ({
+      day: i + 1, // 1=週一 ~ 5=週五
+      id: questions[idx].id,
+      question: questions[idx].question,
+      theme: questions[idx].theme,
+      depth: questions[idx].depth,
+      quote: questions[idx].quote,
+      quote_source: questions[idx].quote_source,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: weeklyCards,
+    });
+
+  } catch (error) {
+    console.error('[活水泉源] getWeeklyCards 錯誤：', error.message);
+    return res.status(500).json({
+      success: false,
+      message: '取得本週題目失敗',
+      error: error.message,
+    });
+  }
+};
+
 // 匯出給 Route 使用
-module.exports = { generateLetterController, generateImageController };
+module.exports = {
+  generateLetterController,
+  generateImageController,
+  getDailyCardController,
+  getWeeklyCardsController,
+};
