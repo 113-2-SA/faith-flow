@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, Image, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, Image, ActivityIndicator, TextInput } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { GlassCard } from "./GlassCard";
 import { ThemedText } from "./themed-text";
@@ -68,6 +68,7 @@ export type Basilica = {
   description: string;
   viewerUrl: string;
   panoramaId?: string | null;
+  panoramaHeading?: number;
 };
 
 type FilterType = "all" | "major" | "cathedral" | "chapel";
@@ -113,6 +114,7 @@ export function BasilicaMap() {
             description: data.description,
             viewerUrl: data.viewerUrl,
             panoramaId: data.panoramaId || null,
+            panoramaHeading: data.panoramaHeading ?? undefined,
           });
         });
         setBasilicas(basilicasData);
@@ -173,6 +175,32 @@ export function BasilicaMap() {
       }
     }
   }, [selectedId, detailY, basilicas]);
+
+  // 當搜尋或篩選結果改變時，自動調整地圖範圍
+  useEffect(() => {
+    if (!mapRef.current || filtered.length === 0) return;
+
+    // 只有在使用者有輸入搜尋文字或切換篩選條件時，才自動移動地圖
+    if (searchText.trim() !== "" || filterType !== "all") {
+      if (filtered.length === 1) {
+        mapRef.current.animateToRegion({
+          latitude: filtered[0].coordinates[0],
+          longitude: filtered[0].coordinates[1],
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }, 1000);
+      } else {
+        const coords = filtered.map((b) => ({
+          latitude: b.coordinates[0],
+          longitude: b.coordinates[1],
+        }));
+        mapRef.current.fitToCoordinates(coords, {
+          edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+          animated: true,
+        });
+      }
+    }
+  }, [filtered, searchText, filterType]);
 
   if (loading) {
     return (
@@ -249,14 +277,21 @@ export function BasilicaMap() {
         <ThemedText style={styles.searchLabel}>搜尋教堂</ThemedText>
         <View style={styles.searchInput}>
           <Text style={styles.searchIcon}>🔍</Text>
-          <Text
-            style={styles.searchPlaceholder}
-            onPress={() => {
-              // 搜尋框提示
-            }}
-          >
-            {searchText || "教堂名稱、位置、奉獻對象..."}
-          </Text>
+          <TextInput
+            style={styles.searchTextInput}
+            placeholder="教堂名稱、位置、奉獻對象..."
+            placeholderTextColor="rgba(255,255,255,0.5)"
+            value={searchText}
+            onChangeText={setSearchText}
+            underlineColorAndroid="transparent"
+            cursorColor="#ffffff"
+            selectionColor="rgba(255,255,255,0.5)"
+          />
+          {searchText.length > 0 && (
+            <Pressable onPress={() => setSearchText("")} style={styles.clearButton} hitSlop={8}>
+              <Text style={styles.clearButtonText}>✕</Text>
+            </Pressable>
+          )}
         </View>
       </GlassCard>
 
@@ -485,6 +520,7 @@ export function BasilicaMap() {
           panoramaId={selectedBasilica.panoramaId}
           basilicaName={selectedBasilica.name}
           onClose={() => setShowPanorama(false)}
+          heading={selectedBasilica.panoramaHeading}
         />
       )}
     </ThemedView>
@@ -553,10 +589,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginRight: 8,
   },
-  searchPlaceholder: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.5)",
+  searchTextInput: {
     flex: 1,
+    fontSize: 14,
+    color: "rgba(255,255,255,0.95)",
+    paddingVertical: 0,
+  },
+  clearButton: {
+    padding: 4,
+    marginLeft: 4,
+  },
+  clearButtonText: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.6)",
   },
   filterScroll: {
     marginBottom: 12,

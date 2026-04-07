@@ -92,10 +92,12 @@ async function fetchChurchPanoramas() {
         const fov = 90;
         // pitch=10 略微仰角，室內更有身歷其境感
         const pitch = isIndoor ? 10 : 0;
+        // 使用各教堂預設的朝向正面方位角；若未設定則預設 0（朝北）
+        const heading = basilica.panoramaHeading ?? 0;
 
         const streetViewUrl =
           `https://www.google.com/maps/embed/v1/streetview` +
-          `?key=${MAPS_API_KEY}&pano=${panoramaId}&heading=0&pitch=${pitch}&fov=${fov}`;
+          `?key=${MAPS_API_KEY}&pano=${panoramaId}&heading=${heading}&pitch=${pitch}&fov=${fov}`;
 
         updateData = {
           panoramaId,

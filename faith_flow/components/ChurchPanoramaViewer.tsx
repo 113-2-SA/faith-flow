@@ -26,12 +26,13 @@ type Props = {
   panoramaId: string;
   basilicaName: string;
   onClose: () => void;
+  heading?: number; // 朝向建築正面的方位角（0=北, 90=東, 180=南, 270=西）
 };
 
-export function ChurchPanoramaViewer({ panoramaId, basilicaName, onClose }: Props) {
+export function ChurchPanoramaViewer({ panoramaId, basilicaName, onClose, heading = 0 }: Props) {
   const embedUrl =
     `https://www.google.com/maps/embed/v1/streetview` +
-    `?key=${GOOGLE_MAPS_API_KEY}&pano=${panoramaId}&heading=0&pitch=0&fov=90`;
+    `?key=${GOOGLE_MAPS_API_KEY}&pano=${panoramaId}&heading=${heading}&pitch=0&fov=90`;
 
   return (
     <Modal

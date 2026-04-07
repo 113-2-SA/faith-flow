@@ -1,5 +1,5 @@
 
-import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput } from "react-native";
 import React, { useMemo, useState, useEffect, useRef, lazy, Suspense } from "react";
 import { ChurchPanoramaViewer } from "./ChurchPanoramaViewer";
 import { GlassCard } from "./GlassCard";
@@ -26,6 +26,7 @@ export type Basilica = {
     description: string;
     viewerUrl: string;
     panoramaId?: string | null;
+    panoramaHeading?: number;
 };
 
 type FilterType = "all" | "major" | "cathedral" | "chapel";
@@ -70,6 +71,7 @@ export function BasilicaMap() {
                         description: data.description,
                         viewerUrl: data.viewerUrl,
                         panoramaId: data.panoramaId || null,
+                        panoramaHeading: data.panoramaHeading ?? undefined,
                     });
                 });
                 setBasilicas(basilicasData);
@@ -100,6 +102,20 @@ export function BasilicaMap() {
     useEffect(() => {
         setDisplayCount(3);
     }, [filterType, searchText]);
+
+    // 當搜尋文字完全匹配教堂名稱時，自動選擇該教堂
+    useEffect(() => {
+        const trimmed = searchText.trim();
+        if (trimmed !== "") {
+            const exactMatch = basilicas.find(b => 
+                b.name.toLowerCase() === trimmed.toLowerCase() ||
+                b.nameEn.toLowerCase() === trimmed.toLowerCase()
+            );
+            if (exactMatch) {
+                setSelectedId(exactMatch.id);
+            }
+        }
+    }, [searchText, basilicas]);
 
     const displayedBasilicas = filtered.slice(0, displayCount);
 
@@ -170,6 +186,7 @@ export function BasilicaMap() {
                         markers={filtered}
                         onMarkerPress={(id) => setSelectedId(id)}
                         selectedId={selectedId}
+                        autoFitBounds={searchText.trim() !== "" || filterType !== "all"}
                     />
                 </Suspense>
             </View>
@@ -179,14 +196,18 @@ export function BasilicaMap() {
                 <ThemedText style={styles.searchLabel}>搜尋教堂</ThemedText>
                 <View style={styles.searchInput}>
                     <Text style={styles.searchIcon}>🔍</Text>
-                    <Text
-                        style={styles.searchPlaceholder}
-                        onPress={() => {
-                            // 搜尋框提示
-                        }}
-                    >
-                        {searchText || "教堂名稱、位置、奉獻對象..."}
-                    </Text>
+                    <TextInput
+                        style={[styles.searchTextInput, { outline: 'none', caretColor: '#ffffff' } as any]}
+                        placeholder="教堂名稱、位置、奉獻對象..."
+                        placeholderTextColor="rgba(255,255,255,0.5)"
+                        value={searchText}
+                        onChangeText={setSearchText}
+                    />
+                    {searchText.length > 0 && (
+                        <Pressable onPress={() => setSearchText("")} style={styles.clearButton}>
+                            <Text style={styles.clearButtonText}>✕</Text>
+                        </Pressable>
+                    )}
                 </View>
             </GlassCard>
 
@@ -413,6 +434,7 @@ export function BasilicaMap() {
                 panoramaId={selectedBasilica.panoramaId}
                 basilicaName={selectedBasilica.name}
                 onClose={() => setShowPanorama(false)}
+                heading={selectedBasilica.panoramaHeading}
             />
         )}
         </View>
@@ -481,10 +503,20 @@ const styles = StyleSheet.create({
         fontSize: 16,
         marginRight: 8,
     },
-    searchPlaceholder: {
-        fontSize: 14,
-        color: "rgba(255,255,255,0.5)",
+    searchTextInput: {
         flex: 1,
+        fontSize: 14,
+        color: "rgba(255,255,255,0.95)",
+        paddingVertical: 0,
+    },
+    clearButton: {
+        padding: 4,
+        marginLeft: 4,
+        cursor: "pointer",
+    },
+    clearButtonText: {
+        fontSize: 14,
+        color: "rgba(255,255,255,0.6)",
     },
     filterScroll: {
         marginBottom: 12,
