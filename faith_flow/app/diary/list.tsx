@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   RefreshControl,
   Alert
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../context/authcontext';
 import { VideoBackground } from '../../components/VideoBackground';
 import { GlassCard } from '../../components/GlassCard';
@@ -77,9 +77,11 @@ export default function DiaryListScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchDiaries(filterDate);
-  }, [filterDate, user]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchDiaries(filterDate);
+    }, [filterDate, user])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -174,7 +176,7 @@ export default function DiaryListScreen() {
                 </Text>
                 <TouchableOpacity
                   style={styles.createButton}
-                  onPress={() => router.push('/diary/create')}
+                  onPress={() => router.push({ pathname: '/diary/create', params: filterDate ? { date: filterDate } : {} })}
                 >
                   <Text style={styles.createButtonText}>
                     {filterDate ? '寫下今天的日記' : '開始寫日記'}
@@ -188,7 +190,7 @@ export default function DiaryListScreen() {
         {/* 新增按鈕 */}
         <TouchableOpacity
           style={styles.fab}
-          onPress={() => router.push('/diary/create')}
+          onPress={() => router.push({ pathname: '/diary/create', params: filterDate ? { date: filterDate } : {} })}
         >
           <Text style={styles.fabText}>+</Text>
         </TouchableOpacity>

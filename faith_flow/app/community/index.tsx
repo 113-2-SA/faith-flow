@@ -20,6 +20,8 @@ import { API_BASE_URL } from '../../lib/api';
 import { VideoBackground } from '../../components/VideoBackground';
 import { GlassCard } from '../../components/GlassCard';
 
+
+
 interface OriginalPost {
   community_post_id: number;
   post_text: string;
@@ -79,6 +81,13 @@ export default function CommunityFeedScreen() {
   const [sharing, setSharing] = useState(false);
   const LIMIT = 20;
 
+  // 搜尋相關狀態
+  const [searchInput, setSearchInput] = useState('');
+  const [searchMode, setSearchMode] = useState(false);
+  const [searchResults, setSearchResults] = useState<Post[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [sortBy, setSortBy] = useState<'newest' | 'popular'>('newest');
+
   const fetchPosts = useCallback(async (reset = false, tag?: string | null) => {
     if (!currentUser) return;
     try {
@@ -126,6 +135,49 @@ export default function CommunityFeedScreen() {
 
   const onLoadMore = () => {
     if (hasMore && !loading) fetchPosts(false);
+  };
+
+  // ==================== 搜尋社群貼文 ====================
+  const searchPosts = async (keyword: string, tags: string[], sort = sortBy) => {
+    if (!currentUser) return;
+    setSearchLoading(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const params = new URLSearchParams();
+      if (keyword) params.append('keyword', keyword);
+      if (tags.length > 0) params.append('tags', tags.join(','));
+      params.append('sortBy', sort);
+      params.append('page', '1');
+      params.append('limit', '20');
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/search/community/posts?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await response.json();
+      if (data.ok) {
+        setSearchResults(data.data);
+      } else {
+        Alert.alert('錯誤', data.error || '搜尋失敗');
+      }
+    } catch (error) {
+      console.error('搜尋貼文錯誤:', error);
+      Alert.alert('錯誤', '搜尋失敗，請稍後再試');
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleSearch = () => {
+    if (!searchInput.trim()) return;
+    setSearchMode(true);
+    searchPosts(searchInput.trim(), []);
+  };
+
+  const clearSearch = () => {
+    setSearchMode(false);
+    setSearchInput('');
+    setSearchResults([]);
   };
 
   const deletePost = async (postId: number) => {
@@ -368,8 +420,50 @@ export default function CommunityFeedScreen() {
           <Text style={styles.topBarTitle}>心靈營火</Text>
         </GlassCard>
 
+        {/* Search bar */}
+        <View style={styles.searchBar}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="搜尋貼文..."
+            placeholderTextColor="rgba(255,255,255,0.4)"
+            value={searchInput}
+            onChangeText={setSearchInput}
+            onSubmitEditing={handleSearch}
+            returnKeyType="search"
+          />
+          {searchMode ? (
+            <TouchableOpacity style={styles.searchBtn} onPress={clearSearch}>
+              <Text style={styles.searchBtnText}>✕</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.searchBtn} onPress={handleSearch}>
+              <Text style={styles.searchBtnText}>🔍</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Sort tabs (only in search mode) */}
+        {searchMode && (
+          <View style={styles.sortRow}>
+            {(['newest', 'popular'] as const).map((s) => (
+              <TouchableOpacity
+                key={s}
+                style={[styles.sortBtn, sortBy === s && styles.sortBtnActive]}
+                onPress={() => {
+                  setSortBy(s);
+                  searchPosts(searchInput.trim(), [], s);
+                }}
+              >
+                <Text style={[styles.sortBtnText, sortBy === s && styles.sortBtnTextActive]}>
+                  {s === 'newest' ? '最新' : '熱門'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         {/* Active tag filter */}
-        {selectedTag && (
+        {!searchMode && selectedTag && (
           <TouchableOpacity
             style={styles.filterBar}
             onPress={() => onTagPress(selectedTag)}
@@ -379,14 +473,14 @@ export default function CommunityFeedScreen() {
           </TouchableOpacity>
         )}
 
-        {loading && !refreshing ? (
+        {(loading && !refreshing) || searchLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="rgba(255,255,255,0.9)" />
-            <Text style={styles.loadingText}>載入中...</Text>
+            <Text style={styles.loadingText}>{searchLoading ? '搜尋中...' : '載入中...'}</Text>
           </View>
         ) : (
           <FlatList
-            data={selectedTag ? posts.filter(p => p.tags?.includes(selectedTag)) : posts}
+            data={searchMode ? searchResults : (selectedTag ? posts.filter(p => p.tags?.includes(selectedTag)) : posts)}
             renderItem={renderPost}
             keyExtractor={(item) => item.community_post_id.toString()}
             contentContainerStyle={styles.listContent}
@@ -401,8 +495,10 @@ export default function CommunityFeedScreen() {
             onEndReachedThreshold={0.3}
             ListEmptyComponent={
               <GlassCard style={styles.emptyCard}>
-                <Text style={styles.emptyIcon}>🕊️</Text>
-                <Text style={styles.emptyText}>尚未注入火苗，來分享第一篇吧！</Text>
+                <Text style={styles.emptyIcon}>{searchMode ? '🔍' : '🕊️'}</Text>
+                <Text style={styles.emptyText}>
+                  {searchMode ? '找不到相關貼文' : '尚未注入火苗，來分享第一篇吧！'}
+                </Text>
               </GlassCard>
             }
             ListFooterComponent={
@@ -662,6 +758,63 @@ const styles = StyleSheet.create({
     fontSize: 32,
     color: 'rgba(255,255,255,0.95)',
     fontWeight: '300',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 8,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: 38,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+    paddingHorizontal: 14,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.95)',
+  },
+  searchBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  searchBtnText: {
+    fontSize: 16,
+  },
+  sortRow: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginTop: 8,
+    gap: 8,
+  },
+  sortBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  sortBtnActive: {
+    backgroundColor: 'rgba(0,122,255,0.5)',
+    borderColor: 'rgba(0,122,255,0.7)',
+  },
+  sortBtnText: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  sortBtnTextActive: {
+    color: 'rgba(255,255,255,0.95)',
+    fontWeight: '600',
   },
   filterBar: {
     flexDirection: 'row',

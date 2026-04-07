@@ -108,6 +108,8 @@ const shareRoutes = require('./routes/share');
 const conversationRoutes = require('./routes/conversation');
 const messageRoutes = require('./routes/message');
 const weeklySummaryRoutes = require('./routes/weeklysummary');
+const searchRoutes = require('./routes/search');
+const liturgicalRoutes = require('./routes/liturgical');
 
 // ==================== 註冊路由 ====================
 
@@ -161,6 +163,11 @@ app.use('/api', messageRoutes);
 
 // ⭐ 周回顧路由
 app.use('/api/weekly-summary', weeklySummaryRoutes(weeklySummaryController));
+
+app.use('/api/search', searchRoutes);
+
+// 禮儀年曆路由
+app.use('/api/liturgical', liturgicalRoutes);
 
 // ==================== 根路徑 ====================
 app.get("/", (req, res) => {

@@ -9,10 +9,9 @@ import {
   Alert,
   ActivityIndicator
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { auth } from '../../lib/firebase';
 
-// ✅ 放在 component 外面：不會每次 render 都重新建立，也不會誤放到 hook 區域
 const getToday = () => {
   const today = new Date();
   const yyyy = today.getFullYear();
@@ -23,9 +22,10 @@ const getToday = () => {
 
 export default function CreateDiaryScreen() {
   const router = useRouter();
+  const { date: paramDate } = useLocalSearchParams<{ date?: string }>();
 
-  // ✅ 表單狀態（預設今天日期）
-  const [diary_date, setDiaryDate] = useState(getToday());
+  // 若從日曆帶入日期參數則使用，否則預設今天
+  const [diary_date, setDiaryDate] = useState(paramDate ?? getToday());
   const [diary_title, setDiaryTitle] = useState('');
   const [diary_content, setDiaryContent] = useState('');
   const [bible_quote, setBibleQuote] = useState('');

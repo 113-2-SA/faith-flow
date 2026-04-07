@@ -256,7 +256,7 @@ async function getDiaryByDate(userId, date) {
  * userId 參數：firebase uid
  */
 async function updateDiary(diaryId, userId, updates) {
-  const dbUserID = await getUserIDByFirebaseUid(userId);
+  const dbUserID = userId; // userId 從 attachUserId 中間件取得，已是 int
 
   const diaryDate = updates.diaryDate ?? updates.diary_date;
   const diaryTitle = updates.diaryTitle ?? updates.diary_title;
