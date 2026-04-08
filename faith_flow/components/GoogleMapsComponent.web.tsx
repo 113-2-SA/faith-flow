@@ -27,12 +27,14 @@ interface GoogleMapsComponentProps {
   markers: Basilica[];
   onMarkerPress: (id: string) => void;
   selectedId: string | null;
+  autoFitBounds?: boolean;
 }
 
 export default function GoogleMapsComponent({
   markers,
   onMarkerPress,
   selectedId,
+  autoFitBounds,
 }: GoogleMapsComponentProps) {
   const mapRef = useRef<google.maps.Map | null>(null);
 
@@ -49,6 +51,23 @@ export default function GoogleMapsComponent({
       }
     }
   }, [selectedId, markers]);
+
+  useEffect(() => {
+    // 當使用者輸入搜尋條件或篩選時，自動調整地圖邊界以包含所有符合的標記
+    if (autoFitBounds && mapRef.current && markers.length > 0) {
+      if (markers.length === 1) {
+        mapRef.current.panTo({
+          lat: markers[0].coordinates[0],
+          lng: markers[0].coordinates[1],
+        });
+        mapRef.current.setZoom(10);
+      } else {
+        const bounds = new window.google.maps.LatLngBounds();
+        markers.forEach((m) => bounds.extend({ lat: m.coordinates[0], lng: m.coordinates[1] }));
+        mapRef.current.fitBounds(bounds);
+      }
+    }
+  }, [markers, autoFitBounds]);
 
   return (
     <LoadScript googleMapsApiKey={MAP_CONFIG.apiKey}>

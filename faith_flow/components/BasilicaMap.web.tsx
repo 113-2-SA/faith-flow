@@ -1,6 +1,7 @@
 
-import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput } from "react-native";
 import React, { useMemo, useState, useEffect, useRef, lazy, Suspense } from "react";
+import { ChurchPanoramaViewer } from "./ChurchPanoramaViewer";
 import { GlassCard } from "./GlassCard";
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
@@ -24,6 +25,8 @@ export type Basilica = {
     significance: string;
     description: string;
     viewerUrl: string;
+    panoramaId?: string | null;
+    panoramaHeading?: number;
 };
 
 type FilterType = "all" | "major" | "cathedral" | "chapel";
@@ -38,6 +41,12 @@ export function BasilicaMap() {
     const scrollViewRef = useRef<ScrollView>(null);
     const [detailY, setDetailY] = useState(0);
     const [displayCount, setDisplayCount] = useState(3);
+    const [showPanorama, setShowPanorama] = useState(false);
+
+    // 切換教堂時關閉全景
+    useEffect(() => {
+        setShowPanorama(false);
+    }, [selectedId]);
 
     useEffect(() => {
         const fetchBasilicas = async () => {
@@ -61,6 +70,8 @@ export function BasilicaMap() {
                         significance: data.significance,
                         description: data.description,
                         viewerUrl: data.viewerUrl,
+                        panoramaId: data.panoramaId || null,
+                        panoramaHeading: data.panoramaHeading ?? undefined,
                     });
                 });
                 setBasilicas(basilicasData);
@@ -91,6 +102,20 @@ export function BasilicaMap() {
     useEffect(() => {
         setDisplayCount(3);
     }, [filterType, searchText]);
+
+    // 當搜尋文字完全匹配教堂名稱時，自動選擇該教堂
+    useEffect(() => {
+        const trimmed = searchText.trim();
+        if (trimmed !== "") {
+            const exactMatch = basilicas.find(b => 
+                b.name.toLowerCase() === trimmed.toLowerCase() ||
+                b.nameEn.toLowerCase() === trimmed.toLowerCase()
+            );
+            if (exactMatch) {
+                setSelectedId(exactMatch.id);
+            }
+        }
+    }, [searchText, basilicas]);
 
     const displayedBasilicas = filtered.slice(0, displayCount);
 
@@ -131,10 +156,12 @@ export function BasilicaMap() {
     }
 
     return (
+        <View style={{ flex: 1 }}>
         <ScrollView
             ref={scrollViewRef}
             style={styles.scrollRoot}
             contentContainerStyle={styles.container}
+            scrollEnabled={!showPanorama}
             showsVerticalScrollIndicator={false}
         >
             {/* Header */}
@@ -159,6 +186,7 @@ export function BasilicaMap() {
                         markers={filtered}
                         onMarkerPress={(id) => setSelectedId(id)}
                         selectedId={selectedId}
+                        autoFitBounds={searchText.trim() !== "" || filterType !== "all"}
                     />
                 </Suspense>
             </View>
@@ -168,14 +196,18 @@ export function BasilicaMap() {
                 <ThemedText style={styles.searchLabel}>搜尋教堂</ThemedText>
                 <View style={styles.searchInput}>
                     <Text style={styles.searchIcon}>🔍</Text>
-                    <Text
-                        style={styles.searchPlaceholder}
-                        onPress={() => {
-                            // 搜尋框提示
-                        }}
-                    >
-                        {searchText || "教堂名稱、位置、奉獻對象..."}
-                    </Text>
+                    <TextInput
+                        style={[styles.searchTextInput, { outline: 'none', caretColor: '#ffffff' } as any]}
+                        placeholder="教堂名稱、位置、奉獻對象..."
+                        placeholderTextColor="rgba(255,255,255,0.5)"
+                        value={searchText}
+                        onChangeText={setSearchText}
+                    />
+                    {searchText.length > 0 && (
+                        <Pressable onPress={() => setSearchText("")} style={styles.clearButton}>
+                            <Text style={styles.clearButtonText}>✕</Text>
+                        </Pressable>
+                    )}
                 </View>
             </GlassCard>
 
@@ -248,18 +280,35 @@ export function BasilicaMap() {
                                 </ThemedText>
                             </View>
 
-                            {/* Action Button */}
-                            <Pressable
-                                onPress={() => {
-                                    console.log("進入 360 環景:", selectedBasilica.viewerUrl);
-                                }}
-                                style={styles.actionButton}
-                            >
-                                <Text style={styles.actionButtonIcon}>🌐</Text>
-                                <ThemedText style={styles.actionButtonText}>
-                                    進入 360 環景
-                                </ThemedText>
-                            </Pressable>
+                            {/* 360° 全景按鈕 */}
+                            {selectedBasilica.panoramaId ? (
+                                <Pressable
+                                    onPress={() => setShowPanorama(true)}
+                                    style={({ pressed }) => [
+                                        styles.panoramaBtn,
+                                        pressed && styles.panoramaBtnPressed,
+                                    ]}
+                                >
+                                    <View style={styles.panoramaBtnInner}>
+                                        <Text style={styles.panoramaBtnIcon}>🌐</Text>
+                                        <View>
+                                            <ThemedText style={styles.panoramaBtnLabel}>
+                                                進入 360° 全景
+                                            </ThemedText>
+                                            <ThemedText style={styles.panoramaBtnSub}>
+                                                互動式環景體驗
+                                            </ThemedText>
+                                        </View>
+                                        <Text style={styles.panoramaBtnArrow}>›</Text>
+                                    </View>
+                                </Pressable>
+                            ) : (
+                                <View style={styles.noPanoramaHint}>
+                                    <ThemedText style={styles.noPanoramaText}>
+                                        此教堂暫無全景資料
+                                    </ThemedText>
+                                </View>
+                            )}
                         </GlassCard>
                     </View>
                 ) : (
@@ -378,6 +427,17 @@ export function BasilicaMap() {
             </View>
 
         </ScrollView>
+
+        {/* 360° 浮動全景視窗 */}
+        {showPanorama && selectedBasilica?.panoramaId && (
+            <ChurchPanoramaViewer
+                panoramaId={selectedBasilica.panoramaId}
+                basilicaName={selectedBasilica.name}
+                onClose={() => setShowPanorama(false)}
+                heading={selectedBasilica.panoramaHeading}
+            />
+        )}
+        </View>
     );
 }
 
@@ -443,10 +503,20 @@ const styles = StyleSheet.create({
         fontSize: 16,
         marginRight: 8,
     },
-    searchPlaceholder: {
-        fontSize: 14,
-        color: "rgba(255,255,255,0.5)",
+    searchTextInput: {
         flex: 1,
+        fontSize: 14,
+        color: "rgba(255,255,255,0.95)",
+        paddingVertical: 0,
+    },
+    clearButton: {
+        padding: 4,
+        marginLeft: 4,
+        cursor: "pointer",
+    },
+    clearButtonText: {
+        fontSize: 14,
+        color: "rgba(255,255,255,0.6)",
     },
     filterScroll: {
         marginBottom: 12,
@@ -650,5 +720,56 @@ const styles = StyleSheet.create({
     errorText: {
         fontSize: 16,
         color: "rgba(255,0,0,0.8)",
+    },
+    noPanoramaHint: {
+        marginTop: 12,
+        paddingVertical: 8,
+        alignItems: "center",
+        backgroundColor: "rgba(255,255,255,0.04)",
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.08)",
+    },
+    noPanoramaText: {
+        fontSize: 11,
+        color: "rgba(255,255,255,0.4)",
+    },
+    panoramaBtn: {
+        marginTop: 16,
+        borderRadius: 14,
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: "rgba(102,126,234,0.6)",
+        backgroundColor: "rgba(102,126,234,0.18)",
+        cursor: "pointer",
+    },
+    panoramaBtnPressed: {
+        backgroundColor: "rgba(102,126,234,0.38)",
+        borderColor: "rgba(102,126,234,1)",
+    },
+    panoramaBtnInner: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        gap: 12,
+    },
+    panoramaBtnIcon: {
+        fontSize: 28,
+    },
+    panoramaBtnLabel: {
+        fontSize: 14,
+        fontWeight: "700",
+        color: "rgba(255,255,255,0.95)",
+    },
+    panoramaBtnSub: {
+        fontSize: 11,
+        color: "rgba(102,126,234,0.9)",
+        marginTop: 2,
+    },
+    panoramaBtnArrow: {
+        fontSize: 24,
+        color: "rgba(102,126,234,0.8)",
+        marginLeft: "auto",
     },
 });
