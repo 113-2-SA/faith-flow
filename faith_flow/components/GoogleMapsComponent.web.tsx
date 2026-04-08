@@ -6,7 +6,7 @@ import {
   Marker,
   InfoWindow,
 } from "@react-google-maps/api";
-import { MAP_CONFIG } from "../config/mapConfig";
+import { MAP_CONFIG, GLASS_RELIGIOUS_MAP_STYLE } from "../config/mapConfig";
 
 export type Basilica = {
   id: string;
@@ -27,12 +27,14 @@ interface GoogleMapsComponentProps {
   markers: Basilica[];
   onMarkerPress: (id: string) => void;
   selectedId: string | null;
+  autoFitBounds?: boolean;
 }
 
 export default function GoogleMapsComponent({
   markers,
   onMarkerPress,
   selectedId,
+  autoFitBounds,
 }: GoogleMapsComponentProps) {
   const mapRef = useRef<google.maps.Map | null>(null);
 
@@ -50,6 +52,23 @@ export default function GoogleMapsComponent({
     }
   }, [selectedId, markers]);
 
+  useEffect(() => {
+    // 當使用者輸入搜尋條件或篩選時，自動調整地圖邊界以包含所有符合的標記
+    if (autoFitBounds && mapRef.current && markers.length > 0) {
+      if (markers.length === 1) {
+        mapRef.current.panTo({
+          lat: markers[0].coordinates[0],
+          lng: markers[0].coordinates[1],
+        });
+        mapRef.current.setZoom(10);
+      } else {
+        const bounds = new window.google.maps.LatLngBounds();
+        markers.forEach((m) => bounds.extend({ lat: m.coordinates[0], lng: m.coordinates[1] }));
+        mapRef.current.fitBounds(bounds);
+      }
+    }
+  }, [markers, autoFitBounds]);
+
   return (
     <LoadScript googleMapsApiKey={MAP_CONFIG.apiKey}>
       <GoogleMap
@@ -58,30 +77,7 @@ export default function GoogleMapsComponent({
         zoom={MAP_CONFIG.defaultZoom}
         onLoad={(map) => { mapRef.current = map; }}
         options={{
-          styles: [
-            {
-              elementType: "geometry",
-              stylers: [{ color: "#f5f5f5" }],
-            },
-            {
-              elementType: "labels.icon",
-              stylers: [{ visibility: "off" }],
-            },
-            {
-              elementType: "labels.text.fill",
-              stylers: [{ color: "#616161" }],
-            },
-            {
-              featureType: "administrative.country",
-              elementType: "geometry.stroke",
-              stylers: [{ color: "#e0e0e0" }],
-            },
-            {
-              featureType: "water",
-              elementType: "geometry.fill",
-              stylers: [{ color: "#e0f2f7" }],
-            },
-          ],
+          styles: GLASS_RELIGIOUS_MAP_STYLE as any,
         }}
       >
         {markers.map((basilica) => (
