@@ -18,12 +18,12 @@ export default function RootLayout() {
 
   // 未登入：只有不在 auth 區才導去 login（避免 loop）
   if (!user && !inAuth) {
-    return <Redirect href="/auth/login" />;
+    return <Redirect href={"/auth/login" as any} />;
   }
 
   // ✅ 關鍵：已登入且還在 auth 區，導去 /settings（你要錄 Demo 的動線）
   if (user && inAuth) {
-    return <Redirect href="/settings" />;
+    return <Redirect href={"/settings" as any} />;
   }
 
   return <Stack />;

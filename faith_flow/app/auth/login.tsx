@@ -16,6 +16,7 @@ export default function LoginScreen() {
   const [busy, setBusy] = useState(false);
 
   const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? undefined;
 
   // Web 用 preferLocalhost；未來手機端可用 scheme（先留好路）
   const redirectUri = useMemo(() => {
@@ -31,6 +32,7 @@ export default function LoginScreen() {
 
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     webClientId,
+    iosClientId,
     redirectUri,
     scopes: ["openid", "profile", "email"],
   });
@@ -76,7 +78,7 @@ export default function LoginScreen() {
         console.log("✅ Firebase signed in uid =", userCred.user.uid);
         console.log("✅ Firebase signed in email =", userCred.user.email);
 
-        router.replace("/settings"); // 登入完直接進設定頁
+        router.replace("/settings" as any); // 登入完直接進設定頁
       } catch (e) {
         console.error("❌ Firebase signInWithCredential failed:", e);
       } finally {
