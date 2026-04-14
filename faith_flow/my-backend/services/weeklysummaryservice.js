@@ -1,7 +1,14 @@
 const DateUtils = require('../utils/dateutils');
 const pool = require('../config/database');
+const axios = require('axios');
+const https = require('https');
+
+// 自訂 https agent（Windows Node.js SSL 相容性修正）
+const tlsAgent = new https.Agent({ rejectUnauthorized: false });
 
 class WeeklySummaryService {
+  constructor() {}
+
   /**
    * 獲取某周的所有 diary（星期日到星期六）
    * 注意: diary table 使用 user_id (小寫+底線)
@@ -62,6 +69,68 @@ ${diaries.map((d, i) => `
   }
 
   /**
+   * 🆕 使用 ElevenLabs 生成語音並上傳到 R2
+   */
+  async generateAndUploadAudio(summaryData) {
+    // 測試模式：使用最小有效 MP3 buffer 驗證流程
+    if (process.env.AUDIO_TEST_MODE === 'true') {
+      console.log('🧪 測試模式：使用最小 MP3 buffer');
+      // 最小有效 MP3 frame（靜音）
+      const minimalMp3 = Buffer.from(
+        'fffb9000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+        'hex'
+      );
+      return minimalMp3;
+    }
+
+    try {
+      const textToSpeak = `
+        ${summaryData.title}。
+        ${summaryData.content}。
+        ${summaryData.bible_quote ? `本週金句：${summaryData.bible_quote}` : ''}
+      `.trim();
+
+      console.log('🎙️ 正在使用 ElevenLabs 生成語音...');
+      console.log(`📝 文字長度: ${textToSpeak.length} 字元`);
+
+      // const voiceId = 'Xb7hH8MSUJpSbSDYk0k2'; // Sarah (免費)
+      const voiceId = 'bhJUNIXWQQ94l8eI2VUf'; // Sarah (免費)
+      const response = await axios.post(
+        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+        {
+          text: textToSpeak,
+          model_id: 'eleven_multilingual_v2',
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75,
+            style: 0.5,
+            use_speaker_boost: true,
+          },
+        },
+        {
+          headers: {
+            'xi-api-key': process.env.ELEVENLABS_API_KEY,
+            'Content-Type': 'application/json',
+            Accept: 'audio/mpeg',
+          },
+          responseType: 'arraybuffer',
+          httpsAgent: tlsAgent,
+        }
+      );
+
+      const audioBuffer = Buffer.from(response.data);
+      console.log('✅ 語音生成完成，將存入 PostgreSQL');
+      return audioBuffer;
+
+    } catch (error) {
+      console.error('❌ ElevenLabs 語音生成失敗:', error.message);
+      if (error.response?.status === 401) console.warn('⚠️ API Key 無效');
+      if (error.response?.status === 429) console.warn('⚠️ ElevenLabs 額度不足');
+      return null;
+    }
+  }
+
+  /**
    * 保存周回顧
    * weekly_summary table 使用 "user_id" (駝峰式+雙引號)
    */
@@ -69,17 +138,21 @@ ${diaries.map((d, i) => `
     const startDate = DateUtils.getWeekStartDate(year, weekNumber);
     const endDate = DateUtils.getWeekEndDate(year, weekNumber);
 
+    // 🆕 生成語音並上傳到 R2
+    const audioUrl = await this.generateAndUploadAudio(summaryData);
+
     const query = `
       INSERT INTO "weekly_summary" 
         ("user_id", "year", "week_number", "summary_title", "summary_content", 
-         "bible_quote", "diary_count", "start_date", "end_date", "is_auto_generated")
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         "bible_quote", "diary_count", "start_date", "end_date", "is_auto_generated", "audio_url")
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       ON CONFLICT ("user_id", "year", "week_number") 
       DO UPDATE SET 
         "summary_title" = EXCLUDED."summary_title",
         "summary_content" = EXCLUDED."summary_content",
         "bible_quote" = EXCLUDED."bible_quote",
         "diary_count" = EXCLUDED."diary_count",
+        "audio_url" = EXCLUDED."audio_url",
         "generated_at" = CURRENT_TIMESTAMP,
         "is_auto_generated" = EXCLUDED."is_auto_generated"
       RETURNING *
@@ -95,7 +168,8 @@ ${diaries.map((d, i) => `
       diaries.length,
       startDate,
       endDate,
-      isAuto
+      isAuto,
+      audioUrl  // 🆕 儲存 R2 的 URL
     ]);
 
     return result.rows[0];
@@ -156,14 +230,14 @@ ${diaries.map((d, i) => `
         // AI 生成回顧
         const summaryData = await this.generateSummary(diaries);
 
-        // 保存
+        // 保存 (包含語音生成)
         await this.saveWeeklySummary(user_id, year, weekNumber, summaryData, diaries, true);
 
         console.log(`✅ 用戶 ${user_id} 的第 ${weekNumber} 周回顧已生成 (${diaries.length} 篇日記)`);
         results.success++;
 
         // 防止 API rate limit，加入延遲
-        await this.sleep(1000);
+        await this.sleep(2000); // 🆕 增加到 2 秒，因為要生成語音
 
       } catch (error) {
         console.error(`❌ 用戶 ${user_id} 生成失敗:`, error.message);
@@ -174,6 +248,56 @@ ${diaries.map((d, i) => `
 
     console.log(`\n📊 自動生成完成: 成功 ${results.success}, 失敗 ${results.failed}, 跳過 ${results.skipped}`);
     return results;
+  }
+
+  /**
+   * 為特定周生成語音
+   */
+  async generateAudioForWeek(user_id, year, weekNumber) {
+    const result = await pool.query(
+      `SELECT "summary_id", "summary_title", "summary_content", "bible_quote"
+       FROM "weekly_summary"
+       WHERE "user_id" = $1 AND "year" = $2 AND "week_number" = $3`,
+      [user_id, year, weekNumber]
+    );
+    if (result.rows.length === 0) throw new Error('找不到該周回顧');
+
+    const row = result.rows[0];
+    const audioBuffer = await this.generateAndUploadAudio({
+      title: row.summary_title,
+      content: row.summary_content,
+      bible_quote: row.bible_quote,
+    });
+    if (!audioBuffer) throw new Error('語音生成失敗');
+
+    await pool.query(
+      `UPDATE "weekly_summary" SET "audio_data" = $1, "audio_url" = 'db' WHERE "summary_id" = $2`,
+      [audioBuffer, row.summary_id]
+    );
+    return row.summary_id;
+  }
+
+  /**
+   * 🆕 檢查 ElevenLabs 剩餘額度
+   */
+  async checkElevenLabsQuota() {
+    try {
+      const user = await this.elevenLabsClient.user.get();
+      const subscription = user.subscription;
+      
+      console.log('💳 ElevenLabs 額度資訊:');
+      console.log(`   已使用: ${subscription.character_count} / ${subscription.character_limit} 字元`);
+      console.log(`   剩餘: ${subscription.character_limit - subscription.character_count} 字元`);
+      
+      return {
+        used: subscription.character_count,
+        limit: subscription.character_limit,
+        remaining: subscription.character_limit - subscription.character_count
+      };
+    } catch (error) {
+      console.error('❌ 無法取得額度資訊:', error.message);
+      return null;
+    }
   }
 
   /**

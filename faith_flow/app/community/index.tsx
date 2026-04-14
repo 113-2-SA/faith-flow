@@ -40,6 +40,7 @@ interface Post {
   avatar_url: string | null;
   tags: string[];
   created_at: string;
+  post_pic?: string | null;
   like_count?: number;
   comment_count?: number;
   is_liked?: boolean;
@@ -343,6 +344,11 @@ export default function CommunityFeedScreen() {
 
         {/* Caption (for shared posts) */}
         {item.post_text ? <Text style={styles.postText}>{item.post_text}</Text> : null}
+
+        {/* Post image */}
+        {item.post_pic ? (
+          <Image source={{ uri: item.post_pic }} style={styles.postImage} resizeMode="cover" />
+        ) : null}
 
         {/* Embedded original post */}
         {item.post_type === 'shared' && item.original_post && (
@@ -703,6 +709,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: 'rgba(255,255,255,0.9)',
     lineHeight: 22,
+    marginBottom: 12,
+  },
+  postImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 10,
     marginBottom: 12,
   },
   actions: {

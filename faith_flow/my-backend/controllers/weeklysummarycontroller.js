@@ -177,6 +177,47 @@ class WeeklySummaryController {
   }
 
   /**
+   * 為特定周生成語音
+   */
+  async generateAudioForWeek(req, res) {
+    try {
+      const { year, weekNumber } = req.params;
+      const userID = req.userId;
+      console.log(`🎙 開始生成語音 year=${year} week=${weekNumber} user=${userID}`);
+      await this.service.generateAudioForWeek(userID, year, weekNumber);
+      console.log('✅ 語音生成完成，回傳成功');
+      res.json({ ok: true });
+    } catch (error) {
+      console.error('❌ 語音生成失敗:', error.message);
+      res.status(500).json({ ok: false, error: error.message || '語音生成失敗' });
+    }
+  }
+
+  /**
+   * 播放語音（直接從 DB 串流）
+   */
+  async streamAudio(req, res) {
+    try {
+      const { year, weekNumber } = req.params;
+      const userID = req.userId;
+      const result = await pool.query(
+        `SELECT "audio_data" FROM "weekly_summary"
+         WHERE "user_id" = $1 AND "year" = $2 AND "week_number" = $3`,
+        [userID, year, weekNumber]
+      );
+      if (result.rows.length === 0 || !result.rows[0].audio_data) {
+        return res.status(404).json({ ok: false, error: '找不到語音' });
+      }
+      res.set('Content-Type', 'audio/mpeg');
+      res.set('Accept-Ranges', 'bytes');
+      res.send(result.rows[0].audio_data);
+    } catch (error) {
+      console.error('語音串流失敗:', error);
+      res.status(500).json({ ok: false, error: '語音串流失敗' });
+    }
+  }
+
+  /**
    * 刪除特定周回顧
    */
   async deleteWeeklySummary(req, res) {

@@ -1,4 +1,10 @@
 // ==================== server.js ====================
+// 開發環境 SSL 相容性修正（Node.js v22 + Windows undici fetch 握手問題）
+if (process.env.NODE_ENV !== 'production') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  const { setGlobalDispatcher, Agent } = require('undici');
+  setGlobalDispatcher(new Agent({ connect: { rejectUnauthorized: false } }));
+}
 require("dotenv").config();
 const express = require("express");
 const http = require("http"); // ⭐ 新增：用於建立 HTTP server
@@ -115,6 +121,26 @@ const liturgicalRoutes = require('./routes/liturgical');
 
 // 健康檢查
 app.use("/health", healthRoutes);
+
+// 除錯：測試 multipart 檔案上傳是否正常
+app.post("/debug/upload-test", require('./middleware/picupload').uploadSingleImage, (req, res) => {
+  console.log('📋 debug/upload-test req.body:', req.body);
+  console.log('📋 debug/upload-test req.file:', req.file
+    ? { fieldname: req.file.fieldname, originalname: req.file.originalname, mimetype: req.file.mimetype, size: req.file.size, hasBuffer: !!req.file.buffer }
+    : undefined
+  );
+  res.json({
+    ok: true,
+    body: req.body,
+    file: req.file ? {
+      fieldname: req.file.fieldname,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      hasBuffer: !!req.file.buffer,
+    } : null,
+  });
+});
 
 // 除錯端點
 app.get("/debug/user", async (req, res) => {

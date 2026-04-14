@@ -1,23 +1,40 @@
 // services/postService.js
 const pool = require('../config/database');
+const cloudflareService = require('./cloudflareservice');
 
 
 class PostService {
-    // 新增貼文
-    async createPost(postData) {
+    // 新增貼文（支援圖片上傳）
+    async createPost(postData, imageFile = null) {
+        let uploadedImageUrl = null;
+        let didCommit = false;
+
+        console.log('📷 [postService.createPost] imageFile:', imageFile ? `有圖片 (${imageFile.originalname}, ${imageFile.size} bytes)` : '無圖片');
+
+        // 【第一步】先上傳 R2，完全不佔用 DB 連線池
+        if (imageFile) {
+            console.log('📤 開始上傳圖片到 Cloudflare R2...');
+            uploadedImageUrl = await cloudflareService.uploadImage(
+                imageFile.buffer,
+                imageFile.originalname,
+                imageFile.mimetype
+            );
+            console.log('✅ R2 上傳完成:', uploadedImageUrl);
+        }
+
+        // 【第二步】上傳完才拿 DB 連線
         const client = await pool.connect();
-        
+
         try {
             await client.query('BEGIN');
 
-            // 插入主貼文
             const postQuery = `
-               INSERT INTO community_posts 
-                (author_user_id, post_text, post_type, visibility, letter_id, diary_id, tags)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+               INSERT INTO community_posts
+                (author_user_id, post_text, post_type, visibility, letter_id, diary_id, tags, post_pic)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 RETURNING *
             `;
-            
+
             const postResult = await client.query(postQuery, [
                 postData.author_user_id,
                 postData.post_text,
@@ -25,21 +42,31 @@ class PostService {
                 postData.visibility || 'public',
                 postData.letter_id || null,
                 postData.diary_id || null,
-                postData.tags || null
+                postData.tags || null,
+                uploadedImageUrl
             ]);
 
             const post = postResult.rows[0];
-
             await client.query('COMMIT');
-            
-            // 返回完整的貼文資料（含標籤）
-            return await this.getPostById(post.community_post_id);
-            
-        } catch (error) {
-            await client.query('ROLLBACK');
-            throw error;
-        } finally {
+            didCommit = true;
+
+            // 【第三步】COMMIT 完立刻還回連線
             client.release();
+
+            // 【第四步】用 pool.query 拿新連線查詢
+            return await this.getPostById(post.community_post_id);
+
+        } catch (error) {
+            if (!didCommit) {
+                await client.query('ROLLBACK');
+                // ROLLBACK 代表貼文沒寫進 DB，才需要清 R2
+                if (uploadedImageUrl) {
+                    console.log('🗑️ DB 寫入失敗，清理 R2 圖片...');
+                    await cloudflareService.deleteImage(uploadedImageUrl).catch(console.error);
+                }
+            }
+            client.release();
+            throw error;
         }
     }
 
@@ -52,7 +79,7 @@ class PostService {
         return result.rowCount > 0;
     }
 
-    // ⭐ 獲取單一貼文（含標籤、作者資訊、點讚和轉發狀態）
+    // ⭐ 獲取單一貼文（含標籤、作者資訊、點讚和轉發狀態、圖片）
     async getPostById(postId, userId = null) {
         const query = `
             SELECT
@@ -270,41 +297,131 @@ class PostService {
         return parseInt(result.rows[0].total);
     }
 
-    // 刪除貼文（軟刪除）
+    // ⭐ 刪除貼文（軟刪除 + 刪除 R2 圖片）
     async deletePost(postId, userId) {
-        const query = `
-            UPDATE community_posts 
-            SET deleted_at = CURRENT_TIMESTAMP
-            WHERE community_post_id = $1 
-            AND author_user_id = $2 
-            AND deleted_at IS NULL
-            RETURNING community_post_id
-        `;
+        const client = await pool.connect();
         
-        const result = await pool.query(query, [postId, userId]);
-        return result.rows[0];
+        try {
+            await client.query('BEGIN');
+
+            // 先獲取貼文資訊（包含圖片 URL）
+            const getPostQuery = `
+                SELECT post_pic
+                FROM community_posts
+                WHERE community_post_id = $1
+                AND author_user_id = $2
+                AND deleted_at IS NULL
+            `;
+            
+            const postResult = await client.query(getPostQuery, [postId, userId]);
+            
+            if (postResult.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return null;
+            }
+
+            const post = postResult.rows[0];
+
+            // 執行軟刪除
+            const deleteQuery = `
+                UPDATE community_posts 
+                SET deleted_at = CURRENT_TIMESTAMP
+                WHERE community_post_id = $1 
+                AND author_user_id = $2 
+                AND deleted_at IS NULL
+                RETURNING community_post_id
+            `;
+            
+            const result = await client.query(deleteQuery, [postId, userId]);
+
+            await client.query('COMMIT');
+
+            // 如果有圖片，從 R2 刪除
+            if (post.post_pic) {
+                console.log('🗑️ 刪除 R2 圖片:', post.post_pic);
+                await cloudflareService.deleteImage(post.post_pic);
+            }
+
+            return result.rows[0];
+
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
     }
 
-    // 更新貼文
-    async updatePost(postId, userId, updateData) {
-        const { post_text, visibility, tags } = updateData;
-        const query = `
-            UPDATE community_posts
-            SET post_text = $3, visibility = $4, tags = $5
-            WHERE community_post_id = $1
-            AND author_user_id = $2
-            AND deleted_at IS NULL
-            RETURNING community_post_id
-        `;
-        const result = await pool.query(query, [
-            postId,
-            userId,
-            post_text,
-            visibility || 'public',
-            tags || null,
-        ]);
-        if (!result.rows[0]) return null;
-        return await this.getPostById(postId, userId);
+    // ⭐ 更新貼文（支援圖片更換）
+    async updatePost(postId, userId, updateData, newImageFile = null) {
+        let newImageUrl = null;
+        let oldImageUrl = null;
+        let didCommit = false;
+
+        // 【第一步】先查舊圖片 URL（快速查詢，用 pool.query 即可）
+        const oldPostResult = await pool.query(
+            `SELECT post_pic FROM community_posts
+             WHERE community_post_id = $1 AND author_user_id = $2 AND deleted_at IS NULL`,
+            [postId, userId]
+        );
+
+        if (oldPostResult.rows.length === 0) return null;
+        oldImageUrl = oldPostResult.rows[0].post_pic;
+
+        // 【第二步】有新圖片就先上傳 R2（不佔 DB 連線）
+        if (newImageFile) {
+            console.log('📤 上傳新圖片到 Cloudflare R2...');
+            newImageUrl = await cloudflareService.uploadImage(
+                newImageFile.buffer,
+                newImageFile.originalname,
+                newImageFile.mimetype
+            );
+            console.log('✅ 新圖片上傳成功:', newImageUrl);
+        }
+
+        // 【第三步】才拿 DB 連線做更新
+        const client = await pool.connect();
+
+        try {
+            await client.query('BEGIN');
+
+            const { post_text, visibility, tags } = updateData;
+            const finalImageUrl = newImageUrl !== null ? newImageUrl : oldImageUrl;
+
+            const result = await client.query(
+                `UPDATE community_posts
+                 SET post_text = $3, visibility = $4, tags = $5, post_pic = $6
+                 WHERE community_post_id = $1 AND author_user_id = $2 AND deleted_at IS NULL
+                 RETURNING community_post_id`,
+                [postId, userId, post_text, visibility || 'public', tags || null, finalImageUrl]
+            );
+
+            await client.query('COMMIT');
+            didCommit = true;
+            client.release();
+
+            // 更新成功後才刪舊圖
+            if (result.rows[0] && newImageUrl && oldImageUrl) {
+                console.log('🗑️ 刪除舊圖片:', oldImageUrl);
+                await cloudflareService.deleteImage(oldImageUrl).catch(console.error);
+            }
+
+            if (!result.rows[0]) return null;
+
+            return await this.getPostById(postId, userId);
+
+        } catch (error) {
+            if (!didCommit) {
+                await client.query('ROLLBACK');
+                // DB 沒寫入，新圖片用不到了，清掉
+                if (newImageUrl) {
+                    console.log('🗑️ 更新失敗，刪除新上傳的圖片...');
+                    await cloudflareService.deleteImage(newImageUrl).catch(console.error);
+                }
+            }
+            client.release();
+            throw error;
+        }
     }
 
     // 驗證貼文擁有者

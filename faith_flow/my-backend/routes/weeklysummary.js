@@ -31,8 +31,20 @@ module.exports = (weeklySummaryController) => {
     (req, res) => weeklySummaryController.deleteWeeklySummary(req, res)
   );
 
+  // 為特定周生成語音
+  router.post('/:year/:weekNumber/audio',
+    authMiddleware,
+    (req, res) => weeklySummaryController.generateAudioForWeek(req, res)
+  );
+
+  // 播放語音
+  router.get('/:year/:weekNumber/audio',
+    authMiddleware,
+    (req, res) => weeklySummaryController.streamAudio(req, res)
+  );
+
   // 手動觸發自動生成（管理員）
-  router.post('/admin/trigger', 
+  router.post('/admin/trigger',
     authMiddleware, // 你可能需要額外的 admin 檢查
     (req, res) => weeklySummaryController.manualTrigger(req, res)
   );

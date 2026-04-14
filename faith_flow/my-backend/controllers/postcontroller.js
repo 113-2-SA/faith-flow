@@ -1,10 +1,10 @@
 // controllers/postController.js
 const postService = require('../services/postservice');
+const cloudflareService = require('../services/cloudflareservice');
 
 class PostController {
-    // 新增貼文
-
-async createPost(req, res, next) {
+    // ⭐ 新增貼文（支援圖片上傳）
+    async createPost(req, res, next) {
         console.log('========================================');
         console.log('📝 [postController.createPost] 開始處理');
         console.log('========================================');
@@ -13,6 +13,12 @@ async createPost(req, res, next) {
             console.log('📥 Request body:', JSON.stringify(req.body, null, 2));
             console.log('👤 User ID:', req.userId);
             console.log('👤 User info:', req.user);
+            console.log('📷 上傳的檔案:', req.file);
+
+            let tags = req.body.tags;
+            if (typeof tags === 'string') {
+                try { tags = JSON.parse(tags); } catch { tags = undefined; }
+            }
 
             const postData = {
                 author_user_id: req.userId,
@@ -21,7 +27,7 @@ async createPost(req, res, next) {
                 visibility: req.body.visibility,
                 letter_id: req.body.letter_id,
                 diary_id: req.body.diary_id,
-                tags: req.body.tags
+                tags
             };
 
             console.log('📦 準備的貼文資料:', JSON.stringify(postData, null, 2));
@@ -43,8 +49,24 @@ async createPost(req, res, next) {
                 });
             }
 
+            // ⭐ 驗證圖片檔案（如果有上傳）
+            if (req.file) {
+                const validation = cloudflareService.validateImageFile(req.file);
+                if (!validation.valid) {
+                    console.log('❌ 圖片驗證失敗:', validation.error);
+                    return res.status(400).json({
+                        ok: false,
+                        error: validation.error
+                    });
+                }
+                console.log('✅ 圖片驗證通過');
+            }
+
             console.log('✅ 驗證通過，準備調用 postService.createPost...');
-            const post = await postService.createPost(postData);
+            
+            // ⭐ 傳遞圖片檔案給 service
+            const post = await postService.createPost(postData, req.file);
+            
             console.log('✅ postService.createPost 完成！');
             console.log('📄 返回的貼文資料:', JSON.stringify(post, null, 2));
 
@@ -68,48 +90,6 @@ async createPost(req, res, next) {
             next(error);
         }
     }
-
-    // async createPost(req, res, next) {
-    //     try {
-    //         // req.userId 是從 attachUserId middleware 來的 int
-    //         const postData = {
-    //             author_user_id: req.userId,  // ⭐ 使用 int userID
-    //             post_text: req.body.post_text,
-    //             post_type: req.body.post_type,
-    //             visibility: req.body.visibility,
-    //             letter_id: req.body.letter_id,
-    //             diary_id: req.body.diary_id,
-    //             tags: req.body.tags
-    //         };
-
-    //         // 驗證：letter/diary 類型必須提供對應的 ID
-    //         if (postData.post_type === 'letter' && !postData.letter_id) {
-    //             return res.status(400).json({ 
-    //                 ok: false,
-    //                 error: 'letter 類型貼文必須提供 letter_id' 
-    //             });
-    //         }
-
-    //         if (postData.post_type === 'diary' && !postData.diary_id) {
-    //             return res.status(400).json({ 
-    //                 ok: false,
-    //                 error: 'diary 類型貼文必須提供 diary_id' 
-    //             });
-    //         }
-
-    //         const post = await postService.createPost(postData);
-
-    //         res.status(201).json({
-    //             ok: true,
-    //             message: '貼文發布成功',
-    //             data: post
-    //         });
-
-    //     } catch (error) {
-    //         console.error('[createPost] 錯誤:', error);
-    //         next(error);
-    //     }
-    // }
 
     // 獲取貼文列表
     async getPosts(req, res, next) {
@@ -169,31 +149,56 @@ async createPost(req, res, next) {
         }
     }
 
-    // 更新貼文
+    // ⭐ 更新貼文（支援圖片更換）
     async updatePost(req, res, next) {
         try {
             const postId = parseInt(req.params.id);
             const userId = req.userId;
             const { post_text, visibility, tags } = req.body;
 
-            const post = await postService.updatePost(postId, userId, { post_text, visibility, tags });
-
-            if (!post) {
-                return res.status(404).json({ ok: false, error: '找不到該貼文或無權限編輯' });
+            // ⭐ 驗證圖片檔案（如果有上傳新圖片）
+            if (req.file) {
+                const validation = cloudflareService.validateImageFile(req.file);
+                if (!validation.valid) {
+                    return res.status(400).json({
+                        ok: false,
+                        error: validation.error
+                    });
+                }
             }
 
-            res.json({ ok: true, message: '貼文已更新', data: post });
+            // ⭐ 傳遞新圖片（如果有）
+            const post = await postService.updatePost(
+                postId, 
+                userId, 
+                { post_text, visibility, tags },
+                req.file  // 新圖片檔案
+            );
+
+            if (!post) {
+                return res.status(404).json({ 
+                    ok: false, 
+                    error: '找不到該貼文或無權限編輯' 
+                });
+            }
+
+            res.json({ 
+                ok: true, 
+                message: '貼文已更新', 
+                data: post 
+            });
+
         } catch (error) {
             console.error('[updatePost] 錯誤:', error);
             next(error);
         }
     }
 
-    // 刪除貼文
+    // 刪除貼文（會自動刪除 R2 上的圖片）
     async deletePost(req, res, next) {
         try {
             const postId = parseInt(req.params.id);
-            const userId = req.userId; // int userID
+            const userId = req.userId;
 
             const result = await postService.deletePost(postId, userId);
 
@@ -219,7 +224,7 @@ async createPost(req, res, next) {
     async getMyPosts(req, res, next) {
         try {
             const filters = {
-                user_id: req.userId,  // 當前登入使用者的 int userID
+                user_id: req.userId,
                 post_type: req.query.post_type,
                 tag: req.query.tag,
                 limit: parseInt(req.query.limit) || 20,
@@ -227,7 +232,7 @@ async createPost(req, res, next) {
             };
 
             const [posts, total] = await Promise.all([
-                postService.getPosts(filters),
+                postService.getPosts(filters, req.userId),
                 postService.getPostsCount(filters)
             ]);
 

@@ -13,8 +13,9 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { getWeeklySummary, deleteWeeklySummary } from '../api/weeklysummaryapi';
+import { getWeeklySummary, deleteWeeklySummary, generateAudioForWeek, getAudioUrl } from '../api/weeklysummaryapi';
 import { VideoBackground } from '@/components/VideoBackground';
+import { Audio } from 'expo-av';
 
 interface WeeklySummary {
   summaryID: number;
@@ -29,6 +30,7 @@ interface WeeklySummary {
   end_date: string;
   generated_at: string;
   is_auto_generated: boolean;
+  audio_url: string | null;
 }
 
 export default function WeeklySummaryDetailScreen() {
@@ -40,6 +42,10 @@ export default function WeeklySummaryDetailScreen() {
 
   const [summary, setSummary] = useState<WeeklySummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioLoading, setAudioLoading] = useState(false);
+  const [fillingAudio, setFillingAudio] = useState(false);
 
   useEffect(() => {
     if (year && weekNumber) {
@@ -48,6 +54,71 @@ export default function WeeklySummaryDetailScreen() {
       setLoading(false);
     }
   }, [year, weekNumber]);
+
+  useEffect(() => {
+    return () => {
+      if (sound) {
+        sound.unloadAsync();
+      }
+    };
+  }, [sound]);
+
+  const handleFillAudio = async () => {
+    if (!year || !weekNumber) return;
+    try {
+      setFillingAudio(true);
+      const response = await generateAudioForWeek(year, weekNumber);
+      if (response.ok) {
+        Alert.alert('完成', '語音已生成', [
+          { text: '確定', onPress: loadSummary },
+        ]);
+      } else {
+        Alert.alert('錯誤', response.error || '語音生成失敗');
+      }
+    } catch (error) {
+      Alert.alert('錯誤', '語音生成失敗');
+    } finally {
+      setFillingAudio(false);
+    }
+  };
+
+  const hasAudio = summary?.audio_url === 'db';
+
+  const handlePlayAudio = async () => {
+    if (!hasAudio || !year || !weekNumber) return;
+
+    if (isPlaying && sound) {
+      await sound.stopAsync();
+      await sound.unloadAsync();
+      setSound(null);
+      setIsPlaying(false);
+      return;
+    }
+
+    try {
+      setAudioLoading(true);
+      const audioUri = await getAudioUrl(year, weekNumber);
+      if (!audioUri) throw new Error('無法取得播放網址');
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri: audioUri },
+        { shouldPlay: true }
+      );
+      setSound(newSound);
+      setIsPlaying(true);
+      newSound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setIsPlaying(false);
+          setSound(null);
+        }
+      });
+    } catch (error) {
+      console.error('播放失敗:', error);
+      Alert.alert('錯誤', '無法播放語音');
+    } finally {
+      setAudioLoading(false);
+    }
+  };
 
   const loadSummary = async () => {
     try {
@@ -233,6 +304,32 @@ ${summary.bible_quote ? `📖 ${summary.bible_quote}` : ''}
             <Text style={styles.bibleQuote}>{summary.bible_quote}</Text>
           </BlurView>
         )}
+
+        {/* 生成／重新生成語音 */}
+        <TouchableOpacity onPress={handleFillAudio} disabled={fillingAudio} style={[styles.glassCard, styles.audioButton]}>
+          {fillingAudio ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.audioButtonText}>
+              {hasAudio ? '🔄 重新生成語音' : '🎙 生成語音'}
+            </Text>
+          )}
+        </TouchableOpacity>
+
+        {/* 語音播放 */}
+        <TouchableOpacity
+          onPress={handlePlayAudio}
+          disabled={audioLoading || !hasAudio}
+          style={[styles.glassCard, styles.audioButton, !hasAudio && styles.audioButtonDisabled]}
+        >
+          {audioLoading ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={[styles.audioButtonText, !hasAudio && styles.audioButtonTextDisabled]}>
+              {isPlaying ? '⏹ 停止語音' : '▶ 播放語音回顧'}
+            </Text>
+          )}
+        </TouchableOpacity>
 
         {/* 操作按鈕 */}
         <View style={styles.actionButtons}>
@@ -442,5 +539,22 @@ const styles = StyleSheet.create({
 
   bottomSpacer: {
     height: 40,
+  },
+  audioButton: {
+    marginHorizontal: 0,
+    marginVertical: 0,
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  audioButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  audioButtonDisabled: {
+    opacity: 0.4,
+  },
+  audioButtonTextDisabled: {
+    color: 'rgba(255, 255, 255, 0.5)',
   },
 });

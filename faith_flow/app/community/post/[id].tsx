@@ -11,6 +11,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Modal,
+  StatusBar,
+  Pressable,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../context/authcontext';
@@ -42,6 +45,7 @@ interface Post {
   avatar_url: string | null;
   tags: Tag[];
   created_at: string;
+  post_pic?: string | null;
   like_count?: number;
   comment_count?: number;
   is_liked?: boolean;
@@ -96,6 +100,7 @@ export default function PostDetailScreen() {
   const [commentText, setCommentText] = useState('');
   const [replyTo, setReplyTo] = useState<{ id: number; username: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [imageModalUri, setImageModalUri] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
 
   const postId = parseInt(id ?? '0');
@@ -357,6 +362,13 @@ export default function PostDetailScreen() {
                 {/* Content */}
                 {post.post_text ? <Text style={styles.postText}>{post.post_text}</Text> : null}
 
+                {/* Post image — 點擊可全螢幕預覽 */}
+                {post.post_pic ? (
+                  <TouchableOpacity activeOpacity={0.9} onPress={() => setImageModalUri(post.post_pic!)}>
+                    <Image source={{ uri: post.post_pic }} style={styles.postImage} resizeMode="contain" />
+                  </TouchableOpacity>
+                ) : null}
+
                 {/* Embedded original post for shared type */}
                 {post.post_type === 'shared' && post.original_post && (
                   <TouchableOpacity
@@ -458,6 +470,26 @@ export default function PostDetailScreen() {
           </View>
         </GlassCard>
       </KeyboardAvoidingView>
+      {/* 全螢幕圖片預覽 Modal */}
+      <Modal
+        visible={!!imageModalUri}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setImageModalUri(null)}
+        statusBarTranslucent
+      >
+        <Pressable style={styles.imageModalOverlay} onPress={() => setImageModalUri(null)}>
+          <StatusBar hidden />
+          <Image
+            source={{ uri: imageModalUri ?? '' }}
+            style={styles.imageModalImg}
+            resizeMode="contain"
+          />
+          <TouchableOpacity style={styles.imageModalClose} onPress={() => setImageModalUri(null)}>
+            <Text style={styles.imageModalCloseText}>✕</Text>
+          </TouchableOpacity>
+        </Pressable>
+      </Modal>
     </VideoBackground>
   );
 }
@@ -516,6 +548,39 @@ const styles = StyleSheet.create({
   tagText: { fontSize: 11, color: 'rgba(255,255,255,0.85)' },
   postText: {
     fontSize: 15, color: 'rgba(255,255,255,0.9)', lineHeight: 23, marginBottom: 14,
+  },
+  postImage: {
+    width: '100%',
+    aspectRatio: 1 / 1,
+    borderRadius: 10,
+    marginBottom: 14,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  imageModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.93)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalImg: {
+    width: '100%',
+    height: '100%',
+  },
+  imageModalClose: {
+    position: 'absolute',
+    top: 48,
+    right: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalCloseText: {
+    fontSize: 18,
+    color: 'rgba(255,255,255,0.9)',
+    fontWeight: '600',
   },
   actions: {
     flexDirection: 'row',

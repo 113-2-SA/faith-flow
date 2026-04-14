@@ -9,7 +9,9 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/authcontext';
 import { VideoBackground } from '../../components/VideoBackground';
@@ -57,6 +59,25 @@ export default function CreatePostScreen() {
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageMime, setImageMime] = useState<string>('image/jpeg');
+
+  const handlePickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('權限不足', '請允許存取相片庫');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setImageUri(result.assets[0].uri);
+      setImageMime(result.assets[0].mimeType ?? 'image/jpeg');
+    }
+  };
 
   const handleAddTag = () => {
     const t = tagInput.trim();
@@ -83,18 +104,48 @@ export default function CreatePostScreen() {
     setLoading(true);
     try {
       const token = await currentUser.getIdToken(true);
-      const res = await fetch(`${API_BASE_URL}/api/post`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+
+      let body: string | FormData;
+      let headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+
+      if (imageUri) {
+        // 有圖片 → 用 FormData（multipart）
+        const formData = new FormData();
+        formData.append('post_text', postText.trim());
+        formData.append('post_type', 'normal');
+        formData.append('visibility', visibility);
+        if (tags.length > 0) formData.append('tags', JSON.stringify(tags));
+        const filename = imageUri.split('/').pop() ?? 'photo.jpg';
+        if (Platform.OS === 'web') {
+          // Web：需要先 fetch 成 Blob 才能附加到 FormData
+          const response = await fetch(imageUri);
+          const blob = await response.blob();
+          formData.append('post_pic', blob, filename);
+        } else {
+          // React Native（iOS / Android）
+          (formData as any).append('post_pic', {
+            uri: imageUri,
+            name: filename,
+            type: imageMime,
+          });
+        }
+        body = formData;
+        // 不設 Content-Type，讓 fetch 自動帶 boundary
+      } else {
+        // 沒有圖片 → 用 JSON（原本的行為）
+        headers['Content-Type'] = 'application/json';
+        body = JSON.stringify({
           post_text: postText.trim(),
           post_type: 'normal',
           visibility,
           ...(tags.length > 0 ? { tags } : {}),
-        }),
+        });
+      }
+
+      const res = await fetch(`${API_BASE_URL}/api/post`, {
+        method: 'POST',
+        headers,
+        body,
       });
 
       const data = await res.json();
@@ -105,8 +156,8 @@ export default function CreatePostScreen() {
         const msg = data.error ?? (data.errors?.[0]?.msg) ?? '發布失敗，請稍後再試';
         Alert.alert('錯誤', msg);
       }
-    } catch {
-      Alert.alert('錯誤', '網路連線失敗');
+    } catch (err: any) {
+      Alert.alert('錯誤', err?.message ?? '網路連線失敗');
     } finally {
       setLoading(false);
     }
@@ -148,6 +199,23 @@ export default function CreatePostScreen() {
             multiline
             textAlignVertical="top"
           />
+        </GlassCard>
+
+        {/* Image picker */}
+        <GlassCard style={styles.card}>
+          <Text style={styles.label}>新增圖片（選填）</Text>
+          {imageUri ? (
+            <View>
+              <Image source={{ uri: imageUri }} style={styles.previewImage} resizeMode="cover" />
+              <TouchableOpacity style={styles.removeImageBtn} onPress={() => setImageUri(null)}>
+                <Text style={styles.removeImageText}>移除圖片</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.pickImageBtn} onPress={handlePickImage}>
+              <Text style={styles.pickImageText}>＋ 從相片庫選取</Text>
+            </TouchableOpacity>
+          )}
         </GlassCard>
 
         {/* Visibility */}
@@ -328,5 +396,32 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  pickImageBtn: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    paddingVertical: 20,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  pickImageText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 15,
+  },
+  previewImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  removeImageBtn: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  removeImageText: {
+    color: 'rgba(255,100,100,0.9)',
+    fontSize: 14,
   },
 });
