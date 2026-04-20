@@ -36,6 +36,7 @@ function RootLayoutNav() {
     <Stack>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="auth/login" options={{ title: "登入" }} />
+      <Stack.Screen name="chat/index" options={{ title: "有答大師", headerShown: false }} />
       {/* 如果有其他路由，在這裡加 */}
     </Stack>
   );

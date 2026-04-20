@@ -1,17 +1,17 @@
 // app/chat/index.tsx
-// 有答大師 - 聊天介面（功能測試版，之後同學可以直接換 UI）
+// 有答大師 - 聊天介面（含引用回覆功能）
 
 import React, { useCallback, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useAuth } from '../context/authcontext';
 
@@ -39,6 +39,13 @@ interface Message {
   timestamp: Date;
 }
 
+// 引用的內容（使用者點引用後產生）
+interface QuotedContent {
+  type: 'knowledge' | 'companion';
+  content: string;
+  label: string;
+}
+
 // ─── 主元件 ───────────────────────────────────────────────────────────────
 export default function ChatScreen() {
   const { currentUser } = useAuth();
@@ -46,6 +53,10 @@ export default function ChatScreen() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [expandedCitations, setExpandedCitations] = useState<Set<string>>(new Set());
+
+  // 引用狀態：使用者點了哪則訊息的引用
+  const [quotedContent, setQuotedContent] = useState<QuotedContent | null>(null);
+
   const scrollRef = useRef<ScrollView>(null);
 
   const toggleCitations = useCallback((id: string) => {
@@ -54,6 +65,21 @@ export default function ChatScreen() {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  }, []);
+
+  // 點引用按鈕
+  const handleQuote = useCallback((type: 'knowledge' | 'companion', content: string) => {
+    setQuotedContent({
+      type,
+      content,
+      label: type === 'knowledge' ? '📖 知識回答' : '💙 陪伴回應',
+    });
+    // 自動 focus 輸入框（讓使用者可以直接打字）
+  }, []);
+
+  // 取消引用
+  const cancelQuote = useCallback(() => {
+    setQuotedContent(null);
   }, []);
 
   const sendMessage = async () => {
@@ -67,13 +93,22 @@ export default function ChatScreen() {
     };
 
     setMessages(prev => [...prev, userMsg]);
+    const currentInput = input.trim();
+    const currentQuote = quotedContent;
     setInput('');
+    setQuotedContent(null); // 送出後清除引用
     setLoading(true);
 
     try {
-      // 取得 Firebase token
       if (!currentUser) throw new Error('請先登入');
       const token = await currentUser.getIdToken(true);
+
+      // 把引用內容帶進去送給後端
+      const body: any = { message: currentInput };
+      if (currentQuote) {
+        body.quoted_content = currentQuote.content;
+        body.quoted_type = currentQuote.type;
+      }
 
       const res = await fetch(`${API_BASE}/api/chat/send`, {
         method: 'POST',
@@ -81,11 +116,10 @@ export default function ChatScreen() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ message: input.trim() }),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
-
       if (!data.ok) throw new Error(data.error || '伺服器錯誤');
 
       const assistantMsg: Message = {
@@ -158,18 +192,34 @@ export default function ChatScreen() {
                   </View>
                 )}
 
-                {/* 情感陪伴 */}
+                {/* 情感陪伴（含引用按鈕）*/}
                 {msg.companion_response && (
                   <View style={styles.companionBubble}>
-                    <Text style={styles.companionLabel}>💙 陪伴回應</Text>
+                    <View style={styles.bubbleHeader}>
+                      <Text style={styles.companionLabel}>💙 陪伴回應</Text>
+                      <TouchableOpacity
+                        style={styles.quoteBtn}
+                        onPress={() => handleQuote('companion', msg.companion_response!)}
+                      >
+                        <Text style={styles.quoteBtnText}>引用</Text>
+                      </TouchableOpacity>
+                    </View>
                     <Text style={styles.companionText}>{msg.companion_response}</Text>
                   </View>
                 )}
 
-                {/* 知識回答 */}
+                {/* 知識回答（含引用按鈕）*/}
                 {msg.knowledge_answer && (
                   <View style={styles.knowledgeBubble}>
-                    <Text style={styles.knowledgeLabel}>📖 知識回答</Text>
+                    <View style={styles.bubbleHeader}>
+                      <Text style={styles.knowledgeLabel}>📖 知識回答</Text>
+                      <TouchableOpacity
+                        style={styles.quoteBtn}
+                        onPress={() => handleQuote('knowledge', msg.knowledge_answer!)}
+                      >
+                        <Text style={styles.quoteBtnText}>引用</Text>
+                      </TouchableOpacity>
+                    </View>
                     <Text style={styles.knowledgeText}>{msg.knowledge_answer}</Text>
                   </View>
                 )}
@@ -207,10 +257,25 @@ export default function ChatScreen() {
         {loading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="small" color="#8B4513" />
-            <Text style={styles.loadingText}>有答大師思考中⋯（約 30 秒）</Text>
+            <Text style={styles.loadingText}>有答大師思考中⋯</Text>
           </View>
         )}
       </ScrollView>
+
+      {/* 引用預覽區（點了引用才出現）*/}
+      {quotedContent && (
+        <View style={styles.quotePreview}>
+          <View style={styles.quotePreviewContent}>
+            <Text style={styles.quotePreviewLabel}>{quotedContent.label}</Text>
+            <Text style={styles.quotePreviewText} numberOfLines={2}>
+              {quotedContent.content}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={cancelQuote} style={styles.quoteCancelBtn}>
+            <Text style={styles.quoteCancelText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* 輸入區 */}
       <View style={styles.inputRow}>
@@ -218,11 +283,10 @@ export default function ChatScreen() {
           style={styles.input}
           value={input}
           onChangeText={setInput}
-          placeholder="請輸入你的問題..."
+          placeholder={quotedContent ? '針對引用內容提問...' : '請輸入你的問題...'}
           placeholderTextColor="#999"
           multiline
           maxLength={500}
-          onSubmitEditing={sendMessage}
         />
         <TouchableOpacity
           style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
@@ -270,6 +334,23 @@ const styles = StyleSheet.create({
 
   assistantContainer: { marginBottom: 16 },
 
+  bubbleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+
+  quoteBtn: {
+    backgroundColor: '#F0E8E0',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: '#8B4513',
+  },
+  quoteBtnText: { color: '#8B4513', fontSize: 12, fontWeight: '600' },
+
   companionBubble: {
     backgroundColor: '#EEF4FF',
     borderRadius: 12,
@@ -278,7 +359,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8,
   },
-  companionLabel: { color: '#5B8DEF', fontSize: 12, fontWeight: 'bold', marginBottom: 4 },
+  companionLabel: { color: '#5B8DEF', fontSize: 12, fontWeight: 'bold' },
   companionText: { color: '#333', fontSize: 14, lineHeight: 22 },
 
   knowledgeBubble: {
@@ -293,7 +374,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  knowledgeLabel: { color: '#8B4513', fontSize: 12, fontWeight: 'bold', marginBottom: 4 },
+  knowledgeLabel: { color: '#8B4513', fontSize: 12, fontWeight: 'bold' },
   knowledgeText: { color: '#333', fontSize: 14, lineHeight: 22 },
 
   errorBubble: {
@@ -304,10 +385,7 @@ const styles = StyleSheet.create({
   },
   errorText: { color: '#CC0000', fontSize: 14 },
 
-  citationToggle: {
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-  },
+  citationToggle: { paddingVertical: 6, paddingHorizontal: 4 },
   citationToggleText: { color: '#8B4513', fontSize: 13 },
 
   citationList: {
@@ -333,6 +411,24 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   loadingText: { color: '#888', fontSize: 13 },
+
+  // 引用預覽區
+  quotePreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF8F0',
+    borderTopWidth: 1,
+    borderTopColor: '#E8D5C0',
+    borderLeftWidth: 3,
+    borderLeftColor: '#8B4513',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  quotePreviewContent: { flex: 1 },
+  quotePreviewLabel: { color: '#8B4513', fontSize: 11, fontWeight: 'bold', marginBottom: 2 },
+  quotePreviewText: { color: '#555', fontSize: 13, lineHeight: 18 },
+  quoteCancelBtn: { padding: 8 },
+  quoteCancelText: { color: '#888', fontSize: 16 },
 
   inputRow: {
     flexDirection: 'row',
