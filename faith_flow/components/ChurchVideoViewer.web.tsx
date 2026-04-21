@@ -15,7 +15,19 @@ type Props = {
   onClose: () => void;
 };
 
+function toEmbedUrl(url: string): string {
+  if (url.includes("youtube.com/embed/")) return url;
+  const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
+  if (shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}`;
+  const shortsMatch = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]+)/);
+  if (shortsMatch) return `https://www.youtube.com/embed/${shortsMatch[1]}`;
+  const watchMatch = url.match(/[?&]v=([a-zA-Z0-9_-]+)/);
+  if (watchMatch) return `https://www.youtube.com/embed/${watchMatch[1]}`;
+  return url;
+}
+
 export function ChurchVideoViewer({ videoUrl, basilicaName, onClose }: Props) {
+  const embedUrl = toEmbedUrl(videoUrl);
   return (
     <Modal visible={true} transparent={true} animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
@@ -37,7 +49,7 @@ export function ChurchVideoViewer({ videoUrl, basilicaName, onClose }: Props) {
           {/* iframe viewer */}
           {/* @ts-ignore — iframe is valid in React Native Web */}
           <iframe
-            src={videoUrl}
+            src={embedUrl}
             style={{
               flex: 1,
               border: "none",
@@ -46,7 +58,7 @@ export function ChurchVideoViewer({ videoUrl, basilicaName, onClose }: Props) {
             }}
             allowFullScreen
             loading="lazy"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             referrerPolicy="no-referrer-when-downgrade"
           />
         </View>

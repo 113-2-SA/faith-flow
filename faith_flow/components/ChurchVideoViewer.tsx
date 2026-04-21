@@ -23,7 +23,19 @@ type Props = {
   onClose: () => void;
 };
 
+function toEmbedUrl(url: string): string {
+  if (url.includes("youtube.com/embed/")) return url;
+  const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
+  if (shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}`;
+  const shortsMatch = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]+)/);
+  if (shortsMatch) return `https://www.youtube.com/embed/${shortsMatch[1]}`;
+  const watchMatch = url.match(/[?&]v=([a-zA-Z0-9_-]+)/);
+  if (watchMatch) return `https://www.youtube.com/embed/${watchMatch[1]}`;
+  return url;
+}
+
 export function ChurchVideoViewer({ videoUrl, basilicaName, onClose }: Props) {
+  const embedUrl = toEmbedUrl(videoUrl);
   return (
     <Modal
       animationType="fade"
@@ -48,7 +60,7 @@ export function ChurchVideoViewer({ videoUrl, basilicaName, onClose }: Props) {
 
           {/* Video Viewer */}
           <WebView
-            source={{ uri: videoUrl }}
+            source={{ uri: embedUrl }}
             style={styles.webview}
             startInLoadingState
             renderLoading={() => (
