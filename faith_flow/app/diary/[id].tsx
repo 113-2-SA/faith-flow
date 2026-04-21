@@ -338,19 +338,28 @@ export default function DiaryDetailScreen() {
           </GlassCard>
         </ScrollView>
 
-        {/* 底部按鈕：閱讀模式顯示刪除，編輯模式隱藏 */}
+        {/* 底部按鈕：閱讀模式顯示分享與刪除，編輯模式隱藏 */}
         {!isEditing && (
-          <TouchableOpacity
-            style={[styles.deleteBtn, deleting && styles.deleteBtnDisabled]}
-            onPress={handleDelete}
-            disabled={deleting}
-            activeOpacity={0.7}
-          >
-            {deleting
-              ? <ActivityIndicator color="rgba(255,180,180,0.9)" />
-              : <Text style={styles.deleteBtnText}>刪除日記</Text>
-            }
-          </TouchableOpacity>
+          <View style={styles.bottomActions}>
+            <TouchableOpacity
+              style={styles.shareBtn}
+              onPress={() => router.push(`/community/create?diary_id=${diary.diary_id}` as never)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.shareBtnText}>分享到心靈營火</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.deleteBtn, deleting && styles.deleteBtnDisabled]}
+              onPress={handleDelete}
+              disabled={deleting}
+              activeOpacity={0.7}
+            >
+              {deleting
+                ? <ActivityIndicator color="rgba(255,180,180,0.9)" />
+                : <Text style={styles.deleteBtnText}>刪除</Text>
+              }
+            </TouchableOpacity>
+          </View>
         )}
       </KeyboardAvoidingView>
     </VideoBackground>
@@ -406,8 +415,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: 'rgba(255,255,255,0.95)',
   },
-  deleteBtn: {
+  bottomActions: {
+    flexDirection: 'row',
     margin: 16,
+    gap: 10,
+  },
+  shareBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,122,255,0.35)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,122,255,0.55)',
+    alignItems: 'center',
+  },
+  shareBtnText: {
+    color: 'rgba(135,206,250,0.95)',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  deleteBtn: {
+    flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
     backgroundColor: 'rgba(255,59,48,0.3)',

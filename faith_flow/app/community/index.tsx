@@ -4,6 +4,7 @@ import {
   Text,
   Image,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   TextInput,
   Modal,
@@ -22,19 +23,28 @@ import { GlassCard } from '../../components/GlassCard';
 
 
 
+interface DiaryCard {
+  diary_id: number;
+  diary_title: string;
+  diary_content: string;
+  diary_date: string;
+}
+
 interface OriginalPost {
   community_post_id: number;
   post_text: string;
+  post_type?: string;
   created_at: string;
   original_author_name: string | null;
   original_author_avatar: string | null;
+  diary_card?: DiaryCard;
 }
 
 interface Post {
   community_post_id: number;
   author_user_id: number;
   post_text: string;
-  post_type: 'original' | 'diary' | 'letter' | 'shared';
+  post_type: 'original' | 'diary' | 'letter' | 'shared' | 'normal';
   visibility: 'public' | 'private' | 'friends';
   username: string | null;
   avatar_url: string | null;
@@ -46,6 +56,7 @@ interface Post {
   is_liked?: boolean;
   is_owner?: boolean;
   original_post?: OriginalPost;
+  diary_card?: DiaryCard;
 }
 
 const POST_TYPE_LABELS: Record<string, string> = {
@@ -80,6 +91,7 @@ export default function CommunityFeedScreen() {
   const [shareTarget, setShareTarget] = useState<Post | null>(null);
   const [shareCaption, setShareCaption] = useState('');
   const [sharing, setSharing] = useState(false);
+  const [diaryModalCard, setDiaryModalCard] = useState<DiaryCard | null>(null);
   const LIMIT = 20;
 
   // 搜尋相關狀態
@@ -347,8 +359,31 @@ export default function CommunityFeedScreen() {
 
         {/* Post image */}
         {item.post_pic ? (
-          <Image source={{ uri: item.post_pic }} style={styles.postImage} resizeMode="cover" />
+          <Image source={{ uri: item.post_pic }} style={styles.postImage} resizeMode="contain" />
         ) : null}
+
+        {/* Diary card attachment */}
+        {item.diary_card && (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={(e) => { e.stopPropagation(); setDiaryModalCard(item.diary_card!); }}
+            style={styles.diaryCard}
+          >
+            <View style={styles.diaryCardHeader}>
+              <Text style={styles.diaryCardIcon}>📖</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.diaryCardDate}>{item.diary_card.diary_date}</Text>
+                <Text style={styles.diaryCardTitle} numberOfLines={1}>
+                  {item.diary_card.diary_title}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.diaryCardPreview} numberOfLines={2}>
+              {item.diary_card.diary_content.slice(0, 30)}
+              {item.diary_card.diary_content.length > 30 ? '...' : ''}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Embedded original post */}
         {item.post_type === 'shared' && item.original_post && (
@@ -375,9 +410,27 @@ export default function CommunityFeedScreen() {
               </Text>
               <Text style={styles.quotedTime}> · {timeAgo(item.original_post.created_at)}</Text>
             </View>
-            <Text style={styles.quotedText} numberOfLines={4}>
-              {item.original_post.post_text}
-            </Text>
+            {item.original_post.post_text ? (
+              <Text style={styles.quotedText} numberOfLines={3}>
+                {item.original_post.post_text}
+              </Text>
+            ) : null}
+            {item.original_post.diary_card && (
+              <View style={[styles.quotedCard, { marginBottom: 0, marginTop: 6 }]}>
+                <View style={{ flexDirection: 'row', gap: 6, alignItems: 'flex-start' }}>
+                  <Text style={{ fontSize: 14 }}>📖</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.quotedAuthor} numberOfLines={1}>
+                      {item.original_post.diary_card.diary_title}
+                    </Text>
+                    <Text style={styles.quotedText} numberOfLines={1}>
+                      {item.original_post.diary_card.diary_content.slice(0, 30)}
+                      {item.original_post.diary_card.diary_content.length > 30 ? '...' : ''}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
           </TouchableOpacity>
         )}
 
@@ -527,6 +580,36 @@ export default function CommunityFeedScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Diary Full Content Modal */}
+      <Modal
+        visible={!!diaryModalCard}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDiaryModalCard(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+              <Text style={{ fontSize: 18, marginRight: 8 }}>📖</Text>
+              <Text style={[styles.modalTitle, { flex: 1, textAlign: 'left', marginBottom: 0 }]}>
+                {diaryModalCard?.diary_title}
+              </Text>
+              <TouchableOpacity onPress={() => setDiaryModalCard(null)}>
+                <Text style={{ fontSize: 18, color: 'rgba(255,255,255,0.5)', paddingLeft: 8 }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginBottom: 14 }}>
+              {diaryModalCard?.diary_date}
+            </Text>
+            <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+              <Text style={{ fontSize: 15, color: 'rgba(255,255,255,0.85)', lineHeight: 24 }}>
+                {diaryModalCard?.diary_content}
+              </Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {/* Share Modal */}
       <Modal
         visible={!!shareTarget}
@@ -567,9 +650,28 @@ export default function CommunityFeedScreen() {
                   <Text style={styles.quotedAuthor}>{shareTarget.username ?? '匿名'}</Text>
                   <Text style={styles.quotedTime}> · {timeAgo(shareTarget.created_at)}</Text>
                 </View>
-                <Text style={styles.quotedText} numberOfLines={4}>
-                  {shareTarget.post_text}
-                </Text>
+                {shareTarget.post_text ? (
+                  <Text style={styles.quotedText} numberOfLines={3}>
+                    {shareTarget.post_text}
+                  </Text>
+                ) : null}
+                {shareTarget.diary_card && (
+                  <View style={[styles.diaryCard, { marginBottom: 0, marginTop: 6 }]}>
+                    <View style={styles.diaryCardHeader}>
+                      <Text style={styles.diaryCardIcon}>📖</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.diaryCardDate}>{shareTarget.diary_card.diary_date}</Text>
+                        <Text style={styles.diaryCardTitle} numberOfLines={1}>
+                          {shareTarget.diary_card.diary_title}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.diaryCardPreview} numberOfLines={2}>
+                      {shareTarget.diary_card.diary_content.slice(0, 30)}
+                      {shareTarget.diary_card.diary_content.length > 30 ? '...' : ''}
+                    </Text>
+                  </View>
+                )}
               </View>
             )}
 
@@ -713,9 +815,11 @@ const styles = StyleSheet.create({
   },
   postImage: {
     width: '100%',
-    height: 200,
+    aspectRatio: 4 / 3,
+    maxHeight: 300,
     borderRadius: 10,
     marginBottom: 12,
+    backgroundColor: 'rgba(0,0,0,0.2)',
   },
   actions: {
     flexDirection: 'row',
@@ -858,6 +962,38 @@ const styles = StyleSheet.create({
   postMenuIcon: {
     fontSize: 18,
     color: 'rgba(255,255,255,0.6)',
+  },
+
+  // Diary card attachment
+  diaryCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(100,180,255,0.35)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+    backgroundColor: 'rgba(0,80,180,0.12)',
+  },
+  diaryCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 4,
+  },
+  diaryCardIcon: { fontSize: 16 },
+  diaryCardDate: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.5)',
+    marginBottom: 2,
+  },
+  diaryCardTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
+  },
+  diaryCardPreview: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.65)',
+    lineHeight: 18,
   },
 
   // Quoted / embedded original post

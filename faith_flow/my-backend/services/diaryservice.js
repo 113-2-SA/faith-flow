@@ -181,13 +181,17 @@ async function getUserDiaries(userId, options = {}) {
     console.log(`[篩選] 日記本 ID: ${collectId}`);
   }
 
-  // ⭐ 篩選 6: 關鍵字搜尋（標題、內容、經文）
+  // ⭐ 篩選 6: 關鍵字搜尋（標題、內容、經文、標籤）
   if (keyword) {
     paramCount++;
     sql += ` AND (
       diary_title ILIKE $${paramCount}
       OR diary_content ILIKE $${paramCount}
       OR bible_quote ILIKE $${paramCount}
+      OR EXISTS (
+        SELECT 1 FROM jsonb_array_elements_text(COALESCE(tags, '[]'::jsonb)) AS _tag
+        WHERE _tag ILIKE $${paramCount}
+      )
     )`;
     params.push(`%${keyword}%`);
     console.log(`[篩選] 關鍵字: ${keyword}`);

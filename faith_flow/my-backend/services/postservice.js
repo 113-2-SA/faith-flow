@@ -79,25 +79,44 @@ class PostService {
         return result.rowCount > 0;
     }
 
-    // ⭐ 獲取單一貼文（含標籤、作者資訊、點讚和轉發狀態、圖片）
+    // ⭐ 獲取單一貼文（含標籤、作者資訊、點讚和轉發狀態、圖片、日記卡片）
     async getPostById(postId, userId = null) {
         const query = `
             SELECT
                 p.*,
                 u."user_name" as username,
-                u."user_pic" as avatar_url
+                u."user_pic" as avatar_url,
+                d.diary_id      as diary_card_id,
+                d.diary_title   as diary_card_title,
+                d.diary_content as diary_card_content,
+                d.diary_date    as diary_card_date
             FROM community_posts p
             LEFT JOIN "user" u ON p.author_user_id = u."userID"
+            LEFT JOIN diary d ON p.post_type = 'diary' AND p.diary_id = d.diary_id
             WHERE p.community_post_id = $1 AND p.deleted_at IS NULL
         `;
-        
+
         const result = await pool.query(query, [postId]);
-        
+
         if (result.rows.length === 0) {
             return null;
         }
 
         const post = result.rows[0];
+
+        // 整理日記卡片
+        if (post.diary_card_id) {
+            post.diary_card = {
+                diary_id:      post.diary_card_id,
+                diary_title:   post.diary_card_title,
+                diary_content: post.diary_card_content,
+                diary_date:    post.diary_card_date,
+            };
+        }
+        delete post.diary_card_id;
+        delete post.diary_card_title;
+        delete post.diary_card_content;
+        delete post.diary_card_date;
 
         // ⭐ 如果提供了 userId，檢查點讚和轉發狀態
         if (userId) {
@@ -122,23 +141,51 @@ class PostService {
             post.has_shared = statusResult.rows[0].has_shared;
         }
 
-        // ⭐ 如果是轉發的貼文，獲取原始貼文資訊
+        // ⭐ 如果是轉發的貼文，獲取原始貼文資訊（含日記卡片）
         if (post.post_type === 'shared') {
             const originalPostQuery = `
                 SELECT
-                    p.*,
-                    u."user_name" as original_author_name,
-                    u."user_pic" as original_author_avatar
+                    p.community_post_id,
+                    p.post_text,
+                    p.post_type,
+                    p.created_at,
+                    u."user_name"   as original_author_name,
+                    u."user_pic"    as original_author_avatar,
+                    d.diary_id      as diary_card_id,
+                    d.diary_title   as diary_card_title,
+                    d.diary_content as diary_card_content,
+                    d.diary_date    as diary_card_date
                 FROM community_post_shares s
                 JOIN community_posts p ON s.original_post_id = p.community_post_id
                 LEFT JOIN "user" u ON p.author_user_id = u."userID"
+                LEFT JOIN diary d ON p.post_type = 'diary' AND p.diary_id = d.diary_id
                 WHERE s.shared_post_id = $1
                 AND s.deleted_at IS NULL
                 AND p.deleted_at IS NULL
             `;
-            
+
             const originalResult = await pool.query(originalPostQuery, [postId]);
-            post.original_post = originalResult.rows[0] || null;
+            if (originalResult.rows[0]) {
+                const orig = originalResult.rows[0];
+                post.original_post = {
+                    community_post_id:    orig.community_post_id,
+                    post_text:            orig.post_text,
+                    post_type:            orig.post_type,
+                    created_at:           orig.created_at,
+                    original_author_name: orig.original_author_name,
+                    original_author_avatar: orig.original_author_avatar,
+                    ...(orig.diary_card_id ? {
+                        diary_card: {
+                            diary_id:      orig.diary_card_id,
+                            diary_title:   orig.diary_card_title,
+                            diary_content: orig.diary_card_content,
+                            diary_date:    orig.diary_card_date,
+                        }
+                    } : {})
+                };
+            } else {
+                post.original_post = null;
+            }
         }
 
         return post;
@@ -211,19 +258,30 @@ class PostService {
                 u."user_name" as username,
                 u."user_pic" as avatar_url
                 ${userStatusFields}
+                , d.diary_id      as diary_card_id
+                , d.diary_title   as diary_card_title
+                , d.diary_content as diary_card_content
+                , d.diary_date    as diary_card_date
                 , op.community_post_id   as orig_post_id
                 , op.post_text           as orig_post_text
+                , op.post_type           as orig_post_type
                 , op.created_at          as orig_post_created_at
                 , ou."user_name"         as orig_author_name
                 , ou."user_pic"          as orig_author_avatar
                 , ps.share_caption       as orig_share_caption
+                , od.diary_id      as orig_diary_card_id
+                , od.diary_title   as orig_diary_card_title
+                , od.diary_content as orig_diary_card_content
+                , od.diary_date    as orig_diary_card_date
             FROM community_posts p
             LEFT JOIN "user" u ON p.author_user_id = u."userID"
+            LEFT JOIN diary d ON p.post_type = 'diary' AND p.diary_id = d.diary_id
             LEFT JOIN community_post_shares ps
                 ON ps.shared_post_id = p.community_post_id
             LEFT JOIN community_posts op
                 ON ps.original_post_id = op.community_post_id AND op.deleted_at IS NULL
             LEFT JOIN "user" ou ON op.author_user_id = ou."userID"
+            LEFT JOIN diary od ON op.post_type = 'diary' AND op.diary_id = od.diary_id
             WHERE ${conditions.join(' AND ')}
             ORDER BY p.created_at DESC
             LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -232,21 +290,51 @@ class PostService {
         const result = await pool.query(query, params);
         return result.rows.map(row => {
             const post = { ...row };
+
+            // 整理當前貼文的日記卡片
+            if (row.diary_card_id) {
+                post.diary_card = {
+                    diary_id:      row.diary_card_id,
+                    diary_title:   row.diary_card_title,
+                    diary_content: row.diary_card_content,
+                    diary_date:    row.diary_card_date,
+                };
+            }
+            delete post.diary_card_id;
+            delete post.diary_card_title;
+            delete post.diary_card_content;
+            delete post.diary_card_date;
+
+            // 整理轉發來源貼文
             if (row.post_type === 'shared' && row.orig_post_id) {
                 post.original_post = {
-                    community_post_id: row.orig_post_id,
-                    post_text: row.orig_post_text,
-                    created_at: row.orig_post_created_at,
-                    original_author_name: row.orig_author_name,
+                    community_post_id:     row.orig_post_id,
+                    post_text:             row.orig_post_text,
+                    post_type:             row.orig_post_type,
+                    created_at:            row.orig_post_created_at,
+                    original_author_name:  row.orig_author_name,
                     original_author_avatar: row.orig_author_avatar,
+                    ...(row.orig_diary_card_id ? {
+                        diary_card: {
+                            diary_id:      row.orig_diary_card_id,
+                            diary_title:   row.orig_diary_card_title,
+                            diary_content: row.orig_diary_card_content,
+                            diary_date:    row.orig_diary_card_date,
+                        }
+                    } : {})
                 };
             }
             delete post.orig_post_id;
             delete post.orig_post_text;
+            delete post.orig_post_type;
             delete post.orig_post_created_at;
             delete post.orig_author_name;
             delete post.orig_author_avatar;
             delete post.orig_share_caption;
+            delete post.orig_diary_card_id;
+            delete post.orig_diary_card_title;
+            delete post.orig_diary_card_content;
+            delete post.orig_diary_card_date;
             return post;
         });
     }

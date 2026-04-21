@@ -4,6 +4,7 @@ import {
   Text,
   Image,
   FlatList,
+  ScrollView,
   TextInput,
   TouchableOpacity,
   StyleSheet,
@@ -27,12 +28,21 @@ interface Tag {
   tag_name: string;
 }
 
+interface DiaryCard {
+  diary_id: number;
+  diary_title: string;
+  diary_content: string;
+  diary_date: string;
+}
+
 interface OriginalPost {
   community_post_id: number;
   post_text: string;
+  post_type?: string;
   created_at: string;
   original_author_name: string | null;
   original_author_avatar: string | null;
+  diary_card?: DiaryCard;
 }
 
 interface Post {
@@ -51,6 +61,7 @@ interface Post {
   is_liked?: boolean;
   is_owner?: boolean;
   original_post?: OriginalPost;
+  diary_card?: DiaryCard;
 }
 
 interface Comment {
@@ -101,6 +112,7 @@ export default function PostDetailScreen() {
   const [replyTo, setReplyTo] = useState<{ id: number; username: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [imageModalUri, setImageModalUri] = useState<string | null>(null);
+  const [diaryModalCard, setDiaryModalCard] = useState<DiaryCard | null>(null);
   const inputRef = useRef<TextInput>(null);
 
   const postId = parseInt(id ?? '0');
@@ -369,6 +381,29 @@ export default function PostDetailScreen() {
                   </TouchableOpacity>
                 ) : null}
 
+                {/* Diary card attachment */}
+                {post.diary_card && (
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setDiaryModalCard(post.diary_card!)}
+                    style={styles.diaryCard}
+                  >
+                    <View style={styles.diaryCardHeader}>
+                      <Text style={styles.diaryCardIcon}>📖</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.diaryCardDate}>{post.diary_card.diary_date}</Text>
+                        <Text style={styles.diaryCardTitle} numberOfLines={1}>
+                          {post.diary_card.diary_title}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.diaryCardPreview} numberOfLines={2}>
+                      {post.diary_card.diary_content.slice(0, 30)}
+                      {post.diary_card.diary_content.length > 30 ? '...' : ''}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
                 {/* Embedded original post for shared type */}
                 {post.post_type === 'shared' && post.original_post && (
                   <TouchableOpacity
@@ -391,7 +426,27 @@ export default function PostDetailScreen() {
                       </Text>
                       <Text style={styles.quotedTime}> · {timeAgo(post.original_post.created_at)}</Text>
                     </View>
-                    <Text style={styles.quotedText}>{post.original_post.post_text}</Text>
+                    {post.original_post.post_text ? (
+                      <Text style={styles.quotedText} numberOfLines={3}>
+                        {post.original_post.post_text}
+                      </Text>
+                    ) : null}
+                    {post.original_post.diary_card && (
+                      <View style={[styles.diaryCard, { marginBottom: 0, marginTop: 6 }]}>
+                        <View style={styles.diaryCardHeader}>
+                          <Text style={styles.diaryCardIcon}>📖</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.diaryCardTitle} numberOfLines={1}>
+                              {post.original_post.diary_card.diary_title}
+                            </Text>
+                            <Text style={styles.diaryCardPreview} numberOfLines={1}>
+                              {post.original_post.diary_card.diary_content.slice(0, 30)}
+                              {post.original_post.diary_card.diary_content.length > 30 ? '...' : ''}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    )}
                   </TouchableOpacity>
                 )}
 
@@ -470,6 +525,32 @@ export default function PostDetailScreen() {
           </View>
         </GlassCard>
       </KeyboardAvoidingView>
+      {/* 日記完整內容 Modal */}
+      <Modal
+        visible={!!diaryModalCard}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDiaryModalCard(null)}
+      >
+        <View style={styles.diaryModalOverlay}>
+          <View style={styles.diaryModalSheet}>
+            <View style={styles.diaryModalHeader}>
+              <Text style={styles.diaryModalIcon}>📖</Text>
+              <Text style={styles.diaryModalTitle} numberOfLines={2}>
+                {diaryModalCard?.diary_title}
+              </Text>
+              <TouchableOpacity onPress={() => setDiaryModalCard(null)} style={styles.diaryModalClose}>
+                <Text style={styles.diaryModalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.diaryModalDate}>{diaryModalCard?.diary_date}</Text>
+            <ScrollView style={styles.diaryModalScroll} showsVerticalScrollIndicator={false}>
+              <Text style={styles.diaryModalContent}>{diaryModalCard?.diary_content}</Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {/* 全螢幕圖片預覽 Modal */}
       <Modal
         visible={!!imageModalUri}
@@ -634,6 +715,38 @@ const styles = StyleSheet.create({
   emptyCard: { alignItems: 'center', paddingVertical: 24 },
   emptyText: { fontSize: 14, color: 'rgba(255,255,255,0.6)' },
 
+  // Diary card attachment
+  diaryCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(100,180,255,0.35)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 14,
+    backgroundColor: 'rgba(0,80,180,0.12)',
+  },
+  diaryCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 4,
+  },
+  diaryCardIcon: { fontSize: 16 },
+  diaryCardDate: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.5)',
+    marginBottom: 2,
+  },
+  diaryCardTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
+  },
+  diaryCardPreview: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.65)',
+    lineHeight: 18,
+  },
+
   // Quoted / embedded original post
   quotedCard: {
     borderWidth: 1,
@@ -668,6 +781,54 @@ const styles = StyleSheet.create({
   },
   quotedText: {
     fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 20,
+  },
+
+  // Diary Modal
+  diaryModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  diaryModalSheet: {
+    backgroundColor: 'rgba(20,20,40,0.98)',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    padding: 16,
+    paddingBottom: 32,
+    maxHeight: '80%',
+  },
+  diaryModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 6,
+  },
+  diaryModalIcon: { fontSize: 20, marginTop: 2 },
+  diaryModalTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
+  },
+  diaryModalClose: {
+    padding: 4,
+  },
+  diaryModalCloseText: {
+    fontSize: 18,
+    color: 'rgba(255,255,255,0.5)',
+  },
+  diaryModalDate: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.45)',
+    marginBottom: 14,
+  },
+  diaryModalScroll: { maxHeight: 500 },
+  diaryModalContent: {
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.85)',
+    lineHeight: 24,
   },
 
   // Input bar

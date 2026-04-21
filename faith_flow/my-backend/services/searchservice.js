@@ -110,14 +110,22 @@ class SearchService {
     const params = [];
     let paramIndex = 1;
 
-    // 關鍵字搜尋
+    // 關鍵字搜尋：同時比對 貼文內容 / 作者名稱 / 標籤
     if (keyword) {
-      query += ` AND p.post_text ILIKE $${paramIndex}`;
+      query += `
+        AND (
+          p.post_text ILIKE $${paramIndex}
+          OR u."user_name" ILIKE $${paramIndex}
+          OR EXISTS (
+            SELECT 1 FROM unnest(p.tags) AS t
+            WHERE t ILIKE $${paramIndex}
+          )
+        )`;
       params.push(`%${keyword}%`);
       paramIndex++;
     }
 
-    // 標籤篩選
+    // 標籤篩選（精確符合，從前端傳來的 tags 陣列）
     if (tags && tags.length > 0) {
       query += ` AND p.tags && $${paramIndex}`;
       params.push(tags);
@@ -152,17 +160,26 @@ class SearchService {
 
     const result = await pool.query(query, params);
 
-    // 取得總數
+    // 取得總數（需要 JOIN user 才能搜尋 username）
     let countQuery = `
       SELECT COUNT(DISTINCT p.community_post_id) as total
       FROM community_posts p
+      JOIN "user" u ON p.author_user_id = u."userID"
       WHERE p.visibility = 'public' AND p.deleted_at IS NULL
     `;
     const countParams = [];
     let countParamIndex = 1;
 
     if (keyword) {
-      countQuery += ` AND p.post_text ILIKE $${countParamIndex}`;
+      countQuery += `
+        AND (
+          p.post_text ILIKE $${countParamIndex}
+          OR u."user_name" ILIKE $${countParamIndex}
+          OR EXISTS (
+            SELECT 1 FROM unnest(p.tags) AS t
+            WHERE t ILIKE $${countParamIndex}
+          )
+        )`;
       countParams.push(`%${keyword}%`);
       countParamIndex++;
     }

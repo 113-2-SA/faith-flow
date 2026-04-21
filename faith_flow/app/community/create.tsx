@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Platform } from 'react-native';
 import {
   View,
@@ -12,10 +12,11 @@ import {
   Image,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../context/authcontext';
 import { VideoBackground } from '../../components/VideoBackground';
 import { GlassCard } from '../../components/GlassCard';
+import { API_BASE_URL } from '../../lib/api';
 
 type Visibility = 'public' | 'group' | 'private';
 
@@ -25,34 +26,17 @@ const VISIBILITY_OPTIONS: { value: Visibility; label: string }[] = [
   { value: 'private', label: '僅自己' },
 ];
 
-// ⭐⭐⭐ 根據平台動態設定 API URL ⭐⭐⭐
-const getApiUrl = () => {
-  if (!__DEV__) {
-    // 生產環境
-    return 'https://your-production-api.com';
-  }
-
-  // 開發環境
-  if (Platform.OS === 'android') {
-    // Android 模擬器：10.0.2.2 指向電腦的 localhost
-    return 'http://10.0.2.2:3000';
-  } else if (Platform.OS === 'ios') {
-    // iOS 模擬器：可以使用 localhost
-    return 'http://localhost:3000';
-  } else if (Platform.OS === 'web') {
-    // Web 環境：使用 localhost
-    return 'http://localhost:3000';
-  }
-
-  // 實體裝置
-  return 'http://192.168.1.100:3000'; // 請替換成你的電腦 IP 位址(未更改)
-};
-
-const API_BASE_URL = getApiUrl();
+interface DiaryItem {
+  diary_id: number;
+  diary_date: string;
+  diary_title: string;
+  diary_content: string;
+}
 
 export default function CreatePostScreen() {
   const router = useRouter();
   const { currentUser } = useAuth();
+  const params = useLocalSearchParams<{ diary_id?: string }>();
 
   const [postText, setPostText] = useState('');
   const [visibility, setVisibility] = useState<Visibility>('public');
@@ -61,6 +45,43 @@ export default function CreatePostScreen() {
   const [loading, setLoading] = useState(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageMime, setImageMime] = useState<string>('image/jpeg');
+
+  // 日記附件（從路由參數帶入）
+  const [attachedDiary, setAttachedDiary] = useState<DiaryItem | null>(null);
+  const [diaryLoading, setDiaryLoading] = useState(false);
+
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+  // 若有 diary_id 參數，自動抓取日記資料
+  useEffect(() => {
+    if (!params.diary_id || !currentUser) return;
+    const loadDiary = async () => {
+      setDiaryLoading(true);
+      try {
+        const token = await currentUser.getIdToken();
+        const res = await fetch(`${API_BASE_URL}/api/diary/${params.diary_id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.ok) {
+          const d = data.data;
+          setAttachedDiary({
+            diary_id: d.diary_id,
+            diary_date: d.diary_date,
+            diary_title: d.diary_title,
+            diary_content: d.diary_content,
+          });
+        } else {
+          Alert.alert('提醒', '無法載入日記，請重新嘗試');
+        }
+      } catch {
+        Alert.alert('錯誤', '網路連線失敗');
+      } finally {
+        setDiaryLoading(false);
+      }
+    };
+    loadDiary();
+  }, [params.diary_id, currentUser]);
 
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -74,8 +95,13 @@ export default function CreatePostScreen() {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      setImageUri(result.assets[0].uri);
-      setImageMime(result.assets[0].mimeType ?? 'image/jpeg');
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > MAX_IMAGE_BYTES) {
+        Alert.alert('圖片太大', `圖片大小不能超過 5MB（目前約 ${(asset.fileSize / 1024 / 1024).toFixed(1)} MB），請選擇較小的圖片。`);
+        return;
+      }
+      setImageUri(asset.uri);
+      setImageMime(asset.mimeType ?? 'image/jpeg');
     }
   };
 
@@ -92,7 +118,8 @@ export default function CreatePostScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!postText.trim()) {
+    // 有附件日記時 postText 可以留空，否則必填
+    if (!attachedDiary && !postText.trim()) {
       Alert.alert('提醒', '請輸入貼文內容');
       return;
     }
@@ -104,25 +131,24 @@ export default function CreatePostScreen() {
     setLoading(true);
     try {
       const token = await currentUser.getIdToken(true);
+      const postType = attachedDiary ? 'diary' : 'normal';
 
       let body: string | FormData;
       let headers: Record<string, string> = { Authorization: `Bearer ${token}` };
 
       if (imageUri) {
-        // 有圖片 → 用 FormData（multipart）
         const formData = new FormData();
         formData.append('post_text', postText.trim());
-        formData.append('post_type', 'normal');
+        formData.append('post_type', postType);
         formData.append('visibility', visibility);
         if (tags.length > 0) formData.append('tags', JSON.stringify(tags));
+        if (attachedDiary) formData.append('diary_id', String(attachedDiary.diary_id));
         const filename = imageUri.split('/').pop() ?? 'photo.jpg';
         if (Platform.OS === 'web') {
-          // Web：需要先 fetch 成 Blob 才能附加到 FormData
           const response = await fetch(imageUri);
           const blob = await response.blob();
           formData.append('post_pic', blob, filename);
         } else {
-          // React Native（iOS / Android）
           (formData as any).append('post_pic', {
             uri: imageUri,
             name: filename,
@@ -130,15 +156,14 @@ export default function CreatePostScreen() {
           });
         }
         body = formData;
-        // 不設 Content-Type，讓 fetch 自動帶 boundary
       } else {
-        // 沒有圖片 → 用 JSON（原本的行為）
         headers['Content-Type'] = 'application/json';
         body = JSON.stringify({
           post_text: postText.trim(),
-          post_type: 'normal',
+          post_type: postType,
           visibility,
           ...(tags.length > 0 ? { tags } : {}),
+          ...(attachedDiary ? { diary_id: attachedDiary.diary_id } : {}),
         });
       }
 
@@ -187,14 +212,46 @@ export default function CreatePostScreen() {
           </View>
         </GlassCard>
 
+        {/* Attached diary card */}
+        {diaryLoading ? (
+          <GlassCard style={styles.card}>
+            <ActivityIndicator color="rgba(255,255,255,0.7)" />
+            <Text style={styles.label}>載入日記中...</Text>
+          </GlassCard>
+        ) : attachedDiary ? (
+          <GlassCard style={styles.card}>
+            <Text style={styles.label}>引用的日記</Text>
+            <View style={styles.attachedDiaryCard}>
+              <View style={styles.attachedDiaryHeader}>
+                <Text style={styles.diaryIcon}>📖</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.diaryDate}>{attachedDiary.diary_date}</Text>
+                  <Text style={styles.diaryTitle} numberOfLines={1}>
+                    {attachedDiary.diary_title}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setAttachedDiary(null)} style={styles.removeBtn}>
+                  <Text style={styles.removeBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.diaryPreview} numberOfLines={2}>
+                {attachedDiary.diary_content.slice(0, 60)}
+                {attachedDiary.diary_content.length > 60 ? '...' : ''}
+              </Text>
+            </View>
+          </GlassCard>
+        ) : null}
+
         {/* Content input */}
         <GlassCard style={styles.card}>
-          <Text style={styles.label}>有什麼想分享的？</Text>
+          <Text style={styles.label}>
+            {attachedDiary ? '加點想法（選填）' : '有什麼想分享的？'}
+          </Text>
           <TextInput
             style={styles.textArea}
             value={postText}
             onChangeText={setPostText}
-            placeholder="在這裡輸入你的分享..."
+            placeholder={attachedDiary ? '為這篇日記加上你的感想...' : '在這裡輸入你的分享...'}
             placeholderTextColor="rgba(255,255,255,0.4)"
             multiline
             textAlignVertical="top"
@@ -423,5 +480,44 @@ const styles = StyleSheet.create({
   removeImageText: {
     color: 'rgba(255,100,100,0.9)',
     fontSize: 14,
+  },
+
+  // 已附加的日記卡片
+  attachedDiaryCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(100,180,255,0.4)',
+    borderRadius: 10,
+    padding: 12,
+    backgroundColor: 'rgba(0,80,180,0.15)',
+  },
+  attachedDiaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 8,
+  },
+  diaryIcon: { fontSize: 20 },
+  diaryDate: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.55)',
+    marginBottom: 2,
+  },
+  diaryTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
+  },
+  removeBtn: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  removeBtnText: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.55)',
+  },
+  diaryPreview: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.65)',
+    lineHeight: 18,
   },
 });

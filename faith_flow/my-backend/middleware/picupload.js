@@ -5,10 +5,12 @@ const multer = require('multer');
 const storage = multer.memoryStorage();
 
 // Multer 配置（不做 fileFilter，型別驗證由 controller 統一處理）
+const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024;
+
 const upload = multer({
     storage: storage,
     limits: {
-        fileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024,
+        fileSize: MAX_FILE_SIZE,
     },
 });
 
@@ -23,7 +25,7 @@ const handleUploadError = (req, res, next) => {
             if (err.code === 'LIMIT_FILE_SIZE') {
                 return res.status(400).json({
                     ok: false,
-                    error: `檔案大小超過限制（最大 ${process.env.MAX_FILE_SIZE / (1024 * 1024)}MB）`
+                    error: `檔案大小超過限制（最大 ${(MAX_FILE_SIZE / (1024 * 1024)).toFixed(0)}MB）`
                 });
             }
             return res.status(400).json({
