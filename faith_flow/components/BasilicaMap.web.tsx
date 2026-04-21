@@ -2,6 +2,7 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput } from "react-native";
 import React, { useMemo, useState, useEffect, useRef, lazy, Suspense } from "react";
 import { ChurchPanoramaViewer } from "./ChurchPanoramaViewer";
+import { ChurchVideoViewer } from "./ChurchVideoViewer";
 import { GlassCard } from "./GlassCard";
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
@@ -27,6 +28,7 @@ export type Basilica = {
     viewerUrl: string;
     panoramaId?: string | null;
     panoramaHeading?: number;
+    videoUrl?: string | null;
 };
 
 type FilterType = "all" | "major" | "cathedral" | "chapel";
@@ -42,10 +44,12 @@ export function BasilicaMap() {
     const [detailY, setDetailY] = useState(0);
     const [displayCount, setDisplayCount] = useState(3);
     const [showPanorama, setShowPanorama] = useState(false);
+    const [showVideo, setShowVideo] = useState(false);
 
-    // 切換教堂時關閉全景
+    // 切換教堂時關閉全景與影片
     useEffect(() => {
         setShowPanorama(false);
+        setShowVideo(false);
     }, [selectedId]);
 
     useEffect(() => {
@@ -72,6 +76,7 @@ export function BasilicaMap() {
                         viewerUrl: data.viewerUrl,
                         panoramaId: data.panoramaId || null,
                         panoramaHeading: data.panoramaHeading ?? undefined,
+                        videoUrl: data.videoUrl || null,
                     });
                 });
                 setBasilicas(basilicasData);
@@ -280,6 +285,30 @@ export function BasilicaMap() {
                                 </ThemedText>
                             </View>
 
+                            {/* 查看影片按鈕 */}
+                            {selectedBasilica.videoUrl ? (
+                                <Pressable
+                                    onPress={() => setShowVideo(true)}
+                                    style={({ pressed }) => [
+                                        styles.videoBtn,
+                                        pressed && styles.videoBtnPressed,
+                                    ]}
+                                >
+                                    <View style={styles.videoBtnInner}>
+                                        <Text style={styles.videoBtnIcon}>🎬</Text>
+                                        <View>
+                                            <ThemedText style={styles.videoBtnLabel}>
+                                                查看影片
+                                            </ThemedText>
+                                            <ThemedText style={styles.videoBtnSub}>
+                                                教堂介紹影片
+                                            </ThemedText>
+                                        </View>
+                                        <Text style={styles.videoBtnArrow}>›</Text>
+                                    </View>
+                                </Pressable>
+                            ) : null}
+
                             {/* 360° 全景按鈕 */}
                             {selectedBasilica.panoramaId ? (
                                 <Pressable
@@ -427,6 +456,15 @@ export function BasilicaMap() {
             </View>
 
         </ScrollView>
+
+        {/* 影片浮動視窗 */}
+        {showVideo && selectedBasilica?.videoUrl && (
+            <ChurchVideoViewer
+                videoUrl={selectedBasilica.videoUrl}
+                basilicaName={selectedBasilica.name}
+                onClose={() => setShowVideo(false)}
+            />
+        )}
 
         {/* 360° 浮動全景視窗 */}
         {showPanorama && selectedBasilica?.panoramaId && (
@@ -733,6 +771,44 @@ const styles = StyleSheet.create({
     noPanoramaText: {
         fontSize: 11,
         color: "rgba(255,255,255,0.4)",
+    },
+    videoBtn: {
+        marginTop: 16,
+        borderRadius: 14,
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: "rgba(220,80,60,0.6)",
+        backgroundColor: "rgba(220,80,60,0.18)",
+        cursor: "pointer",
+    },
+    videoBtnPressed: {
+        backgroundColor: "rgba(220,80,60,0.38)",
+        borderColor: "rgba(220,80,60,1)",
+    },
+    videoBtnInner: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        gap: 12,
+    },
+    videoBtnIcon: {
+        fontSize: 28,
+    },
+    videoBtnLabel: {
+        fontSize: 14,
+        fontWeight: "700",
+        color: "rgba(255,255,255,0.95)",
+    },
+    videoBtnSub: {
+        fontSize: 11,
+        color: "rgba(220,80,60,0.9)",
+        marginTop: 2,
+    },
+    videoBtnArrow: {
+        fontSize: 24,
+        color: "rgba(220,80,60,0.8)",
+        marginLeft: "auto",
     },
     panoramaBtn: {
         marginTop: 16,
