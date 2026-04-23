@@ -1,6 +1,7 @@
 // ==================== controllers/diarycontroller.js ====================
 const diaryService = require("../services/diaryservice");
 const prayerService = require("../services/prayservice");
+const { runAIPrayerPipeline } = require("../services/aiPrayerService");
 console.log("[diarycontroller] hit /api/diary");
 
 /**
@@ -48,11 +49,15 @@ exports.createDiary = async (req, res) => {
 
     console.log('✅ 日記建立成功:', diary);
 
+    // ⭐ 先回傳成功給前端，再非同步執行 AI 禱告流程（不阻塞）
     res.status(201).json({
       ok: true,
       message: "日記建立成功",
       data: diary
     });
+
+    // [AI 禱告歷程] 非同步觸發，不等待結果
+    runAIPrayerPipeline(diary.diary_id, diary.diary_content, diary.user_id, diary.diary_title, diary.tags ?? []);
   } catch (error) {
     console.error('❌ [createDiary] 錯誤:', error);
     res.status(500).json({
@@ -440,7 +445,7 @@ exports.createFromPrayer = async (req, res) => {
 
     console.log('✅ [createFromPrayer] 祈禱日記建立成功! ID:', diary.diary_id);
 
-    // ⭐ 回傳成功訊息（前端會顯示通知）
+    // ⭐ 先回傳成功給前端，再非同步執行 AI 禱告流程（不阻塞）
     res.status(201).json({
       ok: true,
       message: '✨ 祈禱已轉換為日記！', // 這個會在前端顯示
@@ -451,6 +456,9 @@ exports.createFromPrayer = async (req, res) => {
       },
       data: diary
     });
+
+    // [AI 禱告歷程] 非同步觸發，不等待結果
+    runAIPrayerPipeline(diary.diary_id, diary.diary_content, diary.user_id, diary.diary_title, diary.tags ?? []);
   } catch (error) {
     console.error('❌ [createFromPrayer] 錯誤:', error);
     res.status(500).json({

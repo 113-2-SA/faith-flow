@@ -1,6 +1,7 @@
 // ==================== services/prayerService.js ====================
 const { Mistral } = require('@mistralai/mistralai');
 const pool = require("../config/database");
+const { parseJsonFromLLM } = require('../utils/parseJsonFromLLM');
 
 class PrayerService {
   constructor() {
@@ -39,19 +40,16 @@ ${prayerText}
       const responseText = message.choices[0].message.content;
       console.log('🤖 [prayerService] Mistral 回應:', responseText);
       
-      // 提取 JSON部分
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      
-      if (jsonMatch) {
-        const result = JSON.parse(jsonMatch[0]);
+      const result = parseJsonFromLLM(responseText);
+      if (result) {
         if (!result.tags.includes('祈禱')) {
           result.tags.push('祈禱');
         }
         console.log('✅ [prayerService] 生成成功:', result);
         return result;
       }
-      
-      throw new Error('無法從 Claude 回應中解析 JSON');
+
+      throw new Error('無法從 Mistral 回應中解析 JSON');
     } catch (error) {
       console.error('❌ [prayerService] LLM 生成失敗:', error.message);
       

@@ -1,17 +1,41 @@
 import { useAuth } from "../hooks/useAuth";
 import { ScrollView, Text, View, TouchableOpacity, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 
 import { CalendarCard } from "../components/CalendarCard";
 import { VideoBackground } from "../components/VideoBackground";
 import { DateDisplay } from "../components/DateDisplay";
 import { LiturgicalInfo } from "../components/LiturgicalInfo";
 import { GlassCard } from "../components/GlassCard";
+import { PrayerNudgeModal } from "../components/PrayerNudgeModal";
+import { getPendingNudge, NudgeData } from "./api/nudgeApi";
 
 export default function Home() {
   const { user } = useAuth();
   const router = useRouter();
   const today = new Date();
+
+  const [nudge, setNudge] = useState<NudgeData | null>(null);
+  const nudgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 停留 4 秒後查詢是否有待顯示的光點回顧
+  useEffect(() => {
+    nudgeTimer.current = setTimeout(async () => {
+      try {
+        const pending = await getPendingNudge();
+        if (pending) setNudge(pending);
+      } catch {
+        // 查詢失敗不影響畫面
+      }
+    }, 4000);
+
+    return () => { clearTimeout(nudgeTimer.current ?? undefined); };
+  }, []);
+
+  const handleStartConversation = () => {
+    router.push('/pilgrimage'); // 導向對話頁面（依你實際的路由調整）
+  };
 
   return (
     <VideoBackground source={require("../assets/backgrounds/main.mp4")}>
@@ -46,6 +70,15 @@ export default function Home() {
           </Text>
         </View>
       </ScrollView>
+
+      {/* 禱告回顧光點彈窗（有 nudge 時才顯示） */}
+      {nudge && (
+        <PrayerNudgeModal
+          nudge={nudge}
+          onClose={() => setNudge(null)}
+          onStartConversation={handleStartConversation}
+        />
+      )}
     </VideoBackground>
   );
 }

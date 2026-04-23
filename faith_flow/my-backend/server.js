@@ -116,6 +116,7 @@ const messageRoutes = require('./routes/message');
 const weeklySummaryRoutes = require('./routes/weeklysummary');
 const searchRoutes = require('./routes/search');
 const liturgicalRoutes = require('./routes/liturgical');
+const nudgeRoutes = require('./routes/nudge');
 
 // ==================== 註冊路由 ====================
 
@@ -194,6 +195,62 @@ app.use('/api/search', searchRoutes);
 
 // 禮儀年曆路由
 app.use('/api/liturgical', liturgicalRoutes);
+
+// 禱告回顧光點路由
+app.use('/api/nudge', nudgeRoutes);
+
+// ==================== 臨時測試端點（確認 AI 流程可用後可刪除）====================
+app.post("/debug/ai-pipeline", async (req, res) => {
+  const { diary_id, user_id } = req.body;
+  if (!diary_id || !user_id) {
+    return res.status(400).json({ ok: false, error: '需要 diary_id 和 user_id' });
+  }
+
+  const pool = require('./config/database');
+  const { processDiary, findSimilar } = require('./services/aiPrayerService');
+  const report = {};
+
+  // Step 0: 確認日記存在
+  const diaryRes = await pool.query(
+    'SELECT diary_id, diary_content, user_id FROM diary WHERE diary_id = $1 AND user_id = $2',
+    [diary_id, user_id]
+  );
+  if (diaryRes.rowCount === 0) return res.status(404).json({ ok: false, error: '找不到日記' });
+  report.step0_diary_found = true;
+  const content = diaryRes.rows[0].diary_content;
+
+  // Step 1: embedding + 情緒分析 + 寫入 DB（各自獨立回報）
+  let embedding = null;
+  try {
+    embedding = await processDiary(diary_id, content, user_id);
+    report.step1_ok = true;
+    report.step1_embedding_dim = embedding.length;
+  } catch (e) {
+    report.step1_error = e.message;
+  }
+
+  // Step 2: 找相似日記（直接用記憶體中的 embedding，不重讀 DB）
+  if (embedding) {
+    try {
+      const { similar_diaries, should_analyze } = await findSimilar(diary_id, user_id, embedding);
+      report.step2_similar_count = similar_diaries.length;
+      report.step2_similar_diaries = similar_diaries;
+      report.step2_should_analyze = should_analyze;
+    } catch (e) {
+      report.step2_error = e.message;
+    }
+  }
+
+  // 目前 clusters / nudges 筆數
+  const [cc, nc] = await Promise.all([
+    pool.query('SELECT COUNT(*) FROM prayer_clusters WHERE user_id = $1', [user_id]),
+    pool.query('SELECT COUNT(*) FROM prayer_nudges WHERE user_id = $1', [user_id]),
+  ]);
+  report.prayer_clusters_count = parseInt(cc.rows[0].count);
+  report.prayer_nudges_count = parseInt(nc.rows[0].count);
+
+  res.json({ ok: true, report });
+});
 
 // ==================== 根路徑 ====================
 app.get("/", (req, res) => {
