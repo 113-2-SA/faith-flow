@@ -101,6 +101,7 @@ export default function CreateDiaryScreen() {
         setBibleQuote('');
         setTags([]);
 
+        router.replace({ pathname: '/diary/list', params: { date: diary_date } }); // 儲存後導向該日日記列表
       } else {
         Alert.alert('錯誤', data?.error ?? '儲存失敗');
       }

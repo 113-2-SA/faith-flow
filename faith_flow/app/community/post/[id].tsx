@@ -525,15 +525,19 @@ export default function PostDetailScreen() {
           </View>
         </GlassCard>
       </KeyboardAvoidingView>
-      {/* 日記完整內容 Modal */}
+      {/* 日記完整內容 Modal — 置中懸浮視窗 */}
       <Modal
         visible={!!diaryModalCard}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => setDiaryModalCard(null)}
       >
-        <View style={styles.diaryModalOverlay}>
-          <View style={styles.diaryModalSheet}>
+        <TouchableOpacity
+          style={styles.diaryModalOverlay}
+          activeOpacity={1}
+          onPress={() => setDiaryModalCard(null)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.diaryModalSheet} onPress={() => {}}>
             <View style={styles.diaryModalHeader}>
               <Text style={styles.diaryModalIcon}>📖</Text>
               <Text style={styles.diaryModalTitle} numberOfLines={2}>
@@ -544,11 +548,12 @@ export default function PostDetailScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.diaryModalDate}>{diaryModalCard?.diary_date}</Text>
+            <View style={styles.diaryModalDivider} />
             <ScrollView style={styles.diaryModalScroll} showsVerticalScrollIndicator={false}>
               <Text style={styles.diaryModalContent}>{diaryModalCard?.diary_content}</Text>
             </ScrollView>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* 全螢幕圖片預覽 Modal */}
@@ -783,26 +788,32 @@ const styles = StyleSheet.create({
     fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 20,
   },
 
-  // Diary Modal
+  // Diary Modal — 置中懸浮視窗
   diaryModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
   },
   diaryModalSheet: {
-    backgroundColor: 'rgba(20,20,40,0.98)',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderTopWidth: 1,
+    width: '100%',
+    maxHeight: '75%',
+    backgroundColor: 'rgba(18,18,38,0.97)',
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',
-    padding: 16,
-    paddingBottom: 32,
-    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 12,
   },
   diaryModalHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 8,
+    gap: 10,
     marginBottom: 6,
   },
   diaryModalIcon: { fontSize: 20, marginTop: 2 },
@@ -811,9 +822,11 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: 'rgba(255,255,255,0.95)',
+    lineHeight: 22,
   },
   diaryModalClose: {
     padding: 4,
+    marginTop: -2,
   },
   diaryModalCloseText: {
     fontSize: 18,
@@ -821,14 +834,20 @@ const styles = StyleSheet.create({
   },
   diaryModalDate: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.45)',
+    color: 'rgba(255,255,255,0.4)',
+    marginBottom: 12,
+    marginLeft: 30,
+  },
+  diaryModalDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     marginBottom: 14,
   },
-  diaryModalScroll: { maxHeight: 500 },
+  diaryModalScroll: { flexGrow: 0 },
   diaryModalContent: {
     fontSize: 15,
     color: 'rgba(255,255,255,0.85)',
-    lineHeight: 24,
+    lineHeight: 25,
   },
 
   // Input bar
