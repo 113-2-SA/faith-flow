@@ -27,6 +27,7 @@ class PostController {
                 visibility: req.body.visibility,
                 letter_id: req.body.letter_id,
                 diary_id: req.body.diary_id,
+                summary_id: req.body.summary_id,
                 tags
             };
 
@@ -43,9 +44,17 @@ class PostController {
 
             if (postData.post_type === 'diary' && !postData.diary_id) {
                 console.log('❌ 驗證失敗：diary 類型缺少 diary_id');
-                return res.status(400).json({ 
+                return res.status(400).json({
                     ok: false,
-                    error: 'diary 類型貼文必須提供 diary_id' 
+                    error: 'diary 類型貼文必須提供 diary_id'
+                });
+            }
+
+            if (postData.post_type === 'summary' && !postData.summary_id) {
+                console.log('❌ 驗證失敗：summary 類型缺少 summary_id');
+                return res.status(400).json({
+                    ok: false,
+                    error: 'summary 類型貼文必須提供 summary_id'
                 });
             }
 

@@ -139,17 +139,7 @@ export default function WeeklySummaryDetailScreen() {
 
   const handleShare = async () => {
     if (!summary) return;
-
-    const message = `
-${summary.summary_title}
-
-${summary.year} 年第 ${summary.week_number} 週回顧
-
-${summary.summary_content}
-
-${summary.bible_quote ? `📖 ${summary.bible_quote}` : ''}
-    `.trim();
-
+    const message = `${summary.summary_title}\n\n${summary.year} 年第 ${summary.week_number} 週回顧\n\n${summary.summary_content}${summary.bible_quote ? `\n\n📖 ${summary.bible_quote}` : ''}`;
     try {
       await Share.share({ message });
     } catch (error) {
@@ -333,16 +323,16 @@ ${summary.bible_quote ? `📖 ${summary.bible_quote}` : ''}
 
         {/* 操作按鈕 */}
         <View style={styles.actionButtons}>
-          <TouchableOpacity onPress={handleShare}>
-            <BlurView intensity={60} tint="light" style={styles.actionButton}>
+          <TouchableOpacity onPress={handleShare} activeOpacity={0.7} style={styles.actionBtnOuter}>
+            <View style={styles.actionButton}>
               <Text style={styles.actionButtonText}>📤 分享</Text>
-            </BlurView>
+            </View>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleDelete}>
-            <BlurView intensity={60} tint="light" style={[styles.actionButton, styles.deleteButton]}>
+          <TouchableOpacity onPress={handleDelete} activeOpacity={0.7} style={styles.actionBtnOuter}>
+            <View style={[styles.actionButton, styles.deleteButton]}>
               <Text style={styles.actionButtonText}>🗑️ 刪除</Text>
-            </BlurView>
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -519,6 +509,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 20,
     gap: 12,
+  },
+  actionBtnOuter: {
+    flex: 1,
   },
   actionButton: {
     paddingHorizontal: 24,

@@ -30,6 +30,17 @@ interface DiaryCard {
   diary_date: string;
 }
 
+interface SummaryCard {
+  summary_id: number;
+  summary_title: string;
+  summary_content: string;
+  bible_quote: string | null;
+  year: number;
+  week_number: number;
+  start_date?: string;
+  end_date?: string;
+}
+
 interface OriginalPost {
   community_post_id: number;
   post_text: string;
@@ -38,13 +49,14 @@ interface OriginalPost {
   original_author_name: string | null;
   original_author_avatar: string | null;
   diary_card?: DiaryCard;
+  summary_card?: SummaryCard;
 }
 
 interface Post {
   community_post_id: number;
   author_user_id: number;
   post_text: string;
-  post_type: 'original' | 'diary' | 'letter' | 'shared' | 'normal';
+  post_type: 'original' | 'diary' | 'letter' | 'shared' | 'normal' | 'summary';
   visibility: 'public' | 'private' | 'friends';
   username: string | null;
   avatar_url: string | null;
@@ -57,11 +69,13 @@ interface Post {
   is_owner?: boolean;
   original_post?: OriginalPost;
   diary_card?: DiaryCard;
+  summary_card?: SummaryCard;
 }
 
 const POST_TYPE_LABELS: Record<string, string> = {
   normal: '原創分享',
   diary: '日記分享',
+  summary: '周回顧分享',
   letter: '信箋',
   shared: '轉發',
 };
@@ -385,6 +399,32 @@ export default function CommunityFeedScreen() {
           </TouchableOpacity>
         )}
 
+        {/* Summary card attachment */}
+        {item.summary_card && (
+          <View style={styles.summaryCard}>
+            <View style={styles.diaryCardHeader}>
+              <Text style={styles.diaryCardIcon}>✨</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.diaryCardDate}>
+                  {item.summary_card.year} 年 第 {item.summary_card.week_number} 週回顧
+                </Text>
+                <Text style={styles.diaryCardTitle} numberOfLines={1}>
+                  {item.summary_card.summary_title}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.diaryCardPreview} numberOfLines={2}>
+              {item.summary_card.summary_content.slice(0, 60)}
+              {item.summary_card.summary_content.length > 60 ? '...' : ''}
+            </Text>
+            {item.summary_card.bible_quote ? (
+              <Text style={styles.summaryCardBible} numberOfLines={1}>
+                📖 {item.summary_card.bible_quote}
+              </Text>
+            ) : null}
+          </View>
+        )}
+
         {/* Embedded original post */}
         {item.post_type === 'shared' && item.original_post && (
           <TouchableOpacity
@@ -584,30 +624,33 @@ export default function CommunityFeedScreen() {
       <Modal
         visible={!!diaryModalCard}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => setDiaryModalCard(null)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-              <Text style={{ fontSize: 18, marginRight: 8 }}>📖</Text>
-              <Text style={[styles.modalTitle, { flex: 1, textAlign: 'left', marginBottom: 0 }]}>
+        <TouchableOpacity
+          style={styles.diaryOverlay}
+          activeOpacity={1}
+          onPress={() => setDiaryModalCard(null)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.diaryFloatCard} onPress={() => {}}>
+            {/* Header */}
+            <View style={styles.diaryFloatHeader}>
+              <Text style={styles.diaryFloatIcon}>📖</Text>
+              <Text style={styles.diaryFloatTitle} numberOfLines={2}>
                 {diaryModalCard?.diary_title}
               </Text>
-              <TouchableOpacity onPress={() => setDiaryModalCard(null)}>
-                <Text style={{ fontSize: 18, color: 'rgba(255,255,255,0.5)', paddingLeft: 8 }}>✕</Text>
+              <TouchableOpacity onPress={() => setDiaryModalCard(null)} style={styles.diaryFloatClose}>
+                <Text style={styles.diaryFloatCloseText}>✕</Text>
               </TouchableOpacity>
             </View>
-            <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginBottom: 14 }}>
-              {diaryModalCard?.diary_date}
-            </Text>
-            <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
-              <Text style={{ fontSize: 15, color: 'rgba(255,255,255,0.85)', lineHeight: 24 }}>
-                {diaryModalCard?.diary_content}
-              </Text>
+            <Text style={styles.diaryFloatDate}>{diaryModalCard?.diary_date}</Text>
+            {/* 分隔線 */}
+            <View style={styles.diaryFloatDivider} />
+            <ScrollView style={styles.diaryFloatScroll} showsVerticalScrollIndicator={false}>
+              <Text style={styles.diaryFloatContent}>{diaryModalCard?.diary_content}</Text>
             </ScrollView>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* Share Modal */}
@@ -964,6 +1007,22 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.6)',
   },
 
+  // Summary card attachment
+  summaryCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(180,140,255,0.35)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+    backgroundColor: 'rgba(80,0,180,0.12)',
+  },
+  summaryCardBible: {
+    fontSize: 12,
+    color: 'rgba(200,170,255,0.85)',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+
   // Diary card attachment
   diaryCard: {
     borderWidth: 1,
@@ -1043,6 +1102,68 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255,255,255,0.75)',
     lineHeight: 20,
+  },
+
+  // Diary floating card modal
+  diaryOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  diaryFloatCard: {
+    width: '100%',
+    maxHeight: '75%',
+    backgroundColor: 'rgba(18,18,38,0.97)',
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  diaryFloatHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 6,
+  },
+  diaryFloatIcon: { fontSize: 20, marginTop: 2 },
+  diaryFloatTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
+    lineHeight: 22,
+  },
+  diaryFloatClose: {
+    padding: 4,
+    marginTop: -2,
+  },
+  diaryFloatCloseText: {
+    fontSize: 18,
+    color: 'rgba(255,255,255,0.5)',
+  },
+  diaryFloatDate: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.4)',
+    marginBottom: 12,
+    marginLeft: 30,
+  },
+  diaryFloatDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    marginBottom: 14,
+  },
+  diaryFloatScroll: { flexGrow: 0 },
+  diaryFloatContent: {
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.85)',
+    lineHeight: 25,
   },
 
   // Share modal

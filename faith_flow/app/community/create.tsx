@@ -22,7 +22,6 @@ type Visibility = 'public' | 'group' | 'private';
 
 const VISIBILITY_OPTIONS: { value: Visibility; label: string }[] = [
   { value: 'public', label: '公開' },
-  { value: 'group', label: '朋友' },
   { value: 'private', label: '僅自己' },
 ];
 
@@ -33,10 +32,21 @@ interface DiaryItem {
   diary_content: string;
 }
 
+interface SummaryItem {
+  summary_id: number;
+  year: number;
+  week_number: number;
+  summary_title: string;
+  summary_content: string;
+  bible_quote: string | null;
+  start_date: string;
+  end_date: string;
+}
+
 export default function CreatePostScreen() {
   const router = useRouter();
   const { currentUser } = useAuth();
-  const params = useLocalSearchParams<{ diary_id?: string }>();
+  const params = useLocalSearchParams<{ diary_id?: string; summary_year?: string; summary_week?: string }>();
 
   const [postText, setPostText] = useState('');
   const [visibility, setVisibility] = useState<Visibility>('public');
@@ -50,7 +60,47 @@ export default function CreatePostScreen() {
   const [attachedDiary, setAttachedDiary] = useState<DiaryItem | null>(null);
   const [diaryLoading, setDiaryLoading] = useState(false);
 
+  // 周回顧附件（從路由參數帶入）
+  const [attachedSummary, setAttachedSummary] = useState<SummaryItem | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+  // 若有 summary_year + summary_week 參數，自動抓取周回顧資料
+  useEffect(() => {
+    if (!params.summary_year || !params.summary_week || !currentUser) return;
+    const loadSummary = async () => {
+      setSummaryLoading(true);
+      try {
+        const token = await currentUser.getIdToken();
+        const res = await fetch(
+          `${API_BASE_URL}/api/weekly-summary/${params.summary_year}/${params.summary_week}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const data = await res.json();
+        if (data.ok) {
+          const s = data.data;
+          setAttachedSummary({
+            summary_id:      s.summaryID ?? s.summary_id,
+            year:            s.year,
+            week_number:     s.week_number,
+            summary_title:   s.summary_title,
+            summary_content: s.summary_content,
+            bible_quote:     s.bible_quote ?? null,
+            start_date:      s.start_date,
+            end_date:        s.end_date,
+          });
+        } else {
+          Alert.alert('提醒', '無法載入周回顧，請重新嘗試');
+        }
+      } catch {
+        Alert.alert('錯誤', '網路連線失敗');
+      } finally {
+        setSummaryLoading(false);
+      }
+    };
+    loadSummary();
+  }, [params.summary_year, params.summary_week, currentUser]);
 
   // 若有 diary_id 參數，自動抓取日記資料
   useEffect(() => {
@@ -118,8 +168,8 @@ export default function CreatePostScreen() {
   };
 
   const handleSubmit = async () => {
-    // 有附件日記時 postText 可以留空，否則必填
-    if (!attachedDiary && !postText.trim()) {
+    // 有附件（日記或周回顧）時 postText 可以留空，否則必填
+    if (!attachedDiary && !attachedSummary && !postText.trim()) {
       Alert.alert('提醒', '請輸入貼文內容');
       return;
     }
@@ -131,7 +181,7 @@ export default function CreatePostScreen() {
     setLoading(true);
     try {
       const token = await currentUser.getIdToken(true);
-      const postType = attachedDiary ? 'diary' : 'normal';
+      const postType = attachedDiary ? 'diary' : attachedSummary ? 'summary' : 'normal';
 
       let body: string | FormData;
       let headers: Record<string, string> = { Authorization: `Bearer ${token}` };
@@ -143,6 +193,7 @@ export default function CreatePostScreen() {
         formData.append('visibility', visibility);
         if (tags.length > 0) formData.append('tags', JSON.stringify(tags));
         if (attachedDiary) formData.append('diary_id', String(attachedDiary.diary_id));
+        if (attachedSummary) formData.append('summary_id', String(attachedSummary.summary_id));
         const filename = imageUri.split('/').pop() ?? 'photo.jpg';
         if (Platform.OS === 'web') {
           const response = await fetch(imageUri);
@@ -164,6 +215,7 @@ export default function CreatePostScreen() {
           visibility,
           ...(tags.length > 0 ? { tags } : {}),
           ...(attachedDiary ? { diary_id: attachedDiary.diary_id } : {}),
+          ...(attachedSummary ? { summary_id: attachedSummary.summary_id } : {}),
         });
       }
 
@@ -237,6 +289,38 @@ export default function CreatePostScreen() {
               <Text style={styles.diaryPreview} numberOfLines={2}>
                 {attachedDiary.diary_content.slice(0, 60)}
                 {attachedDiary.diary_content.length > 60 ? '...' : ''}
+              </Text>
+            </View>
+          </GlassCard>
+        ) : null}
+
+        {/* Attached summary card */}
+        {summaryLoading ? (
+          <GlassCard style={styles.card}>
+            <ActivityIndicator color="rgba(255,255,255,0.7)" />
+            <Text style={styles.label}>載入周回顧中...</Text>
+          </GlassCard>
+        ) : attachedSummary ? (
+          <GlassCard style={styles.card}>
+            <Text style={styles.label}>引用的周回顧</Text>
+            <View style={styles.attachedSummaryCard}>
+              <View style={styles.attachedDiaryHeader}>
+                <Text style={styles.diaryIcon}>✨</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.diaryDate}>
+                    {attachedSummary.year} 年 第 {attachedSummary.week_number} 週
+                  </Text>
+                  <Text style={styles.diaryTitle} numberOfLines={1}>
+                    {attachedSummary.summary_title}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setAttachedSummary(null)} style={styles.removeBtn}>
+                  <Text style={styles.removeBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.diaryPreview} numberOfLines={2}>
+                {attachedSummary.summary_content.slice(0, 60)}
+                {attachedSummary.summary_content.length > 60 ? '...' : ''}
               </Text>
             </View>
           </GlassCard>
@@ -489,6 +573,14 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 12,
     backgroundColor: 'rgba(0,80,180,0.15)',
+  },
+  // 已附加的周回顧卡片
+  attachedSummaryCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(180,140,255,0.4)',
+    borderRadius: 10,
+    padding: 12,
+    backgroundColor: 'rgba(80,0,180,0.15)',
   },
   attachedDiaryHeader: {
     flexDirection: 'row',

@@ -30,8 +30,8 @@ class PostService {
 
             const postQuery = `
                INSERT INTO community_posts
-                (author_user_id, post_text, post_type, visibility, letter_id, diary_id, tags, post_pic)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                (author_user_id, post_text, post_type, visibility, letter_id, diary_id, summary_id, tags, post_pic)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 RETURNING *
             `;
 
@@ -42,6 +42,7 @@ class PostService {
                 postData.visibility || 'public',
                 postData.letter_id || null,
                 postData.diary_id || null,
+                postData.summary_id || null,
                 postData.tags || null,
                 uploadedImageUrl
             ]);
@@ -89,10 +90,19 @@ class PostService {
                 d.diary_id      as diary_card_id,
                 d.diary_title   as diary_card_title,
                 d.diary_content as diary_card_content,
-                d.diary_date    as diary_card_date
+                d.diary_date    as diary_card_date,
+                ws."summary_id"      as summary_card_id,
+                ws."summary_title"   as summary_card_title,
+                ws."summary_content" as summary_card_content,
+                ws."bible_quote"     as summary_card_bible_quote,
+                ws."year"            as summary_card_year,
+                ws."week_number"     as summary_card_week_number,
+                ws."start_date"      as summary_card_start_date,
+                ws."end_date"        as summary_card_end_date
             FROM community_posts p
             LEFT JOIN "user" u ON p.author_user_id = u."userID"
             LEFT JOIN diary d ON p.post_type = 'diary' AND p.diary_id = d.diary_id
+            LEFT JOIN "weekly_summary" ws ON p.post_type = 'summary' AND p.summary_id = ws."summary_id"
             WHERE p.community_post_id = $1 AND p.deleted_at IS NULL
         `;
 
@@ -117,6 +127,28 @@ class PostService {
         delete post.diary_card_title;
         delete post.diary_card_content;
         delete post.diary_card_date;
+
+        // 整理周回顧卡片
+        if (post.summary_card_id) {
+            post.summary_card = {
+                summary_id:      post.summary_card_id,
+                summary_title:   post.summary_card_title,
+                summary_content: post.summary_card_content,
+                bible_quote:     post.summary_card_bible_quote,
+                year:            post.summary_card_year,
+                week_number:     post.summary_card_week_number,
+                start_date:      post.summary_card_start_date,
+                end_date:        post.summary_card_end_date,
+            };
+        }
+        delete post.summary_card_id;
+        delete post.summary_card_title;
+        delete post.summary_card_content;
+        delete post.summary_card_bible_quote;
+        delete post.summary_card_year;
+        delete post.summary_card_week_number;
+        delete post.summary_card_start_date;
+        delete post.summary_card_end_date;
 
         // ⭐ 如果提供了 userId，檢查點讚和轉發狀態
         if (userId) {
@@ -262,6 +294,14 @@ class PostService {
                 , d.diary_title   as diary_card_title
                 , d.diary_content as diary_card_content
                 , d.diary_date    as diary_card_date
+                , ws."summary_id"      as summary_card_id
+                , ws."summary_title"   as summary_card_title
+                , ws."summary_content" as summary_card_content
+                , ws."bible_quote"     as summary_card_bible_quote
+                , ws."year"            as summary_card_year
+                , ws."week_number"     as summary_card_week_number
+                , ws."start_date"      as summary_card_start_date
+                , ws."end_date"        as summary_card_end_date
                 , op.community_post_id   as orig_post_id
                 , op.post_text           as orig_post_text
                 , op.post_type           as orig_post_type
@@ -273,15 +313,23 @@ class PostService {
                 , od.diary_title   as orig_diary_card_title
                 , od.diary_content as orig_diary_card_content
                 , od.diary_date    as orig_diary_card_date
+                , ows."summary_id"      as orig_summary_card_id
+                , ows."summary_title"   as orig_summary_card_title
+                , ows."summary_content" as orig_summary_card_content
+                , ows."bible_quote"     as orig_summary_card_bible_quote
+                , ows."year"            as orig_summary_card_year
+                , ows."week_number"     as orig_summary_card_week_number
             FROM community_posts p
             LEFT JOIN "user" u ON p.author_user_id = u."userID"
             LEFT JOIN diary d ON p.post_type = 'diary' AND p.diary_id = d.diary_id
+            LEFT JOIN "weekly_summary" ws ON p.post_type = 'summary' AND p.summary_id = ws."summary_id"
             LEFT JOIN community_post_shares ps
                 ON ps.shared_post_id = p.community_post_id
             LEFT JOIN community_posts op
                 ON ps.original_post_id = op.community_post_id AND op.deleted_at IS NULL
             LEFT JOIN "user" ou ON op.author_user_id = ou."userID"
             LEFT JOIN diary od ON op.post_type = 'diary' AND op.diary_id = od.diary_id
+            LEFT JOIN "weekly_summary" ows ON op.post_type = 'summary' AND op.summary_id = ows."summary_id"
             WHERE ${conditions.join(' AND ')}
             ORDER BY p.created_at DESC
             LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -305,6 +353,28 @@ class PostService {
             delete post.diary_card_content;
             delete post.diary_card_date;
 
+            // 整理當前貼文的周回顧卡片
+            if (row.summary_card_id) {
+                post.summary_card = {
+                    summary_id:      row.summary_card_id,
+                    summary_title:   row.summary_card_title,
+                    summary_content: row.summary_card_content,
+                    bible_quote:     row.summary_card_bible_quote,
+                    year:            row.summary_card_year,
+                    week_number:     row.summary_card_week_number,
+                    start_date:      row.summary_card_start_date,
+                    end_date:        row.summary_card_end_date,
+                };
+            }
+            delete post.summary_card_id;
+            delete post.summary_card_title;
+            delete post.summary_card_content;
+            delete post.summary_card_bible_quote;
+            delete post.summary_card_year;
+            delete post.summary_card_week_number;
+            delete post.summary_card_start_date;
+            delete post.summary_card_end_date;
+
             // 整理轉發來源貼文
             if (row.post_type === 'shared' && row.orig_post_id) {
                 post.original_post = {
@@ -321,6 +391,16 @@ class PostService {
                             diary_content: row.orig_diary_card_content,
                             diary_date:    row.orig_diary_card_date,
                         }
+                    } : {}),
+                    ...(row.orig_summary_card_id ? {
+                        summary_card: {
+                            summary_id:      row.orig_summary_card_id,
+                            summary_title:   row.orig_summary_card_title,
+                            summary_content: row.orig_summary_card_content,
+                            bible_quote:     row.orig_summary_card_bible_quote,
+                            year:            row.orig_summary_card_year,
+                            week_number:     row.orig_summary_card_week_number,
+                        }
                     } : {})
                 };
             }
@@ -335,6 +415,12 @@ class PostService {
             delete post.orig_diary_card_title;
             delete post.orig_diary_card_content;
             delete post.orig_diary_card_date;
+            delete post.orig_summary_card_id;
+            delete post.orig_summary_card_title;
+            delete post.orig_summary_card_content;
+            delete post.orig_summary_card_bible_quote;
+            delete post.orig_summary_card_year;
+            delete post.orig_summary_card_week_number;
             return post;
         });
     }
