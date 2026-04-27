@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Platform } from 'react-native';
 import {
   View,
@@ -9,54 +9,151 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../context/authcontext';
 import { VideoBackground } from '../../components/VideoBackground';
 import { GlassCard } from '../../components/GlassCard';
+import { API_BASE_URL } from '../../lib/api';
 
 type Visibility = 'public' | 'group' | 'private';
 
 const VISIBILITY_OPTIONS: { value: Visibility; label: string }[] = [
   { value: 'public', label: '公開' },
-  { value: 'group', label: '朋友' },
   { value: 'private', label: '僅自己' },
 ];
 
-// ⭐⭐⭐ 根據平台動態設定 API URL ⭐⭐⭐
-const getApiUrl = () => {
-  if (!__DEV__) {
-    // 生產環境
-    return 'https://your-production-api.com';
-  }
+interface DiaryItem {
+  diary_id: number;
+  diary_date: string;
+  diary_title: string;
+  diary_content: string;
+}
 
-  // 開發環境
-  if (Platform.OS === 'android') {
-    // Android 模擬器：10.0.2.2 指向電腦的 localhost
-    return 'http://10.0.2.2:3000';
-  } else if (Platform.OS === 'ios') {
-    // iOS 模擬器：可以使用 localhost
-    return 'http://localhost:3000';
-  } else if (Platform.OS === 'web') {
-    // Web 環境：使用 localhost
-    return 'http://localhost:3000';
-  }
-
-  // 實體裝置
-  return 'http://192.168.1.100:3000'; // 請替換成你的電腦 IP 位址(未更改)
-};
-
-const API_BASE_URL = getApiUrl();
+interface SummaryItem {
+  summary_id: number;
+  year: number;
+  week_number: number;
+  summary_title: string;
+  summary_content: string;
+  bible_quote: string | null;
+  start_date: string;
+  end_date: string;
+}
 
 export default function CreatePostScreen() {
   const router = useRouter();
   const { currentUser } = useAuth();
+  const params = useLocalSearchParams<{ diary_id?: string; summary_year?: string; summary_week?: string }>();
 
   const [postText, setPostText] = useState('');
   const [visibility, setVisibility] = useState<Visibility>('public');
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageMime, setImageMime] = useState<string>('image/jpeg');
+
+  // 日記附件（從路由參數帶入）
+  const [attachedDiary, setAttachedDiary] = useState<DiaryItem | null>(null);
+  const [diaryLoading, setDiaryLoading] = useState(false);
+
+  // 周回顧附件（從路由參數帶入）
+  const [attachedSummary, setAttachedSummary] = useState<SummaryItem | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+  // 若有 summary_year + summary_week 參數，自動抓取周回顧資料
+  useEffect(() => {
+    if (!params.summary_year || !params.summary_week || !currentUser) return;
+    const loadSummary = async () => {
+      setSummaryLoading(true);
+      try {
+        const token = await currentUser.getIdToken();
+        const res = await fetch(
+          `${API_BASE_URL}/api/weekly-summary/${params.summary_year}/${params.summary_week}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const data = await res.json();
+        if (data.ok) {
+          const s = data.data;
+          setAttachedSummary({
+            summary_id:      s.summaryID ?? s.summary_id,
+            year:            s.year,
+            week_number:     s.week_number,
+            summary_title:   s.summary_title,
+            summary_content: s.summary_content,
+            bible_quote:     s.bible_quote ?? null,
+            start_date:      s.start_date,
+            end_date:        s.end_date,
+          });
+        } else {
+          Alert.alert('提醒', '無法載入周回顧，請重新嘗試');
+        }
+      } catch {
+        Alert.alert('錯誤', '網路連線失敗');
+      } finally {
+        setSummaryLoading(false);
+      }
+    };
+    loadSummary();
+  }, [params.summary_year, params.summary_week, currentUser]);
+
+  // 若有 diary_id 參數，自動抓取日記資料
+  useEffect(() => {
+    if (!params.diary_id || !currentUser) return;
+    const loadDiary = async () => {
+      setDiaryLoading(true);
+      try {
+        const token = await currentUser.getIdToken();
+        const res = await fetch(`${API_BASE_URL}/api/diary/${params.diary_id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.ok) {
+          const d = data.data;
+          setAttachedDiary({
+            diary_id: d.diary_id,
+            diary_date: d.diary_date,
+            diary_title: d.diary_title,
+            diary_content: d.diary_content,
+          });
+        } else {
+          Alert.alert('提醒', '無法載入日記，請重新嘗試');
+        }
+      } catch {
+        Alert.alert('錯誤', '網路連線失敗');
+      } finally {
+        setDiaryLoading(false);
+      }
+    };
+    loadDiary();
+  }, [params.diary_id, currentUser]);
+
+  const handlePickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('權限不足', '請允許存取相片庫');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > MAX_IMAGE_BYTES) {
+        Alert.alert('圖片太大', `圖片大小不能超過 5MB（目前約 ${(asset.fileSize / 1024 / 1024).toFixed(1)} MB），請選擇較小的圖片。`);
+        return;
+      }
+      setImageUri(asset.uri);
+      setImageMime(asset.mimeType ?? 'image/jpeg');
+    }
+  };
 
   const handleAddTag = () => {
     const t = tagInput.trim();
@@ -71,7 +168,8 @@ export default function CreatePostScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!postText.trim()) {
+    // 有附件（日記或周回顧）時 postText 可以留空，否則必填
+    if (!attachedDiary && !attachedSummary && !postText.trim()) {
       Alert.alert('提醒', '請輸入貼文內容');
       return;
     }
@@ -83,18 +181,48 @@ export default function CreatePostScreen() {
     setLoading(true);
     try {
       const token = await currentUser.getIdToken(true);
-      const res = await fetch(`${API_BASE_URL}/api/post`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const postType = attachedDiary ? 'diary' : attachedSummary ? 'summary' : 'normal';
+
+      let body: string | FormData;
+      let headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+
+      if (imageUri) {
+        const formData = new FormData();
+        formData.append('post_text', postText.trim());
+        formData.append('post_type', postType);
+        formData.append('visibility', visibility);
+        if (tags.length > 0) formData.append('tags', JSON.stringify(tags));
+        if (attachedDiary) formData.append('diary_id', String(attachedDiary.diary_id));
+        if (attachedSummary) formData.append('summary_id', String(attachedSummary.summary_id));
+        const filename = imageUri.split('/').pop() ?? 'photo.jpg';
+        if (Platform.OS === 'web') {
+          const response = await fetch(imageUri);
+          const blob = await response.blob();
+          formData.append('post_pic', blob, filename);
+        } else {
+          (formData as any).append('post_pic', {
+            uri: imageUri,
+            name: filename,
+            type: imageMime,
+          });
+        }
+        body = formData;
+      } else {
+        headers['Content-Type'] = 'application/json';
+        body = JSON.stringify({
           post_text: postText.trim(),
-          post_type: 'normal',
+          post_type: postType,
           visibility,
           ...(tags.length > 0 ? { tags } : {}),
-        }),
+          ...(attachedDiary ? { diary_id: attachedDiary.diary_id } : {}),
+          ...(attachedSummary ? { summary_id: attachedSummary.summary_id } : {}),
+        });
+      }
+
+      const res = await fetch(`${API_BASE_URL}/api/post`, {
+        method: 'POST',
+        headers,
+        body,
       });
 
       const data = await res.json();
@@ -105,8 +233,8 @@ export default function CreatePostScreen() {
         const msg = data.error ?? (data.errors?.[0]?.msg) ?? '發布失敗，請稍後再試';
         Alert.alert('錯誤', msg);
       }
-    } catch {
-      Alert.alert('錯誤', '網路連線失敗');
+    } catch (err: any) {
+      Alert.alert('錯誤', err?.message ?? '網路連線失敗');
     } finally {
       setLoading(false);
     }
@@ -136,18 +264,99 @@ export default function CreatePostScreen() {
           </View>
         </GlassCard>
 
+        {/* Attached diary card */}
+        {diaryLoading ? (
+          <GlassCard style={styles.card}>
+            <ActivityIndicator color="rgba(255,255,255,0.7)" />
+            <Text style={styles.label}>載入日記中...</Text>
+          </GlassCard>
+        ) : attachedDiary ? (
+          <GlassCard style={styles.card}>
+            <Text style={styles.label}>引用的日記</Text>
+            <View style={styles.attachedDiaryCard}>
+              <View style={styles.attachedDiaryHeader}>
+                <Text style={styles.diaryIcon}>📖</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.diaryDate}>{attachedDiary.diary_date}</Text>
+                  <Text style={styles.diaryTitle} numberOfLines={1}>
+                    {attachedDiary.diary_title}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setAttachedDiary(null)} style={styles.removeBtn}>
+                  <Text style={styles.removeBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.diaryPreview} numberOfLines={2}>
+                {attachedDiary.diary_content.slice(0, 60)}
+                {attachedDiary.diary_content.length > 60 ? '...' : ''}
+              </Text>
+            </View>
+          </GlassCard>
+        ) : null}
+
+        {/* Attached summary card */}
+        {summaryLoading ? (
+          <GlassCard style={styles.card}>
+            <ActivityIndicator color="rgba(255,255,255,0.7)" />
+            <Text style={styles.label}>載入周回顧中...</Text>
+          </GlassCard>
+        ) : attachedSummary ? (
+          <GlassCard style={styles.card}>
+            <Text style={styles.label}>引用的周回顧</Text>
+            <View style={styles.attachedSummaryCard}>
+              <View style={styles.attachedDiaryHeader}>
+                <Text style={styles.diaryIcon}>✨</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.diaryDate}>
+                    {attachedSummary.year} 年 第 {attachedSummary.week_number} 週
+                  </Text>
+                  <Text style={styles.diaryTitle} numberOfLines={1}>
+                    {attachedSummary.summary_title}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setAttachedSummary(null)} style={styles.removeBtn}>
+                  <Text style={styles.removeBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.diaryPreview} numberOfLines={2}>
+                {attachedSummary.summary_content.slice(0, 60)}
+                {attachedSummary.summary_content.length > 60 ? '...' : ''}
+              </Text>
+            </View>
+          </GlassCard>
+        ) : null}
+
         {/* Content input */}
         <GlassCard style={styles.card}>
-          <Text style={styles.label}>有什麼想分享的？</Text>
+          <Text style={styles.label}>
+            {attachedDiary ? '加點想法（選填）' : '有什麼想分享的？'}
+          </Text>
           <TextInput
             style={styles.textArea}
             value={postText}
             onChangeText={setPostText}
-            placeholder="在這裡輸入你的分享..."
+            placeholder={attachedDiary ? '為這篇日記加上你的感想...' : '在這裡輸入你的分享...'}
             placeholderTextColor="rgba(255,255,255,0.4)"
             multiline
             textAlignVertical="top"
           />
+        </GlassCard>
+
+        {/* Image picker */}
+        <GlassCard style={styles.card}>
+          <Text style={styles.label}>新增圖片（選填）</Text>
+          {imageUri ? (
+            <View>
+              <Image source={{ uri: imageUri }} style={styles.previewImage} resizeMode="cover" />
+              <TouchableOpacity style={styles.removeImageBtn} onPress={() => setImageUri(null)}>
+                <Text style={styles.removeImageText}>移除圖片</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.pickImageBtn} onPress={handlePickImage}>
+              <Text style={styles.pickImageText}>＋ 從相片庫選取</Text>
+            </TouchableOpacity>
+          )}
         </GlassCard>
 
         {/* Visibility */}
@@ -328,5 +537,79 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  pickImageBtn: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    paddingVertical: 20,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  pickImageText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 15,
+  },
+  previewImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  removeImageBtn: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  removeImageText: {
+    color: 'rgba(255,100,100,0.9)',
+    fontSize: 14,
+  },
+
+  // 已附加的日記卡片
+  attachedDiaryCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(100,180,255,0.4)',
+    borderRadius: 10,
+    padding: 12,
+    backgroundColor: 'rgba(0,80,180,0.15)',
+  },
+  // 已附加的周回顧卡片
+  attachedSummaryCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(180,140,255,0.4)',
+    borderRadius: 10,
+    padding: 12,
+    backgroundColor: 'rgba(80,0,180,0.15)',
+  },
+  attachedDiaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 8,
+  },
+  diaryIcon: { fontSize: 20 },
+  diaryDate: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.55)',
+    marginBottom: 2,
+  },
+  diaryTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
+  },
+  removeBtn: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  removeBtnText: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.55)',
+  },
+  diaryPreview: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.65)',
+    lineHeight: 18,
   },
 });

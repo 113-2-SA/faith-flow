@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { getAuth } from 'firebase/auth';
 
 type TranscriptMsg = {
   type: "transcript";
@@ -7,12 +8,31 @@ type TranscriptMsg = {
   speech_final?: boolean;
 };
 
+const getAuthToken = async (): Promise<string> => {
+  const auth = getAuth();
+  const user = auth.currentUser;
+  
+  if (!user) {
+    throw new Error('使用者未登入');
+  }
+  
+  return await user.getIdToken();
+};
+
 type WsStatus = "idle" | "connecting" | "open" | "closed" | "error";
 
-const WS_URL = "ws://localhost:8000/ws/transcribe";
+// ⭐ 新增：預覽資料類型
+type PreviewData = {
+  suggestedTitle: string;
+  suggestedTags: string[];
+  suggestedBibleQuote: string | null;
+  content: string;
+};
+
+const WS_URL = "ws://localhost:3000/ws/transcribe"; // ⭐ 已改成 3000
+const API_URL = "http://localhost:3000"; // ⭐ 新增 API URL
 
 function pickMimeType(): string | "" {
-  // 盡量用 opus/webm（Deepgram live 常見）
   const candidates = [
     "audio/webm;codecs=opus",
     "audio/webm",
@@ -20,7 +40,6 @@ function pickMimeType(): string | "" {
     "audio/ogg",
   ];
   for (const t of candidates) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const MR: any = (window as any).MediaRecorder;
     if (MR && typeof MR.isTypeSupported === "function" && MR.isTypeSupported(t)) return t;
   }
@@ -36,6 +55,12 @@ export default function Pray() {
   const [finalText, setFinalText] = useState("");
   const [interimText, setInterimText] = useState("");
   const [showCross, setShowCross] = useState(false);
+
+  // ⭐ 新增狀態
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   const [debug, setDebug] = useState<string[]>([]);
   const pushDebug = (line: string) => {
@@ -69,7 +94,6 @@ export default function Pray() {
           autoGainControl: true,
         },
       });
-      // 先拿到就先停掉，避免佔用；真正錄音時再開
       stream.getTracks().forEach((t) => t.stop());
       setHasMicPermission(true);
       pushDebug("[前端] 麥克風權限：允許");
@@ -108,7 +132,6 @@ export default function Pray() {
         };
 
         ws.onmessage = (event) => {
-          // 後端建議回 JSON：{type:"transcript", transcript, is_final}
           try {
             const msg = JSON.parse(String(event.data)) as TranscriptMsg;
 
@@ -125,10 +148,8 @@ export default function Pray() {
               return;
             }
 
-            // 若後端回其他 JSON，保留 debug
             pushDebug(`[前端] WS(JSON)：${String(event.data).slice(0, 200)}`);
           } catch {
-            // 若後端直接回純文字 transcript
             const t = String(event.data || "").trim();
             if (t) {
               setFinalText((prev) => (prev ? prev + " " + t : t));
@@ -148,10 +169,8 @@ export default function Pray() {
     setError("");
 
     try {
-      // 1) 建立 WS
       const ws = await openWs();
 
-      // 2) 開麥克風
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -161,7 +180,6 @@ export default function Pray() {
       });
       streamRef.current = stream;
 
-      // 3) 建 MediaRecorder
       const options: MediaRecorderOptions = mimeType ? { mimeType } : {};
       const recorder = new MediaRecorder(stream, options);
       recorderRef.current = recorder;
@@ -176,7 +194,6 @@ export default function Pray() {
       };
 
       recorder.onerror = (ev) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const msg = (ev as any)?.error?.message || "MediaRecorder 錯誤";
         setError(msg);
         pushDebug(`[前端] MediaRecorder error: ${msg}`);
@@ -187,7 +204,6 @@ export default function Pray() {
           if (!ev.data || ev.data.size === 0) return;
           if (ws.readyState !== WebSocket.OPEN) return;
 
-          // 送 binary
           const buf = await ev.data.arrayBuffer();
           ws.send(buf);
           pushDebug(`[音訊] ${buf.byteLength} bytes`);
@@ -196,16 +212,14 @@ export default function Pray() {
         }
       };
 
-      // 4) 開始分段輸出（越小越即時；250ms 常用）
       recorder.start(250);
 
-      // 5) 清空上一輪 interim（final 你可選擇要不要清）
       setInterimText("");
     } catch (e) {
       const msg = (e as Error)?.message || "啟動錄音失敗";
       setError(msg);
       pushDebug(`[前端] startRecording 失敗: ${msg}`);
-      await stopRecording(); // 盡量清理
+      await stopRecording();
     }
   };
 
@@ -213,21 +227,18 @@ export default function Pray() {
     setError("");
 
     try {
-      // 停 recorder
       const rec = recorderRef.current;
       if (rec && rec.state !== "inactive") {
         rec.stop();
       }
       recorderRef.current = null;
 
-      // 停 mic tracks
       const stream = streamRef.current;
       if (stream) {
         stream.getTracks().forEach((t) => t.stop());
       }
       streamRef.current = null;
 
-      // 關 ws
       const ws = socketRef.current;
       if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
         ws.close();
@@ -246,25 +257,140 @@ export default function Pray() {
     }
   };
 
+  // ⭐ 新增：預覽功能
+  const loadPreview = async () => {
+    const textToPreview = combinedText.trim();
+    
+    if (!textToPreview) {
+      setError("沒有可預覽的內容");
+      return;
+    }
+
+    setIsLoadingPreview(true);
+    setError("");
+
+    try {
+      console.log("👁️ 載入預覽...");
+      
+      const token = await getAuthToken();
+      
+      if (!token) {
+        setError("請先登入");
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/diary/preview-prayer`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          transcript: textToPreview,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.ok) {
+        console.log("✅ 預覽載入成功:", result.data);
+        setPreviewData(result.data);
+      } else {
+        setError(result.error || "預覽生成失敗");
+        console.error("❌ 預覽失敗:", result.error);
+      }
+    } catch (error) {
+      console.error("❌ 預覽錯誤:", error);
+      setError("網路錯誤，請稍後再試");
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  };
+
+  // ⭐ 新增：儲存為日記
+  const saveToDiary = async () => {
+    if (!previewData) {
+      setError("請先預覽");
+      return;
+    }
+
+    setIsSaving(true);
+    setError("");
+
+    try {
+      console.log("💾 儲存日記...");
+      
+      const token = await getAuthToken();
+      
+      if (!token) {
+        setError("請先登入");
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/diary/from-prayer`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          transcript: combinedText.trim(),
+          collectId: null,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.ok) {
+        console.log("✅ 儲存成功:", result.data);
+        
+        setSaveSuccess(true);
+        
+        setTimeout(() => {
+          setFinalText("");
+          setInterimText("");
+          setPreviewData(null);
+          setSaveSuccess(false);
+          setShowCross(false);
+        }, 3000);
+
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification("✨ 祈禱已記錄", {
+            body: `標題：${result.data.diary_title}`,
+          });
+        }
+      } else {
+        setError(result.error || "儲存失敗");
+        console.error("❌ 儲存失敗:", result.error);
+      }
+    } catch (error) {
+      console.error("❌ 儲存錯誤:", error);
+      setError("網路錯誤，請稍後再試");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   useEffect(() => {
-    // 初始檢查權限（不會跳彈窗）
-    // 若你希望一進來就彈窗，就直接呼叫 requestMic()
     if (!navigator.mediaDevices?.getUserMedia) {
       setHasMicPermission(false);
       setError("此瀏覽器不支援 getUserMedia，無法使用麥克風。");
       return;
     }
-    // 不主動請求，等使用者按允許
     setHasMicPermission(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    // 元件卸載時清理
     return () => {
       void stopRecording();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ⭐ 請求通知權限
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
   }, []);
 
   return (
@@ -294,6 +420,40 @@ export default function Pray() {
           </button>
         )}
 
+        {/* ⭐ 新增：預覽按鈕 */}
+        <button
+          onClick={loadPreview}
+          disabled={isRecording || !combinedText.trim() || isLoadingPreview}
+          style={{ 
+            padding: "8px 12px",
+            backgroundColor: "#FF9800",
+            color: "white",
+            border: "none",
+            borderRadius: 4,
+            cursor: isRecording || !combinedText.trim() || isLoadingPreview ? "not-allowed" : "pointer",
+            opacity: isRecording || !combinedText.trim() || isLoadingPreview ? 0.5 : 1
+          }}
+        >
+          {isLoadingPreview ? "⏳ 生成中..." : "👁️ 預覽日記"}
+        </button>
+
+        {/* ⭐ 新增：儲存按鈕（只有預覽後才能按） */}
+        <button
+          onClick={saveToDiary}
+          disabled={!previewData || isSaving}
+          style={{ 
+            padding: "8px 12px",
+            backgroundColor: saveSuccess ? "#4CAF50" : "#2196F3",
+            color: "white",
+            border: "none",
+            borderRadius: 4,
+            cursor: !previewData || isSaving ? "not-allowed" : "pointer",
+            opacity: !previewData || isSaving ? 0.5 : 1
+          }}
+        >
+          {isSaving ? "⏳ 儲存中..." : saveSuccess ? "✅ 已儲存！" : "💾 儲存為日記"}
+        </button>
+
         <button
           onClick={() => {
             setFinalText("");
@@ -301,6 +461,8 @@ export default function Pray() {
             setDebug([]);
             setError("");
             setShowCross(false);
+            setPreviewData(null);
+            setSaveSuccess(false);
           }}
           disabled={isRecording}
           style={{ padding: "8px 12px" }}
@@ -325,11 +487,93 @@ export default function Pray() {
         </div>
       </div>
 
+      {/* ⭐ 成功通知 */}
+      {saveSuccess && (
+        <div style={{
+          padding: 12,
+          marginBottom: 12,
+          backgroundColor: "#4CAF50",
+          color: "white",
+          borderRadius: 6,
+          display: "flex",
+          alignItems: "center",
+          gap: 8
+        }}>
+          <span style={{ fontSize: 20 }}>✨</span>
+          <span>祈禱已成功轉換為日記！</span>
+        </div>
+      )}
+
       {error ? (
         <div style={{ padding: 12, marginBottom: 12, border: "1px solid #c00", color: "#c00", borderRadius: 6 }}>
           {error}
         </div>
       ) : null}
+
+      {/* ⭐ 新增：預覽區域 */}
+      {previewData && (
+        <div style={{ 
+          padding: 16, 
+          marginBottom: 12, 
+          backgroundColor: "#f0f7ff", 
+          border: "2px solid #2196F3", 
+          borderRadius: 8 
+        }}>
+          <h3 style={{ margin: "0 0 12px 0", color: "#2196F3" }}>📋 日記預覽</h3>
+          
+          <div style={{ marginBottom: 12 }}>
+            <strong>標題：</strong>
+            <div style={{ padding: 8, backgroundColor: "white", borderRadius: 4, marginTop: 4 }}>
+              {previewData.suggestedTitle}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <strong>語音內容：</strong>
+            <div style={{ padding: 8, backgroundColor: "white", borderRadius: 4, marginTop: 4 }}>
+              {previewData.content}
+            </div>
+          </div>
+          
+          <div style={{ marginBottom: 12 }}>
+            <strong>標籤：</strong>
+            <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+              {previewData.suggestedTags.map((tag, index) => (
+                <span key={index} style={{ 
+                  padding: "4px 12px", 
+                  backgroundColor: "#2196F3", 
+                  color: "white", 
+                  borderRadius: 16,
+                  fontSize: 14
+                }}>
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {previewData.suggestedBibleQuote && (
+            <div style={{ marginBottom: 12 }}>
+              <strong>聖經經文：</strong>
+              <div style={{ 
+                padding: 8, 
+                backgroundColor: "white", 
+                borderRadius: 4, 
+                marginTop: 4,
+                fontStyle: "italic",
+                borderLeft: "4px solid #2196F3",
+                paddingLeft: 12
+              }}>
+                {previewData.suggestedBibleQuote}
+              </div>
+            </div>
+          )}
+
+          <div style={{ fontSize: 12, color: "#666", marginTop: 8 }}>
+            💡 確認無誤後，點擊「儲存為日記」即可存入資料庫
+          </div>
+        </div>
+      )}
 
       <div style={{ marginBottom: 12 }}>
         <div style={{ fontSize: 12, marginBottom: 6, opacity: 0.8 }}>
@@ -340,6 +584,7 @@ export default function Pray() {
           onChange={(e) => {
             setFinalText(e.target.value);
             setInterimText("");
+            setPreviewData(null); // ⭐ 修改內容後清除預覽
           }}
           placeholder="等待語音輸入..."
           rows={6}
@@ -366,6 +611,7 @@ export default function Pray() {
 
       {showCross && (
         <>
+          {/* 十字架動畫（保持原樣）*/}
           <style>{`
             @keyframes crossFadeIn {
               0%   { opacity: 0; transform: translateY(18px) scale(0.88); }

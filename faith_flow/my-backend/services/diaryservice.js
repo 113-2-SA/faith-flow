@@ -181,13 +181,17 @@ async function getUserDiaries(userId, options = {}) {
     console.log(`[篩選] 日記本 ID: ${collectId}`);
   }
 
-  // ⭐ 篩選 6: 關鍵字搜尋（標題、內容、經文）
+  // ⭐ 篩選 6: 關鍵字搜尋（標題、內容、經文、標籤）
   if (keyword) {
     paramCount++;
     sql += ` AND (
       diary_title ILIKE $${paramCount}
       OR diary_content ILIKE $${paramCount}
       OR bible_quote ILIKE $${paramCount}
+      OR EXISTS (
+        SELECT 1 FROM jsonb_array_elements_text(COALESCE(tags, '[]'::jsonb)) AS _tag
+        WHERE _tag ILIKE $${paramCount}
+      )
     )`;
     params.push(`%${keyword}%`);
     console.log(`[篩選] 關鍵字: ${keyword}`);
@@ -227,12 +231,10 @@ async function getUserDiaries(userId, options = {}) {
  * userId 參數：firebase uid
  */
 async function getDiaryById(diaryId, userId) {
-  const dbUserID = await getUserIDByFirebaseUid(userId);
-
   const result = await pool.query(
     `SELECT * FROM diary
      WHERE diary_id = $1 AND "user_id" = $2`,
-    [diaryId, dbUserID]
+    [diaryId, userId]
   );
   return result.rows[0] || null;
 }
@@ -258,7 +260,7 @@ async function getDiaryByDate(userId, date) {
  * userId 參數：firebase uid
  */
 async function updateDiary(diaryId, userId, updates) {
-  const dbUserID = await getUserIDByFirebaseUid(userId);
+  const dbUserID = userId; // userId 從 attachUserId 中間件取得，已是 int
 
   const diaryDate = updates.diaryDate ?? updates.diary_date;
   const diaryTitle = updates.diaryTitle ?? updates.diary_title;

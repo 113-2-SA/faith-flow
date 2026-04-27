@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,10 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
-  Alert
+  Alert,
+  TextInput,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../context/authcontext';
 import { VideoBackground } from '../../components/VideoBackground';
 import { GlassCard } from '../../components/GlassCard';
@@ -27,8 +28,8 @@ interface Diary {
 export default function DiaryListScreen() {
   const router = useRouter();
   const { currentUser: user } = useAuth();
-  
-  // ⭐ 接收從日曆傳來的日期參數
+
+  // 接收從日曆傳來的日期參數
   const params = useLocalSearchParams();
   const filterDate = params.date as string | undefined;
 
@@ -37,23 +38,27 @@ export default function DiaryListScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
 
+  // 搜尋狀態
+  const [searchText, setSearchText] = useState('');
+  const [activeKeyword, setActiveKeyword] = useState('');
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // 取得日記
-  const fetchDiaries = async (date?: string) => {
-    if (!user) {
-      console.log('❌ 使用者未登入');
-      return;
-    }
+  const fetchDiaries = async (date?: string, keyword?: string) => {
+    if (!user) return;
 
     setLoading(true);
 
     try {
       const token = await user.getIdToken();
-      
+
       let url = 'http://localhost:3000/api/diary';
-      if (date) {
-        url += `?date=${date}`;
-        console.log('📅 篩選日期:', date);
-      }
+      const queryParts: string[] = [];
+
+      if (date) queryParts.push(`date=${date}`);
+      if (keyword && keyword.trim()) queryParts.push(`keyword=${encodeURIComponent(keyword.trim())}`);
+
+      if (queryParts.length > 0) url += `?${queryParts.join('&')}`;
 
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -64,7 +69,6 @@ export default function DiaryListScreen() {
       if (data.ok) {
         setDiaries(data.data.items);
         setTotalCount(data.data.pagination.total);
-        console.log(`✅ 取得 ${data.data.items.length} 篇日記`);
       } else {
         Alert.alert('錯誤', data.error);
       }
@@ -77,40 +81,52 @@ export default function DiaryListScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchDiaries(filterDate);
-  }, [filterDate, user]);
+  useFocusEffect(
+    useCallback(() => {
+      setSearchText('');
+      setActiveKeyword('');
+      fetchDiaries(filterDate, '');
+    }, [filterDate, user])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchDiaries(filterDate);
+    fetchDiaries(filterDate, activeKeyword);
+  };
+
+  // 搜尋輸入防抖
+  const handleSearchChange = (text: string) => {
+    setSearchText(text);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setActiveKeyword(text);
+      fetchDiaries(filterDate, text);
+    }, 500);
+  };
+
+  const handleSearchClear = () => {
+    setSearchText('');
+    setActiveKeyword('');
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    fetchDiaries(filterDate, '');
   };
 
   // 渲染單篇日記
   const renderDiary = ({ item }: { item: Diary }) => (
     <TouchableOpacity
-      onPress={() => router.push(`./diary/${item.diary_id}`)}
+      onPress={() => router.push({ pathname: '/diary/[id]', params: { id: item.diary_id } })}
     >
       <GlassCard style={styles.diaryCard}>
-        {/* 日期 */}
         <Text style={styles.diaryDate}>{item.diary_date}</Text>
-        
-        {/* 標題 */}
         <Text style={styles.diaryTitle}>{item.diary_title}</Text>
-        
-        {/* 內容預覽 */}
         <Text style={styles.diaryContent} numberOfLines={2}>
           {item.diary_content}
         </Text>
-        
-        {/* 經文 */}
         {item.bible_quote && (
           <Text style={styles.bibleQuote} numberOfLines={1}>
             📖 {item.bible_quote}
           </Text>
         )}
-        
-        {/* 標籤 */}
         {item.tags && item.tags.length > 0 && (
           <View style={styles.tagsContainer}>
             {item.tags.map((tag, index) => (
@@ -127,23 +143,57 @@ export default function DiaryListScreen() {
   return (
     <VideoBackground source={require("../../assets/backgrounds/main.mp4")}>
       <View style={styles.container}>
-        {/* 篩選資訊列 */}
-        {filterDate && (
-          <GlassCard style={styles.filterBar}>
-            <View style={styles.filterContent}>
-              <View>
-                <Text style={styles.filterDate}>📅 {filterDate}</Text>
-                <Text style={styles.filterCount}>{totalCount} 篇日記</Text>
+        {/* 頂部區域：篩選資訊 + 搜尋欄 */}
+        <View style={styles.headerArea}>
+          {/* 日期篩選列（只在日期模式下顯示） */}
+          {filterDate ? (
+            <GlassCard style={styles.filterBar}>
+              <View style={styles.filterContent}>
+                <View>
+                  <Text style={styles.filterDate}>📅 {filterDate}</Text>
+                  <Text style={styles.filterCount}>{totalCount} 篇日記</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={() => router.back()}
+                >
+                  <Text style={styles.backButtonText}>返回</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                style={styles.backButton}
-                onPress={() => router.back()}
-              >
-                <Text style={styles.backButtonText}>返回</Text>
-              </TouchableOpacity>
+            </GlassCard>
+          ) : (
+            <View style={styles.allDiariesHeader}>
+              <Text style={styles.allDiariesTitle}>我的日記</Text>
+              <Text style={styles.filterCount}>{totalCount} 篇</Text>
             </View>
+          )}
+
+          {/* 搜尋欄 */}
+          <GlassCard style={styles.searchCard}>
+            <View style={styles.searchRow}>
+              <Text style={styles.searchIcon}>🔍</Text>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="搜尋標題、內容、標籤..."
+                placeholderTextColor="rgba(255,255,255,0.45)"
+                value={searchText}
+                onChangeText={handleSearchChange}
+                returnKeyType="search"
+                clearButtonMode="never"
+              />
+              {searchText.length > 0 && (
+                <TouchableOpacity onPress={handleSearchClear} style={styles.clearButton}>
+                  <Text style={styles.clearButtonText}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            {activeKeyword.trim() !== '' && (
+              <Text style={styles.searchHint}>
+                「{activeKeyword}」共 {totalCount} 筆結果
+              </Text>
+            )}
           </GlassCard>
-        )}
+        </View>
 
         {/* 載入中 */}
         {loading ? (
@@ -168,18 +218,22 @@ export default function DiaryListScreen() {
               <GlassCard style={styles.emptyCard}>
                 <Text style={styles.emptyIcon}>📝</Text>
                 <Text style={styles.emptyText}>
-                  {filterDate 
-                    ? `${filterDate} 還沒有日記` 
-                    : '還沒有日記'}
+                  {activeKeyword
+                    ? `找不到包含「${activeKeyword}」的日記`
+                    : filterDate
+                      ? `${filterDate} 還沒有日記`
+                      : '還沒有日記'}
                 </Text>
-                <TouchableOpacity
-                  style={styles.createButton}
-                  onPress={() => router.push('/diary/create')}
-                >
-                  <Text style={styles.createButtonText}>
-                    {filterDate ? '寫下今天的日記' : '開始寫日記'}
-                  </Text>
-                </TouchableOpacity>
+                {!activeKeyword && (
+                  <TouchableOpacity
+                    style={styles.createButton}
+                    onPress={() => router.push({ pathname: '/diary/create', params: filterDate ? { date: filterDate } : {} })}
+                  >
+                    <Text style={styles.createButtonText}>
+                      {filterDate ? '寫下今天的日記' : '開始寫日記'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </GlassCard>
             }
           />
@@ -188,7 +242,7 @@ export default function DiaryListScreen() {
         {/* 新增按鈕 */}
         <TouchableOpacity
           style={styles.fab}
-          onPress={() => router.push('/diary/create')}
+          onPress={() => router.push({ pathname: '/diary/create', params: filterDate ? { date: filterDate } : {} })}
         >
           <Text style={styles.fabText}>+</Text>
         </TouchableOpacity>
@@ -200,6 +254,9 @@ export default function DiaryListScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  headerArea: {
+    paddingTop: 8,
   },
   loadingContainer: {
     flex: 1,
@@ -213,6 +270,7 @@ const styles = StyleSheet.create({
   },
   filterBar: {
     margin: 16,
+    marginBottom: 8,
   },
   filterContent: {
     flexDirection: 'row',
@@ -242,8 +300,55 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  allDiariesHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  allDiariesTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
+  },
+  searchCard: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  searchIcon: {
+    fontSize: 16,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.95)',
+    paddingVertical: 2,
+  },
+  clearButton: {
+    padding: 4,
+  },
+  clearButtonText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '600',
+  },
+  searchHint: {
+    marginTop: 6,
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+  },
   listContent: {
     padding: 16,
+    paddingTop: 8,
     paddingBottom: 100,
   },
   diaryCard: {
@@ -305,6 +410,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'rgba(255,255,255,0.8)',
     marginBottom: 24,
+    textAlign: 'center',
   },
   createButton: {
     backgroundColor: 'rgba(0, 122, 255, 0.5)',
