@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(node -e \"const pkg = require\\(''./package.json''\\); console.log\\(''expo:'', pkg.dependencies.expo\\); console.log\\(''expo-router:'', pkg.dependencies[''expo-router'']\\); console.log\\(''react:'', pkg.dependencies.react\\); console.log\\(''react-native:'', pkg.dependencies[''react-native'']\\);\")",
+      "Bash(python3 -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\(''''version:'''', p.get\\(''''version''''\\)\\); print\\(''''exports keys:'''', list\\(p.get\\(''''exports'''',{}\\).keys\\(\\)\\)[:10]\\)\")",
+      "Bash(node -e \"const p=require\\(''c:/Users/johan/OneDrive/文件/GitHub/faith-flow/faith_flow/node_modules/@expo/metro-runtime/package.json''\\); console.log\\(''version:'', p.version\\)\")",
+      "Bash(node -e \"const p=require\\(''''c:/Users/johan/OneDrive/文件/GitHub/faith-flow/faith_flow/node_modules/expo-video/package.json''''\\); console.log\\(''''version:'''', p.version\\); console.log\\(''''platforms:'''', p.platforms || p.main\\)\")"
+    ]
+  }
+}
