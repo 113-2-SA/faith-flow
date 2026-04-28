@@ -1,108 +1,155 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { buildMonthGrid, addMonths, monthNameEn } from "./calendarUtils";
 import { GlassCard } from "./GlassCard";
-import { DiaryModal } from "./DiarySheet";
+import { useAuth } from "../hooks/useAuth";
+import { API_BASE_URL } from "../lib/api";
 
 const WEEK = ["Sun", "Mon", "Tue", "WED", "THU", "FRI", "SAT"];
 
-export function CalendarCard() {
+type Props = {
+  onDatePress?: (date: string) => void;
+};
+
+export function CalendarCard({ onDatePress }: Props) {
+  const { user } = useAuth();
   const [viewDate, setViewDate] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
+  const [diaryDates, setDiaryDates] = useState<Set<string>>(new Set());
 
   const year = viewDate.getFullYear();
   const monthTitle = monthNameEn(viewDate);
+
+  // 每次月份切換時撈該月有日記的日期
+  useEffect(() => {
+    if (!user) return;
+    const month = viewDate.getMonth() + 1;
+    user.getIdToken().then((token) => {
+      fetch(`${API_BASE_URL}/api/diary?year=${year}&month=${month}&limit=100`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.ok) {
+            const dates = new Set<string>(
+              data.data.items.map((d: { diary_date: string }) => {
+                // pg 可能把 DATE 序列化成 UTC 時間戳（如 2025-03-14T16:00:00.000Z）
+                // 直接取本地時間的年月日，確保與月曆格子的 dateString 一致
+                const dt = new Date(d.diary_date);
+                const y = dt.getFullYear();
+                const m = String(dt.getMonth() + 1).padStart(2, '0');
+                const day = String(dt.getDate()).padStart(2, '0');
+                return `${y}-${m}-${day}`;
+              })
+            );
+            setDiaryDates(dates);
+          }
+        })
+        .catch(() => {});
+    });
+  }, [year, viewDate.getMonth(), user]);
   const cells = useMemo(() => buildMonthGrid(viewDate), [viewDate]);
 
+  // ⭐ 處理日期點擊
   const handleDateClick = (date: Date, inMonth: boolean) => {
+    // 只處理本月的日期
     if (!inMonth) return;
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, "0");
-    const d = String(date.getDate()).padStart(2, "0");
-    setSelectedDate(`${y}-${m}-${d}`);
-    setModalVisible(true);
+
+    // 格式化日期為 YYYY-MM-DD
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateString = `${year}-${month}-${day}`;
+    
+    setSelectedDate(dateString);
+    onDatePress?.(dateString);
   };
 
   return (
-    <>
-      <GlassCard style={styles.card} intensity={45} glassColor="rgba(255,255,255,0.12)">
-        {/* Header */}
-        <View style={styles.header}>
-          <Pressable
-            onPress={() => setViewDate((d) => addMonths(d, -1))}
-            hitSlop={12}
-            style={styles.arrowBtn}
-          >
-            <Text style={styles.arrow}>‹</Text>
-          </Pressable>
+    <GlassCard style={styles.card}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Pressable
+          onPress={() => setViewDate((d) => addMonths(d, -1))}
+          hitSlop={12}
+          style={styles.arrowBtn}
+        >
+          <Text selectable={false} style={styles.arrow}>‹</Text>
+        </Pressable>
 
-          <View style={styles.headerCenter}>
-            <Text style={styles.year}>{year}</Text>
-            <Text style={styles.month}>{monthTitle}</Text>
-          </View>
-
-          <Pressable
-            onPress={() => setViewDate((d) => addMonths(d, +1))}
-            hitSlop={12}
-            style={styles.arrowBtn}
-          >
-            <Text style={styles.arrow}>›</Text>
-          </Pressable>
+        <View style={styles.headerCenter}>
+          <Text style={styles.year} selectable={false}>{year}</Text>
+          <Text style={styles.month} selectable={false}>{monthTitle}</Text>
         </View>
 
-        {/* Week row */}
-        <View style={styles.weekRow}>
-          {WEEK.map((w) => (
-            <Text key={w} style={styles.weekText}>
-              {w}
-            </Text>
-          ))}
-        </View>
+        <Pressable
+          onPress={() => setViewDate((d) => addMonths(d, +1))}
+          hitSlop={12}
+          style={styles.arrowBtn}
+        >
+          <Text selectable={false} style={styles.arrow}>›</Text>
+        </Pressable>
+      </View>
 
-        {/* Divider */}
-        <View style={styles.divider} />
+      {/* Week row */}
+      <View style={styles.weekRow}>
+        {WEEK.map((w) => (
+          <Text key={w} style={styles.weekText} selectable={false}>
+            {w}
+          </Text>
+        ))}
+      </View>
 
-        {/* Grid */}
-        <View style={styles.grid}>
-          {cells.map((c, idx) => {
-            const day = c.date.getDate();
-            const dateString = `${c.date.getFullYear()}-${String(c.date.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-            const isSelected = selectedDate === dateString;
+      {/* Divider */}
+      <View style={styles.divider} />
 
-            return (
-              <Pressable
-                key={`${c.date.toISOString()}-${idx}`}
-                disabled={!c.inMonth}
-                onPress={() => handleDateClick(c.date, c.inMonth)}
+      {/* Grid */}
+      <View style={styles.grid}>
+        {cells.map((c, idx) => {
+          const day = c.date.getDate();
+          
+          // ⭐ 檢查是否為選中的日期
+          const dateString = `${c.date.getFullYear()}-${String(c.date.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const isSelected = selectedDate === dateString;
+          
+          const hasDiary = c.inMonth && diaryDates.has(dateString);
+
+          return (
+            <Pressable
+              key={`${c.date.toISOString()}-${idx}`}
+              disabled={!c.inMonth}  // ⭐ 改為只禁用非本月的日期
+              onPress={() => handleDateClick(c.date, c.inMonth)}  // ⭐ 加上點擊事件
+              style={[
+                styles.cell,
+                c.isToday && styles.cellToday,
+                isSelected && styles.cellSelected,  // ⭐ 選中的樣式
+              ]}
+            >
+              <Text
+                selectable={false}
                 style={[
-                  styles.cell,
-                  c.isToday && styles.cellToday,
-                  isSelected && styles.cellSelected,
+                  styles.cellText,
+                  !c.inMonth && styles.cellTextDim,
+                  c.isToday && styles.cellTextToday,
+                  isSelected && styles.cellTextSelected,
                 ]}
               >
-                <Text
-                  style={[
-                    styles.cellText,
-                    !c.inMonth && styles.cellTextDim,
-                    c.isToday && styles.cellTextToday,
-                    isSelected && styles.cellTextSelected,
-                  ]}
-                >
-                  {day}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </GlassCard>
+                {day}
+              </Text>
+              {hasDiary && <View style={styles.dot} />}
+            </Pressable>
+          );
+        })}
+      </View>
 
-      <DiaryModal
-        visible={modalVisible}
-        date={selectedDate}
-        onClose={() => setModalVisible(false)}
-      />
-    </>
+      {/* ⭐ 底部提示（選中日期時顯示）*/}
+      {selectedDate && (
+        <View style={styles.footer}>
+          <Text style={styles.footerDate} selectable={false}>{selectedDate}</Text>
+          <Text style={styles.footerText} selectable={false}>向上拉動瀏覽今日日記</Text>
+        </View>
+      )}
+    </GlassCard>
   );
 }
 
@@ -110,6 +157,7 @@ const styles = StyleSheet.create({
   card: {
     flex: 1,
   },
+
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -138,6 +186,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 2,
   },
+
   weekRow: {
     marginTop: 14,
     flexDirection: "row",
@@ -150,12 +199,14 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.60)",
     fontSize: 12,
   },
+
   divider: {
     height: 1,
     backgroundColor: "rgba(255,255,255,0.22)",
     marginTop: 10,
     marginBottom: 10,
   },
+
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -168,6 +219,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 14,
     marginBottom: 6,
+    paddingBottom: 2,
   },
   cellText: {
     color: "rgba(255,255,255,0.85)",
@@ -176,6 +228,7 @@ const styles = StyleSheet.create({
   cellTextDim: {
     color: "rgba(255,255,255,0.30)",
   },
+
   cellToday: {
     backgroundColor: "rgba(255,255,255,0.14)",
     borderWidth: 1,
@@ -185,13 +238,42 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.95)",
     fontWeight: "700",
   },
+
+  // ⭐ 新增：選中日期的樣式
   cellSelected: {
-    backgroundColor: "rgba(0, 122, 255, 0.5)",
+    backgroundColor: "rgba(91, 168, 250, 0.28)",  // 藍色半透明背景
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.8)",
   },
   cellTextSelected: {
     color: "rgba(255,255,255,1)",
     fontWeight: "700",
+  },
+
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "rgba(135, 206, 250, 0.9)",
+    marginTop: 2,
+  },
+
+  // ⭐ 新增：底部提示區域
+  footer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.22)",
+    alignItems: "center",
+  },
+  footerDate: {
+    color: "rgba(255,255,255,0.95)",
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  footerText: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 12,
   },
 });
