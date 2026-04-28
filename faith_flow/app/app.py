@@ -2,8 +2,9 @@ import asyncio
 import json
 import inspect
 import websockets
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
+
+import re
 
 try:
     import opencc
@@ -12,9 +13,14 @@ try:
         return _converter.convert(text)
 except ImportError:
     def to_traditional(text: str) -> str:
-        return text  # opencc 未安裝時直接回傳原文
+        return text
+
+def lowercase_english(text: str) -> str:
+    """將全大寫的英文單字轉成小寫（中文字元不受影響）。"""
+    return re.sub(r'\b[A-Z]{2,}\b', lambda m: m.group().lower(), text)
 
 app = FastAPI()
+from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,18 +30,23 @@ app.add_middleware(
 
 DEEPGRAM_API_KEY = "86ea6356170653e13a993f5c27ea0892938ca8aa"
 
-DEEPGRAM_URL = (
-    "wss://api.deepgram.com/v1/listen"
-    "?language=zh-TW"
-    "&model=nova-2"
-    "&punctuate=true"
-    "&smart_format=true"
-    "&channels=1"
-    "&interim_results=true"
-    "&endpointing=300"
-)
-
 KEEPALIVE_INTERVAL_SEC = 5
+
+
+def build_deepgram_url(lang: str) -> str:
+    base = (
+        "wss://api.deepgram.com/v1/listen"
+        "?model=nova-2"
+        "&punctuate=true"
+        "&smart_format=true"
+        "&channels=1"
+        "&interim_results=true"
+        "&endpointing=300"
+    )
+    if lang == "mixed":
+        # 中英混合：Nova-2 zh-CN 原生支援 code-switching（同句中英夾雜）
+        return base + "&language=zh-CN"
+    return base + f"&language={lang}"
 
 
 def _connect_kwargs(headers: dict) -> dict:
@@ -48,19 +59,23 @@ def _connect_kwargs(headers: dict) -> dict:
 
 
 @app.websocket("/ws/transcribe")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(
+    websocket: WebSocket,
+    lang: str = Query(default="zh-TW"),
+):
     await websocket.accept()
-    print("祈禱者已連線")
+    print(f"祈禱者已連線，語言={lang}")
 
     stop_event = asyncio.Event()
+    # zh-CN (mixed mode) 也需要簡繁轉換，英文字元 opencc 不會動它
+    use_opencc = lang in ("zh-TW", "mixed")
 
-    headers = {
-        "Authorization": f"Token {DEEPGRAM_API_KEY}",
-    }
+    headers = {"Authorization": f"Token {DEEPGRAM_API_KEY}"}
+    deepgram_url = build_deepgram_url(lang)
 
     try:
         async with websockets.connect(
-            DEEPGRAM_URL,
+            deepgram_url,
             **_connect_kwargs(headers),
         ) as dg_ws:
             print("Deepgram 連線成功")
@@ -108,8 +123,9 @@ async def websocket_endpoint(websocket: WebSocket):
                         confidence = alt.get("confidence", 0)
                         is_final = bool(result.get("is_final", False))
 
-                        # 簡繁轉換（opencc 保險層）
-                        transcript = to_traditional(transcript)
+                        if use_opencc:
+                            transcript = to_traditional(transcript)
+                        transcript = lowercase_english(transcript)
 
                         print(f"[DG] conf={confidence:.2f} final={is_final} text='{transcript}'")
 
