@@ -117,6 +117,13 @@ const weeklySummaryRoutes = require('./routes/weeklysummary');
 const searchRoutes = require('./routes/search');
 const liturgicalRoutes = require('./routes/liturgical');
 const nudgeRoutes = require('./routes/nudge');
+const userRoutes = require("./routes/user"); // 新增使用者個人資料相關的路由
+const diaryRoutes = require("./routes/diarys"); // 新增日記相關的路由
+const chatRoutes = require("./routes/chat");
+
+console.log("[DEBUG] ✅ 所有路由已 require");
+console.log("[DEBUG] chatRoutes type:", typeof chatRoutes);
+console.log("[DEBUG] chatRoutes methods:", Object.keys(chatRoutes));
 
 // ==================== 註冊路由 ====================
 
@@ -159,10 +166,24 @@ app.get("/debug/user", async (req, res) => {
 app.use("/api/user", userRoutes);
 
 // 日記相關路由
+console.log("[MOUNT] 掛載 /api/diary");
 app.use("/api/diary", diaryRoutes);
 
 // 貼文相關路由
 app.use('/api/post', postRoutes);
+// ⭐ DEBUG: 攔截所有進入 /api/chat 的請求
+app.use("/api/chat", (req, res, next) => {
+  console.log("[CHAT INTERCEPT] 進入 /api/chat");
+  console.log("[CHAT INTERCEPT] 方法:", req.method);
+  console.log("[CHAT INTERCEPT] 完整路徑:", req.path);
+  console.log("[CHAT INTERCEPT] 完整 URL:", req.originalUrl);
+  console.log("[CHAT INTERCEPT] req.url:", req.url);
+  next();
+});
+
+console.log("[MOUNT] 掛載 /api/chat");
+app.use("/api/chat", chatRoutes);
+console.log("[MOUNT] ✅ /api/chat 掛載完成");
 
 // 認證相關的路由
 app.use("/api/auth", authRoutes);

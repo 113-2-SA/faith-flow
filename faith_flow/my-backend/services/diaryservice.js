@@ -1,5 +1,6 @@
 // ==================== services/diaryservice.js ====================
 const pool = require("../config/database");
+const { getEmbedding } = require("./embeddingService");
 
 async function getUserIDByFirebaseUid(firebase_uid) {
   const r = await pool.query(
@@ -90,7 +91,23 @@ async function createDiary(diaryData) {
   try {
     const result = await pool.query(sql, params);
     console.log("✅ [createDiary] 建立成功:", result.rows[0]);
-    return result.rows[0];
+
+    // ⭐ 自動產生 embedding（非同步，不阻塞回傳）
+    const newDiary = result.rows[0];
+    const textToEmbed = [finalDiaryTitle, finalDiaryContent].filter(Boolean).join(" ");
+    getEmbedding(textToEmbed)
+      .then(embedding => {
+        if (embedding) {
+          pool.query(
+            'UPDATE diary SET embedding = $1 WHERE diary_id = $2',
+            [JSON.stringify(embedding), newDiary.diary_id]
+          ).then(() => console.log("✅ [createDiary] embedding 已更新"))
+           .catch(err => console.warn("⚠️ [createDiary] embedding 寫入失敗:", err.message));
+        }
+      })
+      .catch(err => console.warn("⚠️ [createDiary] embedding 生成失敗:", err.message));
+
+    return newDiary;
   } catch (error) {
     console.error("❌ [createDiary] SQL 執行失敗");
     console.error("錯誤:", error.message);
@@ -317,7 +334,27 @@ async function updateDiary(diaryId, userId, updates) {
   `;
 
   const result = await pool.query(sql, values);
-  return result.rows[0] || null;
+  const updated = result.rows[0] || null;
+
+  // ⭐ 內容有更新時，重新產生 embedding
+  if (updated && (diaryTitle !== undefined || diaryContent !== undefined)) {
+    const title = diaryTitle || updated.diary_title || "";
+    const content2 = diaryContent || updated.diary_content || "";
+    const textToEmbed = [title, content2].filter(Boolean).join(" ");
+    getEmbedding(textToEmbed)
+      .then(embedding => {
+        if (embedding) {
+          pool.query(
+            'UPDATE diary SET embedding = $1 WHERE diary_id = $2',
+            [JSON.stringify(embedding), updated.diary_id]
+          ).then(() => console.log("✅ [updateDiary] embedding 已更新"))
+           .catch(err => console.warn("⚠️ [updateDiary] embedding 寫入失敗:", err.message));
+        }
+      })
+      .catch(err => console.warn("⚠️ [updateDiary] embedding 生成失敗:", err.message));
+  }
+
+  return updated;
 }
 
 /**
