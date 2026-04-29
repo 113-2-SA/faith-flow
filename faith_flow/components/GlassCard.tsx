@@ -6,14 +6,26 @@ type Props = {
   children?: React.ReactNode;
   style?: ViewStyle;
   intensity?: number; // 0~100
+  transparent?: boolean;
+  glassColor?: string;
 };
 
-export function GlassCard({ children, style, intensity = 30 }: Props) {
+export function GlassCard({ children, style, intensity = 30, transparent = false, glassColor }: Props) {
+  const isTransparent = transparent || glassColor === "transparent";
+  const frostedColor = isTransparent ? "transparent" : glassColor ?? "rgba(255,255,255,0.01)";
+  const showBlur = intensity > 0;
+
   return (
-    <View style={[styles.wrap, style]}>
-      <BlurView intensity={intensity} tint="light" style={StyleSheet.absoluteFill} />
+    <View
+      style={[
+        styles.wrap,
+        isTransparent ? styles.wrapTransparent : null,
+        style,
+      ]}
+    >
+      {showBlur && <BlurView intensity={intensity} tint="light" style={StyleSheet.absoluteFill} />}
       {/* 淡白霧（讓玻璃更像） */}
-      <View style={styles.frost} />
+      <View style={[styles.frost, { backgroundColor: frostedColor }]} />
       {/* 細邊框 */}
       <View style={styles.border} />
       <View style={[styles.content, style]}>{children}</View>
@@ -25,7 +37,11 @@ const styles = StyleSheet.create({
   wrap: {
     borderRadius: 10, // 改成10，與border一致
     overflow: "hidden",
-    backgroundColor: "rgba(255,255,255,0.02)",
+    backgroundColor: "transparent",
+  },
+
+  wrapTransparent: {
+    backgroundColor: "transparent",
   },
   frost: {
     ...StyleSheet.absoluteFillObject,

@@ -1,8 +1,30 @@
 import { Redirect, Stack, useSegments } from "expo-router";
-import { ActivityIndicator, View } from "react-native";
-import { AuthProvider ,useAuth} from "./context/authcontext"  
+import { ActivityIndicator, Platform, View } from "react-native";
+import { useEffect } from "react";
+import { AuthProvider ,useAuth} from "./context/authcontext"
 // import { useAuth } from "../hooks/useAuth";
 import { AppShellProvider } from "../components/AppShell";
+
+/** 注入全域 CSS，禁止瀏覽器選取畫面元素（僅 web） */
+function GlobalWebStyles() {
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const style = document.createElement("style");
+    style.textContent = `
+      * {
+        user-select: none !important;
+        -webkit-user-select: none !important;
+      }
+      input, textarea, [contenteditable="true"] {
+        user-select: text !important;
+        -webkit-user-select: text !important;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
+  return null;
+}
 
 
 /**
@@ -13,7 +35,7 @@ function RootLayoutNav() {
   const { currentUser, loading } = useAuth();  // ⭐ 從 AuthContext 取得
   const segments = useSegments();
 
-  const inAuth = segments[0] === "auth"; // 你的登入頁在 /auth/login
+  const inAuth = segments[0] === "auth";
 
   if (loading) {
     return (
@@ -53,6 +75,7 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <AuthProvider>
+      <GlobalWebStyles />
       <RootLayoutNav />
     </AuthProvider>
   );

@@ -121,3 +121,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     </AuthContext.Provider>
   );
 }
+
+// expo-router 要求 app/ 目錄下的檔案有 default export
+export default function AuthContextRoute() { return null; }

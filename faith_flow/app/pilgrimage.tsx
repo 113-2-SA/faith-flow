@@ -1,12 +1,13 @@
-import { Stack } from 'expo-router';
-import { BasilicaMap } from '@/components/BasilicaMap';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React from "react";
+import { Stack } from "expo-router";
+import { VideoBackground } from "../components/VideoBackground";
+import { PilgrimageMap } from "../components/PilgrimageMap";
 
 export default function PilgrimageTab() {
   return (
-    <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+    <VideoBackground source={require("../assets/backgrounds/main.mp4")}>
       <Stack.Screen options={{ headerShown: false }} />
-      <BasilicaMap />
-    </SafeAreaView>
+      <PilgrimageMap />
+    </VideoBackground>
   );
 }

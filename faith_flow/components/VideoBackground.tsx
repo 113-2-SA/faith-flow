@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from "react";
+import React from "react";
 import { StyleSheet, View } from "react-native";
-import { Video, ResizeMode } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -10,24 +10,20 @@ type Props = {
 };
 
 export function VideoBackground({ source, children }: Props) {
-  const ref = useRef<Video>(null);
-
-  useEffect(() => {
-    ref.current?.playAsync?.();
-  }, []);
+  const player = useVideoPlayer(source, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
 
   return (
     <View style={styles.root}>
-      <Video
+      <VideoView
         pointerEvents="none"
-        ref={ref}
-        source={source}
+        player={player}
         style={StyleSheet.absoluteFill}
-        resizeMode={ResizeMode.COVER}
-        isLooping
-        isMuted
-        shouldPlay
-        useNativeControls={false}
+        contentFit="cover"
+        nativeControls={false}
       />
 
       <LinearGradient
