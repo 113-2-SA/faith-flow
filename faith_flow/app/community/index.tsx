@@ -106,6 +106,7 @@ export default function CommunityFeedScreen() {
   const [shareCaption, setShareCaption] = useState('');
   const [sharing, setSharing] = useState(false);
   const [diaryModalCard, setDiaryModalCard] = useState<DiaryCard | null>(null);
+  const [summaryModalCard, setSummaryModalCard] = useState<SummaryCard | null>(null);
   const LIMIT = 20;
 
   // 搜尋相關狀態
@@ -401,7 +402,11 @@ export default function CommunityFeedScreen() {
 
         {/* Summary card attachment */}
         {item.summary_card && (
-          <View style={styles.summaryCard}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={(e) => { e.stopPropagation(); setSummaryModalCard(item.summary_card!); }}
+            style={styles.summaryCard}
+          >
             <View style={styles.diaryCardHeader}>
               <Text style={styles.diaryCardIcon}>✨</Text>
               <View style={{ flex: 1 }}>
@@ -422,7 +427,7 @@ export default function CommunityFeedScreen() {
                 📖 {item.summary_card.bible_quote}
               </Text>
             ) : null}
-          </View>
+          </TouchableOpacity>
         )}
 
         {/* Embedded original post */}
@@ -648,6 +653,42 @@ export default function CommunityFeedScreen() {
             <View style={styles.diaryFloatDivider} />
             <ScrollView style={styles.diaryFloatScroll} showsVerticalScrollIndicator={false}>
               <Text style={styles.diaryFloatContent}>{diaryModalCard?.diary_content}</Text>
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Summary Full Content Modal */}
+      <Modal
+        visible={!!summaryModalCard}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSummaryModalCard(null)}
+      >
+        <TouchableOpacity
+          style={styles.diaryOverlay}
+          activeOpacity={1}
+          onPress={() => setSummaryModalCard(null)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.diaryFloatCard} onPress={() => {}}>
+            <View style={styles.diaryFloatHeader}>
+              <Text style={styles.diaryFloatIcon}>✨</Text>
+              <Text style={styles.diaryFloatTitle} numberOfLines={2}>
+                {summaryModalCard?.summary_title}
+              </Text>
+              <TouchableOpacity onPress={() => setSummaryModalCard(null)} style={styles.diaryFloatClose}>
+                <Text style={styles.diaryFloatCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.diaryFloatDate}>
+              {summaryModalCard?.year} 年 第 {summaryModalCard?.week_number} 週
+            </Text>
+            <View style={styles.diaryFloatDivider} />
+            <ScrollView style={styles.diaryFloatScroll} showsVerticalScrollIndicator={false}>
+              <Text style={styles.diaryFloatContent}>{summaryModalCard?.summary_content}</Text>
+              {summaryModalCard?.bible_quote && (
+                <Text style={styles.summaryFloatBible}>📖 {summaryModalCard.bible_quote}</Text>
+              )}
             </ScrollView>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -1021,6 +1062,13 @@ const styles = StyleSheet.create({
     color: 'rgba(200,170,255,0.85)',
     fontStyle: 'italic',
     marginTop: 4,
+  },
+  summaryFloatBible: {
+    fontSize: 14,
+    color: 'rgba(200,170,255,0.9)',
+    fontStyle: 'italic',
+    marginTop: 16,
+    lineHeight: 22,
   },
 
   // Diary card attachment

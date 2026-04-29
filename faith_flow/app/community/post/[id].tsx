@@ -35,6 +35,17 @@ interface DiaryCard {
   diary_date: string;
 }
 
+interface SummaryCard {
+  summary_id: number;
+  summary_title: string;
+  summary_content: string;
+  bible_quote: string | null;
+  year: number;
+  week_number: number;
+  start_date?: string;
+  end_date?: string;
+}
+
 interface OriginalPost {
   community_post_id: number;
   post_text: string;
@@ -43,6 +54,7 @@ interface OriginalPost {
   original_author_name: string | null;
   original_author_avatar: string | null;
   diary_card?: DiaryCard;
+  summary_card?: SummaryCard;
 }
 
 interface Post {
@@ -62,6 +74,7 @@ interface Post {
   is_owner?: boolean;
   original_post?: OriginalPost;
   diary_card?: DiaryCard;
+  summary_card?: SummaryCard;
 }
 
 interface Comment {
@@ -81,6 +94,7 @@ interface Comment {
 const POST_TYPE_LABELS: Record<string, string> = {
   normal: '原創分享',
   diary: '日記分享',
+  summary: '周回顧分享',
   letter: '信箋',
   shared: '轉發',
 };
@@ -113,6 +127,7 @@ export default function PostDetailScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [imageModalUri, setImageModalUri] = useState<string | null>(null);
   const [diaryModalCard, setDiaryModalCard] = useState<DiaryCard | null>(null);
+  const [summaryModalCard, setSummaryModalCard] = useState<SummaryCard | null>(null);
   const inputRef = useRef<TextInput>(null);
 
   const postId = parseInt(id ?? '0');
@@ -404,6 +419,36 @@ export default function PostDetailScreen() {
                   </TouchableOpacity>
                 )}
 
+                {/* Summary card attachment */}
+                {post.summary_card && (
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setSummaryModalCard(post.summary_card!)}
+                    style={styles.summaryCard}
+                  >
+                    <View style={styles.diaryCardHeader}>
+                      <Text style={styles.diaryCardIcon}>✨</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.diaryCardDate}>
+                          {post.summary_card.year} 年 第 {post.summary_card.week_number} 週回顧
+                        </Text>
+                        <Text style={styles.diaryCardTitle} numberOfLines={1}>
+                          {post.summary_card.summary_title}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.diaryCardPreview} numberOfLines={2}>
+                      {post.summary_card.summary_content.slice(0, 60)}
+                      {post.summary_card.summary_content.length > 60 ? '...' : ''}
+                    </Text>
+                    {post.summary_card.bible_quote && (
+                      <Text style={styles.summaryCardBible} numberOfLines={1}>
+                        📖 {post.summary_card.bible_quote}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+
                 {/* Embedded original post for shared type */}
                 {post.post_type === 'shared' && post.original_post && (
                   <TouchableOpacity
@@ -551,6 +596,42 @@ export default function PostDetailScreen() {
             <View style={styles.diaryModalDivider} />
             <ScrollView style={styles.diaryModalScroll} showsVerticalScrollIndicator={false}>
               <Text style={styles.diaryModalContent}>{diaryModalCard?.diary_content}</Text>
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* 周回顧完整內容 Modal */}
+      <Modal
+        visible={!!summaryModalCard}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSummaryModalCard(null)}
+      >
+        <TouchableOpacity
+          style={styles.diaryModalOverlay}
+          activeOpacity={1}
+          onPress={() => setSummaryModalCard(null)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.diaryModalSheet} onPress={() => {}}>
+            <View style={styles.diaryModalHeader}>
+              <Text style={styles.diaryModalIcon}>✨</Text>
+              <Text style={styles.diaryModalTitle} numberOfLines={2}>
+                {summaryModalCard?.summary_title}
+              </Text>
+              <TouchableOpacity onPress={() => setSummaryModalCard(null)} style={styles.diaryModalClose}>
+                <Text style={styles.diaryModalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.diaryModalDate}>
+              {summaryModalCard?.year} 年 第 {summaryModalCard?.week_number} 週
+            </Text>
+            <View style={styles.diaryModalDivider} />
+            <ScrollView style={styles.diaryModalScroll} showsVerticalScrollIndicator={false}>
+              <Text style={styles.diaryModalContent}>{summaryModalCard?.summary_content}</Text>
+              {summaryModalCard?.bible_quote && (
+                <Text style={styles.summaryModalBible}>📖 {summaryModalCard.bible_quote}</Text>
+              )}
             </ScrollView>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -719,6 +800,29 @@ const styles = StyleSheet.create({
 
   emptyCard: { alignItems: 'center', paddingVertical: 24 },
   emptyText: { fontSize: 14, color: 'rgba(255,255,255,0.6)' },
+
+  // Summary card attachment
+  summaryCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(180,140,255,0.35)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 14,
+    backgroundColor: 'rgba(80,0,180,0.12)',
+  },
+  summaryCardBible: {
+    fontSize: 12,
+    color: 'rgba(200,170,255,0.85)',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  summaryModalBible: {
+    fontSize: 14,
+    color: 'rgba(200,170,255,0.9)',
+    fontStyle: 'italic',
+    marginTop: 16,
+    lineHeight: 22,
+  },
 
   // Diary card attachment
   diaryCard: {
