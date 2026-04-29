@@ -64,6 +64,13 @@ function formatTime(iso: string): string {
     + `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
 }
 
+function makeChurchCrossSvg(): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">`
+    + `<rect x="13" y="2" width="6" height="36" rx="3" fill="#1a73e8"/>`
+    + `<rect x="2" y="11" width="28" height="6" rx="3" fill="#1a73e8"/>`
+    + `</svg>`;
+}
+
 function makePrayerCrossSvg(isGps: boolean): string {
   const c = isGps ? GOLD_LIGHT : SILVER;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="34" viewBox="0 0 26 34">`
@@ -251,16 +258,16 @@ export default function GoogleMapsComponent({
           options={{ styles: GLASS_RELIGIOUS_MAP_STYLE as any }}
         >
           {/* 教堂標記 */}
-          {markers.map((basilica) => (
+          {mapReady && markers.map((basilica) => (
             <React.Fragment key={basilica.id}>
               <Marker
                 position={{ lat: basilica.coordinates[0], lng: basilica.coordinates[1] }}
                 title={basilica.name}
                 onClick={() => onMarkerPress(basilica.id)}
                 icon={{
-                  path: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z",
-                  fillColor: "#666fee", fillOpacity: 0.9,
-                  strokeColor: "#fff", strokeWeight: 2, scale: 1.5,
+                  url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(makeChurchCrossSvg()),
+                  scaledSize: new google.maps.Size(32, 40),
+                  anchor: new google.maps.Point(16, 40),
                 }}
               />
               {selectedId === basilica.id && (

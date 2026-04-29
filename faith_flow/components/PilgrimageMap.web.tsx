@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, TouchableOpacity } from "react-native";
 import React, { useMemo, useState, useEffect, useRef, lazy, Suspense, useCallback } from "react";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { ChurchPanoramaViewer } from "./ChurchPanoramaViewer";
 import { ChurchVideoViewer } from "./ChurchVideoViewer";
 import { GlassCard } from "./GlassCard";
@@ -33,6 +33,7 @@ export type Basilica = {
 type FilterType = "all" | "major" | "cathedral" | "chapel";
 
 export function PilgrimageMap() {
+  const router = useRouter();
   // prayer
   const [prayers, setPrayers] = useState<PrayerRecord[]>([]);
   // church
@@ -193,6 +194,15 @@ export function PilgrimageMap() {
             )}
           </View>
         )}
+
+        {/* ── 新增祈禱 ──────────────────────────────────────────── */}
+        <Pressable
+          onPress={() => router.push("/pray")}
+          style={({ pressed }) => [styles.addPrayerBtn, pressed && styles.addPrayerBtnPressed]}
+        >
+          <Text style={styles.addPrayerIcon}>✝</Text>
+          <Text style={styles.addPrayerText}>新增祈禱</Text>
+        </Pressable>
 
         {/* ── 搜尋 ─────────────────────────────────────────────── */}
         <GlassCard style={styles.searchCard} intensity={85}>
@@ -504,6 +514,15 @@ const styles = StyleSheet.create({
   footerValue: { fontSize: 20, fontWeight: "700", color: "rgba(102,126,234,0.95)" },
   footerLabel: { fontSize: 11, color: WHITE_60 },
   footerDivider: { width: 1, height: 24, backgroundColor: "rgba(255,255,255,0.15)", marginHorizontal: 8 },
+
+  addPrayerBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, marginBottom: 12, paddingVertical: 13, borderRadius: 14,
+    backgroundColor: "rgba(200,146,42,0.22)", borderWidth: 1, borderColor: "rgba(200,146,42,0.6)",
+  },
+  addPrayerBtnPressed: { backgroundColor: "rgba(200,146,42,0.42)", borderColor: "rgba(200,146,42,1)" },
+  addPrayerIcon: { fontSize: 16, color: "#f5d680" },
+  addPrayerText: { fontSize: 15, fontWeight: "700", color: "#f5d680", letterSpacing: 0.5 },
 
   devClearBtn: { marginTop: 12, padding: 8, alignItems: "center" },
   devClearText: { fontSize: 12, color: "#c00" },

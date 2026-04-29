@@ -4,7 +4,7 @@ import {
   Image, ActivityIndicator, TextInput, TouchableOpacity,
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { GlassCard } from "./GlassCard";
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
@@ -65,6 +65,7 @@ const photoStyles = StyleSheet.create({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function PilgrimageMap() {
+  const router = useRouter();
   // prayer
   const [prayers, setPrayers] = useState<PrayerRecord[]>([]);
   // church
@@ -267,6 +268,15 @@ export function PilgrimageMap() {
             )}
           </View>
         )}
+
+        {/* ── 新增祈禱 ──────────────────────────────────────────── */}
+        <Pressable
+          onPress={() => router.push("/pray")}
+          style={({ pressed }) => [styles.addPrayerBtn, pressed && styles.addPrayerBtnPressed]}
+        >
+          <Text style={styles.addPrayerIcon}>✝</Text>
+          <Text style={styles.addPrayerText}>新增祈禱</Text>
+        </Pressable>
 
         {/* ── 搜尋 ─────────────────────────────────────────────── */}
         <GlassCard style={styles.searchCard} intensity={85}>
@@ -503,14 +513,13 @@ const styles = StyleSheet.create({
 
   // 教堂標記
   churchMarker: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: "rgba(102,126,234,0.9)",
-    alignItems: "center",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3, shadowRadius: 2, elevation: 4,
+    width: 32, height: 32,
+    alignItems: "center", justifyContent: "center",
+    shadowColor: "#1a73e8", shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6, shadowRadius: 5, elevation: 5,
   },
-  churchCrossV: { position: "absolute", width: 4, height: 20, backgroundColor: "#fff", borderRadius: 2, top: 6 },
-  churchCrossH: { position: "absolute", width: 14, height: 4, backgroundColor: "#fff", borderRadius: 2, top: 11 },
+  churchCrossV: { position: "absolute", width: 5, height: 26, backgroundColor: "#1a73e8", borderRadius: 2, top: 3 },
+  churchCrossH: { position: "absolute", width: 18, height: 5, backgroundColor: "#1a73e8", borderRadius: 2, top: 10 },
 
   // 祈禱標記
   prayerMarker: { width: 26, height: 34, alignItems: "center", justifyContent: "center", position: "relative", borderRadius: 4 },
@@ -618,6 +627,16 @@ const styles = StyleSheet.create({
   footerValue: { fontSize: 20, fontWeight: "700", color: "rgba(102,126,234,0.95)" },
   footerLabel: { fontSize: 11, color: WHITE_60 },
   footerDivider: { width: 1, height: 24, backgroundColor: "rgba(255,255,255,0.15)", marginHorizontal: 8 },
+
+  // ── 新增祈禱 ──
+  addPrayerBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, marginBottom: 12, paddingVertical: 13, borderRadius: 14,
+    backgroundColor: "rgba(200,146,42,0.22)", borderWidth: 1, borderColor: "rgba(200,146,42,0.6)",
+  },
+  addPrayerBtnPressed: { backgroundColor: "rgba(200,146,42,0.42)", borderColor: "rgba(200,146,42,1)" },
+  addPrayerIcon: { fontSize: 16, color: GOLD_LIGHT },
+  addPrayerText: { fontSize: 15, fontWeight: "700", color: GOLD_LIGHT, letterSpacing: 0.5 },
 
   // ── DEV ──
   devClearBtn: { marginTop: 12, padding: 8, alignItems: "center" },
