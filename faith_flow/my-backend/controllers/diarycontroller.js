@@ -2,6 +2,7 @@
 const diaryService = require("../services/diaryservice");
 const prayerService = require("../services/prayservice");
 const { runAIPrayerPipeline } = require("../services/aiPrayerService");
+const pool = require("../config/database");
 console.log("[diarycontroller] hit /api/diary");
 
 /**
@@ -422,25 +423,40 @@ exports.createFromPrayer = async (req, res) => {
     console.log('🙏 [createFromPrayer] 收到祈禱轉日記請求');
     
     const userId = req.userId; // 從 attachUserId middleware 取得
-    const { transcript, collectId } = req.body;
+    const { transcript, collectId, latitude, longitude } = req.body;
 
     console.log('👤 使用者 ID:', userId);
     console.log('📝 祈禱文字長度:', transcript?.length);
+    console.log('📍 位置:', latitude != null ? `${latitude}, ${longitude}` : '無');
 
     // 驗證輸入
     if (!transcript || transcript.trim().length === 0) {
       console.log('❌ [createFromPrayer] 祈禱內容為空');
-      return res.status(400).json({ 
+      return res.status(400).json({
         ok: false,
-        error: '祈禱內容不能為空' 
+        error: '祈禱內容不能為空'
       });
+    }
+
+    // 若有座標，先在 places 表建立禱告定點，取得 place_id
+    let placeId = null;
+    if (latitude != null && longitude != null) {
+      const placeResult = await pool.query(
+        `INSERT INTO places (pname, latitude, longitude, ptype, created_at, updated_at)
+         VALUES ('禱告定點', $1, $2, 'prayer', NOW(), NOW())
+         RETURNING place_id`,
+        [parseFloat(latitude), parseFloat(longitude)]
+      );
+      placeId = placeResult.rows[0].place_id;
+      console.log('📍 [createFromPrayer] 建立禱告地點 place_id:', placeId);
     }
 
     // 使用 prayerService 轉換為日記
     const diary = await prayerService.convertPrayerToDiary(
       userId,
       transcript.trim(),
-      collectId
+      collectId,
+      placeId
     );
 
     console.log('✅ [createFromPrayer] 祈禱日記建立成功! ID:', diary.diary_id);
