@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, ActivityIndicator, TextInput } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { GlassCard } from "./GlassCard";
@@ -10,6 +10,8 @@ import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { useChurchPhoto } from "../hooks/useChurchPhoto";
 import { ChurchPanoramaViewer } from "./ChurchPanoramaViewer";
 import { ChurchVideoViewer } from "./ChurchVideoViewer";
+import { useFocusEffect } from "expo-router";
+import { loadPrayers, PrayerRecord } from "../app/prayerStore";
 
 function ChurchPhoto({ nameEn, nameCh }: { nameEn: string; nameCh?: string }) {
   const { photoUrl, loading, error } = useChurchPhoto(nameEn, nameCh);
@@ -88,6 +90,13 @@ export function BasilicaMap() {
   const [displayCount, setDisplayCount] = useState(3);
   const [showPanorama, setShowPanorama] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
+  const [prayers, setPrayers] = useState<PrayerRecord[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadPrayers().then(setPrayers);
+    }, [])
+  );
 
   // 切換教堂時關閉全景與影片
   useEffect(() => {
@@ -274,7 +283,42 @@ export function BasilicaMap() {
               </View>
             </Marker>
           ))}
+          {prayers.map((p) => (
+            <Marker
+              key={`prayer-${p.id}`}
+              coordinate={{ latitude: p.latitude, longitude: p.longitude }}
+              tracksViewChanges={false}
+            >
+              <View style={[
+                styles.prayerMarker,
+                p.locationSource === "gps" ? styles.prayerMarkerGps : styles.prayerMarkerAnon,
+              ]}>
+                <View style={[styles.prayerCrossV, p.locationSource === "gps" ? styles.prayerCrossGold : styles.prayerCrossSilver]} />
+                <View style={[styles.prayerCrossH, p.locationSource === "gps" ? styles.prayerCrossGold : styles.prayerCrossSilver]} />
+              </View>
+            </Marker>
+          ))}
         </MapView>
+      </View>
+
+      {/* Map Legend */}
+      <View style={styles.mapLegend}>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, styles.legendDotChurch]} />
+          <Text style={styles.legendLabel}>教堂</Text>
+        </View>
+        {prayers.length > 0 && (
+          <>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, styles.legendDotGps]} />
+              <Text style={styles.legendLabel}>祈禱（定位）</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, styles.legendDotAnon]} />
+              <Text style={styles.legendLabel}>祈禱（匿名）</Text>
+            </View>
+          </>
+        )}
       </View>
 
       {/* Search */}
@@ -539,8 +583,8 @@ export function BasilicaMap() {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <ThemedText style={styles.statValue}>11+</ThemedText>
-            <ThemedText style={styles.statLabel}>個國家</ThemedText>
+            <ThemedText style={styles.statValue}>{prayers.length}</ThemedText>
+            <ThemedText style={styles.statLabel}>次祈禱</ThemedText>
           </View>
         </View>
       </GlassCard>
@@ -997,5 +1041,74 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: "rgba(102,126,234,0.8)",
     marginLeft: "auto",
+  },
+  prayerMarker: {
+    width: 26,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+    borderRadius: 4,
+  },
+  prayerMarkerGps: {
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  prayerMarkerAnon: {
+    backgroundColor: "rgba(60,60,80,0.45)",
+  },
+  prayerCrossV: {
+    position: "absolute",
+    width: 5,
+    height: 28,
+    borderRadius: 2,
+  },
+  prayerCrossH: {
+    position: "absolute",
+    top: 6,
+    width: 20,
+    height: 5,
+    borderRadius: 2,
+  },
+  prayerCrossGold: {
+    backgroundColor: "#f5d680",
+    shadowColor: "#c8922a",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  prayerCrossSilver: {
+    backgroundColor: "#b0b8c8",
+  },
+  mapLegend: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 4,
+  },
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  legendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  legendDotChurch: {
+    backgroundColor: "rgba(102,126,234,0.9)",
+  },
+  legendDotGps: {
+    backgroundColor: "#f5d680",
+  },
+  legendDotAnon: {
+    backgroundColor: "#b0b8c8",
+  },
+  legendLabel: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.6)",
   },
 });
