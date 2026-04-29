@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState } from "react";
+import ReactDOM from "react-dom";
 import { StyleSheet } from "react-native";
 import {
   GoogleMap,
@@ -52,7 +53,6 @@ function groupPrayers(prayers: PrayerRecord[]): PrayerGroup[] {
         used.add(j);
       }
     }
-    // 位置取第一筆的精確座標，不做平均
     groups.push({ lat: prayers[i].latitude, lng: prayers[i].longitude, prayers: group });
   }
   return groups;
@@ -72,28 +72,6 @@ function makePrayerCrossSvg(isGps: boolean): string {
     + `</svg>`;
 }
 
-function makePrayerInfoHtml(group: PrayerGroup): string {
-  const rows = group.prayers.map((p, i) =>
-    `<div style="padding-bottom:10px;margin-bottom:10px;${
-      i < group.prayers.length - 1 ? "border-bottom:1px solid #eee" : ""
-    }">
-      <div style="font-size:11px;color:#c8922a;font-weight:700;margin-bottom:3px;">
-        ${formatTime(p.createdAt)}
-        ${p.locationSource === "default"
-          ? '<span style="color:#aaa;font-weight:400;margin-left:6px;">匿名</span>'
-          : ""}
-      </div>
-      <div style="font-size:13px;color:#333;line-height:1.5;">${p.text}</div>
-    </div>`
-  ).join("");
-
-  const header = group.prayers.length > 1
-    ? `<div style="font-size:11px;color:#888;margin-bottom:8px;">此位置共 ${group.prayers.length} 筆祈禱</div>`
-    : "";
-
-  return `<div style="min-width:180px;max-height:260px;overflow-y:auto;font-family:system-ui,sans-serif;">${header}${rows}</div>`;
-}
-
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface GoogleMapsComponentProps {
   markers: Basilica[];
@@ -111,10 +89,11 @@ export default function GoogleMapsComponent({
   autoFitBounds,
   prayers,
 }: GoogleMapsComponentProps) {
-  const mapRef              = useRef<google.maps.Map | null>(null);
-  const prayerMarkersRef    = useRef<google.maps.Marker[]>([]);
-  const openInfoWindowRef   = useRef<google.maps.InfoWindow | null>(null);
-  const [mapReady, setMapReady] = useState(false);
+  const mapRef           = useRef<google.maps.Map | null>(null);
+  const prayerMarkersRef = useRef<google.maps.Marker[]>([]);
+  const [mapReady, setMapReady]           = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<PrayerGroup | null>(null);
+  const [selectedPrayer, setSelectedPrayer] = useState<PrayerRecord | null>(null);
 
   // ── 選中教堂時置中 ──────────────────────────────────────────────
   useEffect(() => {
@@ -139,15 +118,12 @@ export default function GoogleMapsComponent({
     }
   }, [markers, autoFitBounds]);
 
-  // ── 祈禱標記（分組 + InfoWindow）──────────────────────────────────
+  // ── 祈禱標記（分組，點擊用 React state 管理 overlay）──────────────
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
-
-    // 清除舊標記
     prayerMarkersRef.current.forEach((m) => m.setMap(null));
     prayerMarkersRef.current = [];
-    openInfoWindowRef.current?.close();
-    openInfoWindowRef.current = null;
+    setSelectedGroup(null);
 
     if (!prayers?.length) return;
 
@@ -162,23 +138,13 @@ export default function GoogleMapsComponent({
           scaledSize: new google.maps.Size(26, 34),
           anchor:     new google.maps.Point(13, 34),
         },
-        // 有多筆時顯示數字
         label: group.prayers.length > 1
           ? { text: String(group.prayers.length), color: "#fff", fontSize: "10px", fontWeight: "700" }
           : undefined,
         zIndex: 5,
       });
 
-      marker.addListener("click", () => {
-        openInfoWindowRef.current?.close();
-        const iw = new google.maps.InfoWindow({
-          content: makePrayerInfoHtml(group),
-          position: { lat: group.lat, lng: group.lng },
-        });
-        iw.open(mapRef.current!);
-        openInfoWindowRef.current = iw;
-      });
-
+      marker.addListener("click", () => setSelectedGroup(group));
       prayerMarkersRef.current.push(marker);
     });
   }, [prayers, mapReady]);
@@ -196,8 +162,9 @@ export default function GoogleMapsComponent({
   };
 
   return (
+    <>
     <div style={{ position: "relative", width: "90%", alignSelf: "center" }}>
-      {/* 現在位置按鈕 */}
+      {/* ── 現在位置按鈕 ────────────────────────────────────────── */}
       <button
         type="button"
         onClick={goToCurrentLocation}
@@ -212,6 +179,68 @@ export default function GoogleMapsComponent({
       >
         📍 現在位置
       </button>
+
+      {/* ── 祈禱列表 overlay（點擊標記後出現）─────────────────── */}
+      {selectedGroup && (
+        <div style={{
+          position: "absolute", top: 10, right: 10, zIndex: 20,
+          background: "white", borderRadius: 14,
+          boxShadow: "0 4px 24px rgba(0,0,0,0.22)",
+          width: 260, maxHeight: 300, display: "flex", flexDirection: "column",
+          overflow: "hidden",
+        }}>
+          {/* header */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "10px 14px 8px", borderBottom: "1px solid #f0f0f0",
+          }}>
+            <span style={{ fontWeight: 700, fontSize: 13, color: "#333" }}>
+              {selectedGroup.prayers.length > 1
+                ? `此位置 ${selectedGroup.prayers.length} 筆祈禱`
+                : "祈禱紀錄"}
+            </span>
+            <button
+              onClick={() => setSelectedGroup(null)}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: 16, color: "#999", lineHeight: 1, padding: "0 2px",
+              }}
+            >✕</button>
+          </div>
+
+          {/* list */}
+          <div style={{ overflowY: "auto", flex: 1 }}>
+            {selectedGroup.prayers.map((p, i) => (
+              <div
+                key={p.id}
+                onClick={() => setSelectedPrayer(p)}
+                style={{
+                  padding: "10px 14px",
+                  borderBottom: i < selectedGroup.prayers.length - 1 ? "1px solid #f5f5f5" : "none",
+                  cursor: "pointer",
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#faf8f2"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = ""; }}
+              >
+                <div style={{ fontSize: 11, color: "#c8922a", fontWeight: 700, marginBottom: 3 }}>
+                  {formatTime(p.createdAt)}
+                  {p.locationSource === "default" && (
+                    <span style={{ color: "#aaa", fontWeight: 400, marginLeft: 6 }}>匿名</span>
+                  )}
+                </div>
+                <div style={{
+                  fontSize: 13, color: "#444", lineHeight: 1.45,
+                  display: "-webkit-box", WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical", overflow: "hidden",
+                } as React.CSSProperties}>
+                  {p.text}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <LoadScript googleMapsApiKey={MAP_CONFIG.apiKey}>
         <GoogleMap
@@ -251,7 +280,58 @@ export default function GoogleMapsComponent({
           ))}
         </GoogleMap>
       </LoadScript>
+
     </div>
+
+      {/* ── 完整祈禱紀錄 Modal（Portal 掛到 body，不受任何 stacking context 影響）── */}
+      {selectedPrayer && ReactDOM.createPortal(
+        <div
+          onClick={() => setSelectedPrayer(null)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 99999,
+            background: "rgba(0,0,0,0.55)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "white", borderRadius: 18,
+              padding: "24px 28px", width: "90%", maxWidth: 480,
+              maxHeight: "80vh", overflowY: "auto",
+              boxShadow: "0 8px 40px rgba(0,0,0,0.3)",
+              position: "relative",
+            }}
+          >
+            <button
+              onClick={() => setSelectedPrayer(null)}
+              style={{
+                position: "absolute", top: 16, right: 18,
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: 20, color: "#bbb", lineHeight: 1,
+              }}
+            >✕</button>
+
+            <div style={{ fontSize: 12, color: "#c8922a", fontWeight: 700, marginBottom: 4 }}>
+              {formatTime(selectedPrayer.createdAt)}
+              {selectedPrayer.locationSource === "default" && (
+                <span style={{ color: "#bbb", fontWeight: 400, marginLeft: 8 }}>匿名</span>
+              )}
+            </div>
+
+            <div style={{ height: 1, background: "#f0f0f0", marginBottom: 16 }} />
+
+            <div style={{
+              fontSize: 15, color: "#333", lineHeight: 1.75,
+              whiteSpace: "pre-wrap", wordBreak: "break-word",
+            }}>
+              {selectedPrayer.text}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
 
