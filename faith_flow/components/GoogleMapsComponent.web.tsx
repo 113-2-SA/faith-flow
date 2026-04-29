@@ -1,5 +1,5 @@
-import React, { useRef, useEffect } from "react";
-import { View, StyleSheet } from "react-native";
+import React, { useRef, useEffect, useState } from "react";
+import { StyleSheet } from "react-native";
 import {
   GoogleMap,
   LoadScript,
@@ -7,7 +7,9 @@ import {
   InfoWindow,
 } from "@react-google-maps/api";
 import { MAP_CONFIG, GLASS_RELIGIOUS_MAP_STYLE } from "../config/mapConfig";
+import type { PrayerRecord } from "../app/prayerStore";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
 export type Basilica = {
   id: string;
   name: string;
@@ -23,132 +25,241 @@ export type Basilica = {
   viewerUrl: string;
 };
 
+type PrayerGroup = {
+  lat: number;
+  lng: number;
+  prayers: PrayerRecord[];
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const GOLD_LIGHT = "#f5d680";
+const SILVER     = "#b0b8c8";
+const THRESHOLD  = 0.0003; // ~30 m
+
+function groupPrayers(prayers: PrayerRecord[]): PrayerGroup[] {
+  const used = new Set<number>();
+  const groups: PrayerGroup[] = [];
+  for (let i = 0; i < prayers.length; i++) {
+    if (used.has(i)) continue;
+    const group: PrayerRecord[] = [prayers[i]];
+    used.add(i);
+    for (let j = i + 1; j < prayers.length; j++) {
+      if (used.has(j)) continue;
+      const dlat = prayers[i].latitude  - prayers[j].latitude;
+      const dlng = prayers[i].longitude - prayers[j].longitude;
+      if (Math.sqrt(dlat * dlat + dlng * dlng) < THRESHOLD) {
+        group.push(prayers[j]);
+        used.add(j);
+      }
+    }
+    // 位置取第一筆的精確座標，不做平均
+    groups.push({ lat: prayers[i].latitude, lng: prayers[i].longitude, prayers: group });
+  }
+  return groups;
+}
+
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} `
+    + `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+}
+
+function makePrayerCrossSvg(isGps: boolean): string {
+  const c = isGps ? GOLD_LIGHT : SILVER;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="34" viewBox="0 0 26 34">`
+    + `<rect x="10.5" y="3" width="5" height="28" rx="2" fill="${c}"/>`
+    + `<rect x="3" y="9" width="20" height="5" rx="2" fill="${c}"/>`
+    + `</svg>`;
+}
+
+function makePrayerInfoHtml(group: PrayerGroup): string {
+  const rows = group.prayers.map((p, i) =>
+    `<div style="padding-bottom:10px;margin-bottom:10px;${
+      i < group.prayers.length - 1 ? "border-bottom:1px solid #eee" : ""
+    }">
+      <div style="font-size:11px;color:#c8922a;font-weight:700;margin-bottom:3px;">
+        ${formatTime(p.createdAt)}
+        ${p.locationSource === "default"
+          ? '<span style="color:#aaa;font-weight:400;margin-left:6px;">匿名</span>'
+          : ""}
+      </div>
+      <div style="font-size:13px;color:#333;line-height:1.5;">${p.text}</div>
+    </div>`
+  ).join("");
+
+  const header = group.prayers.length > 1
+    ? `<div style="font-size:11px;color:#888;margin-bottom:8px;">此位置共 ${group.prayers.length} 筆祈禱</div>`
+    : "";
+
+  return `<div style="min-width:180px;max-height:260px;overflow-y:auto;font-family:system-ui,sans-serif;">${header}${rows}</div>`;
+}
+
+// ─── Props ────────────────────────────────────────────────────────────────────
 interface GoogleMapsComponentProps {
   markers: Basilica[];
   onMarkerPress: (id: string) => void;
   selectedId: string | null;
   autoFitBounds?: boolean;
+  prayers?: PrayerRecord[];
 }
 
+// ─── Component ────────────────────────────────────────────────────────────────
 export default function GoogleMapsComponent({
   markers,
   onMarkerPress,
   selectedId,
   autoFitBounds,
+  prayers,
 }: GoogleMapsComponentProps) {
-  const mapRef = useRef<google.maps.Map | null>(null);
+  const mapRef              = useRef<google.maps.Map | null>(null);
+  const prayerMarkersRef    = useRef<google.maps.Marker[]>([]);
+  const openInfoWindowRef   = useRef<google.maps.InfoWindow | null>(null);
+  const [mapReady, setMapReady] = useState(false);
 
+  // ── 選中教堂時置中 ──────────────────────────────────────────────
   useEffect(() => {
-    // 當選中的marker變化時，使地圖居中
-    if (selectedId && mapRef.current) {
-      const selected = markers.find((m) => m.id === selectedId);
-      if (selected) {
-        mapRef.current.panTo({
-          lat: selected.coordinates[0],
-          lng: selected.coordinates[1],
-        });
-        mapRef.current.setZoom(10);
-      }
+    if (!selectedId || !mapRef.current) return;
+    const sel = markers.find((m) => m.id === selectedId);
+    if (sel) {
+      mapRef.current.panTo({ lat: sel.coordinates[0], lng: sel.coordinates[1] });
+      mapRef.current.setZoom(10);
     }
   }, [selectedId, markers]);
 
+  // ── 搜尋/篩選自動 fitBounds ─────────────────────────────────────
   useEffect(() => {
-    // 當使用者輸入搜尋條件或篩選時，自動調整地圖邊界以包含所有符合的標記
-    if (autoFitBounds && mapRef.current && markers.length > 0) {
-      if (markers.length === 1) {
-        mapRef.current.panTo({
-          lat: markers[0].coordinates[0],
-          lng: markers[0].coordinates[1],
-        });
-        mapRef.current.setZoom(10);
-      } else {
-        const bounds = new window.google.maps.LatLngBounds();
-        markers.forEach((m) => bounds.extend({ lat: m.coordinates[0], lng: m.coordinates[1] }));
-        mapRef.current.fitBounds(bounds);
-      }
+    if (!autoFitBounds || !mapRef.current || markers.length === 0) return;
+    if (markers.length === 1) {
+      mapRef.current.panTo({ lat: markers[0].coordinates[0], lng: markers[0].coordinates[1] });
+      mapRef.current.setZoom(10);
+    } else {
+      const bounds = new window.google.maps.LatLngBounds();
+      markers.forEach((m) => bounds.extend({ lat: m.coordinates[0], lng: m.coordinates[1] }));
+      mapRef.current.fitBounds(bounds);
     }
   }, [markers, autoFitBounds]);
 
+  // ── 祈禱標記（分組 + InfoWindow）──────────────────────────────────
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+
+    // 清除舊標記
+    prayerMarkersRef.current.forEach((m) => m.setMap(null));
+    prayerMarkersRef.current = [];
+    openInfoWindowRef.current?.close();
+    openInfoWindowRef.current = null;
+
+    if (!prayers?.length) return;
+
+    const groups = groupPrayers(prayers);
+    groups.forEach((group) => {
+      const isGps = group.prayers[0].locationSource === "gps";
+      const marker = new google.maps.Marker({
+        position: { lat: group.lat, lng: group.lng },
+        map: mapRef.current!,
+        icon: {
+          url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(makePrayerCrossSvg(isGps)),
+          scaledSize: new google.maps.Size(26, 34),
+          anchor:     new google.maps.Point(13, 34),
+        },
+        // 有多筆時顯示數字
+        label: group.prayers.length > 1
+          ? { text: String(group.prayers.length), color: "#fff", fontSize: "10px", fontWeight: "700" }
+          : undefined,
+        zIndex: 5,
+      });
+
+      marker.addListener("click", () => {
+        openInfoWindowRef.current?.close();
+        const iw = new google.maps.InfoWindow({
+          content: makePrayerInfoHtml(group),
+          position: { lat: group.lat, lng: group.lng },
+        });
+        iw.open(mapRef.current!);
+        openInfoWindowRef.current = iw;
+      });
+
+      prayerMarkersRef.current.push(marker);
+    });
+  }, [prayers, mapReady]);
+
+  // ── 現在位置 ─────────────────────────────────────────────────────
+  const goToCurrentLocation = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        mapRef.current?.panTo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        mapRef.current?.setZoom(17);
+      },
+      () => alert("無法取得目前位置，請確認瀏覽器定位權限。")
+    );
+  };
+
   return (
-    <LoadScript googleMapsApiKey={MAP_CONFIG.apiKey}>
-      <GoogleMap
-        mapContainerStyle={styles.mapContainer}
-        center={MAP_CONFIG.defaultCenter}
-        zoom={MAP_CONFIG.defaultZoom}
-        onLoad={(map) => { mapRef.current = map; }}
-        options={{
-          styles: GLASS_RELIGIOUS_MAP_STYLE as any,
+    <div style={{ position: "relative", width: "90%", alignSelf: "center" }}>
+      {/* 現在位置按鈕 */}
+      <button
+        type="button"
+        onClick={goToCurrentLocation}
+        style={{
+          position: "absolute", bottom: 16, right: 12, zIndex: 10,
+          padding: "8px 14px", borderRadius: 20, border: "none",
+          background: "rgba(255,255,255,0.92)",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+          fontWeight: 600, fontSize: 13, cursor: "pointer",
+          display: "flex", alignItems: "center", gap: 5,
         }}
       >
-        {markers.map((basilica) => (
-          <React.Fragment key={basilica.id}>
-            <Marker
-              position={{
-                lat: basilica.coordinates[0],
-                lng: basilica.coordinates[1],
-              }}
-              title={basilica.name}
-              onClick={() => onMarkerPress(basilica.id)}
-              icon={{
-                path: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z",
-                fillColor: "#666fee",
-                fillOpacity: 0.9,
-                strokeColor: "#fff",
-                strokeWeight: 2,
-                scale: 1.5,
-              }}
-            />
-            {selectedId === basilica.id && (
-              <InfoWindow
-                position={{
-                  lat: basilica.coordinates[0],
-                  lng: basilica.coordinates[1],
+        📍 現在位置
+      </button>
+
+      <LoadScript googleMapsApiKey={MAP_CONFIG.apiKey}>
+        <GoogleMap
+          mapContainerStyle={styles.mapContainer}
+          center={MAP_CONFIG.defaultCenter}
+          zoom={MAP_CONFIG.defaultZoom}
+          onLoad={(map) => { mapRef.current = map; setMapReady(true); }}
+          options={{ styles: GLASS_RELIGIOUS_MAP_STYLE as any }}
+        >
+          {/* 教堂標記 */}
+          {markers.map((basilica) => (
+            <React.Fragment key={basilica.id}>
+              <Marker
+                position={{ lat: basilica.coordinates[0], lng: basilica.coordinates[1] }}
+                title={basilica.name}
+                onClick={() => onMarkerPress(basilica.id)}
+                icon={{
+                  path: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z",
+                  fillColor: "#666fee", fillOpacity: 0.9,
+                  strokeColor: "#fff", strokeWeight: 2, scale: 1.5,
                 }}
-                onCloseClick={() => onMarkerPress("")}
-              >
-                <View style={styles.infoWindow}>
-                  <View style={styles.infoTitle}>{basilica.name}</View>
-                  <View style={styles.infoSubtitle}>{basilica.nameEn}</View>
-                  <View style={styles.infoText}>📍 {basilica.location}</View>
-                  <View style={styles.infoText}>⏰ {basilica.founded} 年</View>
-                </View>
-              </InfoWindow>
-            )}
-          </React.Fragment>
-        ))}
-      </GoogleMap>
-    </LoadScript>
+              />
+              {selectedId === basilica.id && (
+                <InfoWindow
+                  position={{ lat: basilica.coordinates[0], lng: basilica.coordinates[1] }}
+                  onCloseClick={() => onMarkerPress("")}
+                >
+                  <div style={{ fontFamily: "system-ui,sans-serif", padding: 4, minWidth: 160 }}>
+                    <div style={{ fontWeight: "bold", fontSize: 14, marginBottom: 4 }}>{basilica.name}</div>
+                    <div style={{ fontSize: 12, color: "#666", fontStyle: "italic", marginBottom: 6 }}>{basilica.nameEn}</div>
+                    <div style={{ fontSize: 12, color: "#555", marginBottom: 2 }}>📍 {basilica.location}</div>
+                    <div style={{ fontSize: 12, color: "#555" }}>⏰ {basilica.founded} 年</div>
+                  </div>
+                </InfoWindow>
+              )}
+            </React.Fragment>
+          ))}
+        </GoogleMap>
+      </LoadScript>
+    </div>
   );
 }
 
 const styles = StyleSheet.create({
   mapContainer: {
-    width: "90%",
+    width: "100%",
     height: 300,
     borderRadius: 12,
     overflow: "hidden",
-  },
-  infoWindow: {
-    backgroundColor: "white",
-    padding: 12,
-    borderRadius: 8,
-    maxWidth: 280,
-  },
-  infoTitle: {
-    fontSize: 14,
-    fontWeight: "bold",
-    marginBottom: 4,
-    color: "#333",
-  },
-  infoSubtitle: {
-    fontSize: 12,
-    color: "#666",
-    marginBottom: 6,
-    fontStyle: "italic",
-  },
-  infoText: {
-    fontSize: 12,
-    color: "#555",
-    marginBottom: 2,
-  },
+  } as any,
 });

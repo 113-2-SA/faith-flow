@@ -242,6 +242,7 @@ export function BasilicaMap() {
         ref={scrollViewRef}
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
+        nestedScrollEnabled={true}
       >
         {/* Header */}
         <View style={styles.headerSection}>
