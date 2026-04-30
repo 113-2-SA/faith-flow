@@ -1,9 +1,9 @@
 import React, { useRef, useEffect, useState } from "react";
-import ReactDOM from "react-dom";
+import { createPortal } from "react-dom";
 import { StyleSheet } from "react-native";
 import {
   GoogleMap,
-  LoadScript,
+  useJsApiLoader,
   Marker,
   InfoWindow,
 } from "@react-google-maps/api";
@@ -96,6 +96,7 @@ export default function GoogleMapsComponent({
   autoFitBounds,
   prayers,
 }: GoogleMapsComponentProps) {
+  const { isLoaded } = useJsApiLoader({ googleMapsApiKey: MAP_CONFIG.apiKey });
   const mapRef           = useRef<google.maps.Map | null>(null);
   const prayerMarkersRef = useRef<google.maps.Marker[]>([]);
   const [mapReady, setMapReady]           = useState(false);
@@ -249,7 +250,7 @@ export default function GoogleMapsComponent({
         </div>
       )}
 
-      <LoadScript googleMapsApiKey={MAP_CONFIG.apiKey}>
+      {isLoaded && (
         <GoogleMap
           mapContainerStyle={styles.mapContainer}
           center={MAP_CONFIG.defaultCenter}
@@ -286,12 +287,12 @@ export default function GoogleMapsComponent({
             </React.Fragment>
           ))}
         </GoogleMap>
-      </LoadScript>
+      )}
 
     </div>
 
       {/* ── 完整祈禱紀錄 Modal（Portal 掛到 body，不受任何 stacking context 影響）── */}
-      {selectedPrayer && ReactDOM.createPortal(
+      {selectedPrayer && createPortal(
         <div
           onClick={() => setSelectedPrayer(null)}
           style={{
