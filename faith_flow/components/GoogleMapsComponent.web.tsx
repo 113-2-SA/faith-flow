@@ -96,7 +96,11 @@ export default function GoogleMapsComponent({
   autoFitBounds,
   prayers,
 }: GoogleMapsComponentProps) {
-  const { isLoaded: jsApiLoaded } = useJsApiLoader({ googleMapsApiKey: MAP_CONFIG.apiKey });
+  const { isLoaded: jsApiLoaded } = useJsApiLoader({
+    googleMapsApiKey: MAP_CONFIG.apiKey,
+    language: "zh-TW",
+    region: "TW",
+  });
   const isLoaded = jsApiLoaded || (typeof window !== "undefined" && !!window.google?.maps);
   const mapRef           = useRef<google.maps.Map | null>(null);
   const prayerMarkersRef = useRef<google.maps.Marker[]>([]);
