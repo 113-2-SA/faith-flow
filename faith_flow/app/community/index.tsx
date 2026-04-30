@@ -619,7 +619,7 @@ export default function CommunityFeedScreen() {
         {/* FAB */}
         <TouchableOpacity
           style={styles.fab}
-          onPress={() => router.push('/community/create')}
+          onPress={() => router.push('./community/create')}
         >
           <Text style={styles.fabText}>+</Text>
         </TouchableOpacity>

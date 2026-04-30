@@ -1,7 +1,7 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
 import MapView, { Marker } from "react-native-maps";
-import { PrayerRecord } from "../app/prayerStore";
+import { PrayerRecord } from "../lib/prayerStore";
 
 type Props = {
   prayers: PrayerRecord[];

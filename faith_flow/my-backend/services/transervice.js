@@ -1,175 +1,148 @@
 // ==================== services/transService.js ====================
 const WebSocket = require('ws');
 
-/**
- * 語音轉錄服務 - 使用 Deepgram API
- */
 class TranscriptionService {
   constructor() {
-    this.DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY || "86ea6356170653e13a993f5c27ea0892938ca8aa";
-    this.DEEPGRAM_URL = 
-      "wss://api.deepgram.com/v1/listen" +
-      "?language=zh-TW" +
-      "&model=nova-2" +
-      "&punctuate=true" +
-      "&smart_format=true" +
-      "&channels=1" +
-      "&interim_results=true" +
-      "&endpointing=300";
+    this.DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY;
+    if (!this.DEEPGRAM_API_KEY) throw new Error('缺少 DEEPGRAM_API_KEY 環境變數');
     this.KEEPALIVE_INTERVAL_MS = 5000;
   }
 
-  /**
-   * 處理客戶端 WebSocket 連線
-   * @param {WebSocket} clientWs - 來自 APP 的 WebSocket 連線
-   */
-  async handleConnection(clientWs) {
-    console.log('🙏 [Transcription] 祈禱者已連線');
+  async handleConnection(clientWs, req) {
+    const params = new URLSearchParams((req?.url || '').split('?')[1] || '');
+    const lang = params.get('lang') || 'zh-TW';
+    const deepgramUrl =
+      'wss://api.deepgram.com/v1/listen' +
+      `?language=${lang}` +
+      '&model=nova-2' +
+      '&punctuate=true' +
+      '&smart_format=true' +
+      '&channels=1' +
+      '&interim_results=true' +
+      '&endpointing=300';
+
+    console.log(`🙏 [Transcription] 祈禱者已連線 lang=${lang}`);
 
     let deepgramWs = null;
     let keepaliveInterval = null;
     let isClosing = false;
+    let isConnecting = false;
+    const audioQueue = [];
 
-    try {
-      // 連接到 Deepgram
-      deepgramWs = new WebSocket(this.DEEPGRAM_URL, {
-        headers: {
-          'Authorization': `Token ${this.DEEPGRAM_API_KEY}`
-        }
+    // ── 建立 Deepgram 連線（可重複呼叫，自帶 guard）─────────────────────────
+    const connectDeepgram = () => {
+      if (isClosing || isConnecting) return;
+      if (deepgramWs?.readyState <= WebSocket.OPEN) return; // CONNECTING(0) or OPEN(1)
+      isConnecting = true;
+
+      const dg = new WebSocket(deepgramUrl, {
+        headers: { Authorization: `Token ${this.DEEPGRAM_API_KEY}` },
       });
+      deepgramWs = dg;
 
-      // Deepgram 連線成功
-      deepgramWs.on('open', () => {
+      dg.on('open', () => {
         console.log('✅ [Transcription] Deepgram 連線成功');
+        isConnecting = false;
+        this.sendToClient(clientWs, { type: 'status', status: 'connected', message: 'Deepgram 已連線' });
 
-        // 發送連線成功訊息給 APP
-        this.sendToClient(clientWs, {
-          type: 'status',
-          status: 'connected',
-          message: 'Deepgram 已連線'
-        });
-
-        // 啟動 keepalive（保持 Deepgram 連線）
+        if (keepaliveInterval) clearInterval(keepaliveInterval);
         keepaliveInterval = setInterval(() => {
-          if (deepgramWs && deepgramWs.readyState === WebSocket.OPEN) {
-            deepgramWs.send(JSON.stringify({ type: 'KeepAlive' }));
-          }
+          if (dg.readyState === WebSocket.OPEN) dg.send(JSON.stringify({ type: 'KeepAlive' }));
         }, this.KEEPALIVE_INTERVAL_MS);
+
+        // 把排隊中的音訊一次沖出去
+        while (audioQueue.length > 0) dg.send(audioQueue.shift());
       });
 
-      // 接收 Deepgram 轉錄結果
-      deepgramWs.on('message', (data) => {
+      dg.on('message', (data) => {
         try {
           const result = JSON.parse(data.toString());
-          
-          // 只處理轉錄結果
           if (result.type !== 'Results') {
             console.log(`[Deepgram] type=${result.type}`);
             return;
           }
-
           const alt = result.channel?.alternatives?.[0];
           if (!alt) return;
-
           const transcript = (alt.transcript || '').trim();
           if (!transcript) return;
-
           const confidence = alt.confidence || 0;
           const isFinal = Boolean(result.is_final);
-
-          console.log(`[Deepgram] conf=${confidence.toFixed(2)} final=${isFinal} text='${transcript.substring(0, 50)}...'`);
-
-          // 發送轉錄結果給 APP
+          console.log(`[Deepgram] conf=${confidence.toFixed(2)} final=${isFinal} text='${transcript.substring(0, 50)}'`);
           this.sendToClient(clientWs, {
             type: 'transcript',
-            transcript: transcript,
+            transcript,
             is_final: isFinal,
             speech_final: Boolean(result.speech_final),
-            confidence: confidence
+            confidence,
           });
-
         } catch (err) {
           console.error('❌ [Transcription] 解析 Deepgram 訊息失敗:', err.message);
         }
       });
 
-      // Deepgram 錯誤處理
-      deepgramWs.on('error', (err) => {
+      dg.on('error', (err) => {
         console.error('❌ [Transcription] Deepgram 錯誤:', err.message);
-        this.sendToClient(clientWs, {
-          type: 'error',
-          error: 'Deepgram 連線錯誤',
-          detail: err.message
-        });
+        isConnecting = false;
+        this.sendToClient(clientWs, { type: 'error', error: 'Deepgram 連線錯誤', detail: err.message });
       });
 
-      // Deepgram 連線關閉
-      deepgramWs.on('close', (code, reason) => {
-        console.log(`🔌 [Transcription] Deepgram 已關閉 code=${code} reason=${reason || '(none)'}`);
-        if (keepaliveInterval) {
-          clearInterval(keepaliveInterval);
+      dg.on('close', (code, reason) => {
+        const reasonStr = reason?.toString() || '(none)';
+        console.log(`🔌 [Transcription] Deepgram 已關閉 code=${code} reason=${reasonStr}`);
+        isConnecting = false;
+        if (keepaliveInterval) { clearInterval(keepaliveInterval); keepaliveInterval = null; }
+        if (!isClosing && code !== 1000) {
+          this.sendToClient(clientWs, {
+            type: 'error',
+            error: `語音服務連線中斷 (code=${code})，請確認 Deepgram API Key 是否有效`,
+          });
         }
       });
+    };
 
-      // 接收 APP 傳來的音訊資料
-      clientWs.on('message', (data) => {
-        if (isClosing) return;
+    // ── 接收 APP 音訊 ────────────────────────────────────────────────────────
+    clientWs.on('message', (data, isBinary) => {
+      if (isClosing) return;
 
+      if (isBinary) {
+        const buf = Buffer.isBuffer(data)
+          ? data
+          : Array.isArray(data)
+          ? Buffer.concat(data)
+          : Buffer.from(data);
+
+        if (deepgramWs?.readyState === WebSocket.OPEN) {
+          console.log(`[音訊] ${buf.length} bytes → Deepgram`);
+          deepgramWs.send(buf);
+        } else {
+          // Deepgram 尚未連線或已斷 → 排隊並觸發連線
+          audioQueue.push(buf);
+          connectDeepgram();
+        }
+      } else {
         try {
-          // APP 傳來的是音訊 binary data
-          if (Buffer.isBuffer(data)) {
-            if (deepgramWs && deepgramWs.readyState === WebSocket.OPEN) {
-              console.log(`[音訊] ${data.length} bytes`);
-              deepgramWs.send(data);
-            }
-          } 
-          // 也支援 JSON 控制訊息
-          else {
-            const message = JSON.parse(data.toString());
-            console.log('[APP] 控制訊息:', message);
-            
-            // 處理控制訊息（例如停止錄音）
-            if (message.type === 'stop') {
-              this.closeConnection(deepgramWs, keepaliveInterval);
-            }
-          }
+          const message = JSON.parse(data.toString());
+          console.log('[APP] 控制訊息:', message);
+          if (message.type === 'stop') this.closeConnection(deepgramWs, keepaliveInterval);
         } catch (err) {
-          console.error('❌ [Transcription] 處理 APP 訊息失敗:', err.message);
+          console.error('❌ [Transcription] 解析控制訊息失敗:', err.message);
         }
-      });
-
-      // APP 斷線處理
-      clientWs.on('close', () => {
-        console.log('❌ [Transcription] APP 已斷線');
-        isClosing = true;
-        this.closeConnection(deepgramWs, keepaliveInterval);
-      });
-
-      // APP 錯誤處理
-      clientWs.on('error', (err) => {
-        console.error('❌ [Transcription] APP WebSocket 錯誤:', err.message);
-      });
-
-    } catch (err) {
-      console.error('❌ [Transcription] 連線建立失敗:', err);
-      
-      this.sendToClient(clientWs, {
-        type: 'error',
-        error: '轉錄服務錯誤',
-        detail: err.message
-      });
-      
-      if (clientWs.readyState === WebSocket.OPEN) {
-        clientWs.close(1011, '伺服器錯誤');
       }
-    }
+    });
+
+    clientWs.on('close', () => {
+      console.log('❌ [Transcription] APP 已斷線');
+      isClosing = true;
+      this.closeConnection(deepgramWs, keepaliveInterval);
+    });
+
+    clientWs.on('error', (err) => {
+      console.error('❌ [Transcription] APP WebSocket 錯誤:', err.message);
+    });
   }
 
-  /**
-   * 發送訊息給 APP 客戶端
-   */
   sendToClient(clientWs, data) {
-    if (clientWs && clientWs.readyState === WebSocket.OPEN) {
+    if (clientWs?.readyState === WebSocket.OPEN) {
       try {
         clientWs.send(JSON.stringify(data));
       } catch (err) {
@@ -178,15 +151,9 @@ class TranscriptionService {
     }
   }
 
-  /**
-   * 關閉連線（清理資源）
-   */
   closeConnection(deepgramWs, keepaliveInterval) {
-    if (keepaliveInterval) {
-      clearInterval(keepaliveInterval);
-    }
-
-    if (deepgramWs && deepgramWs.readyState === WebSocket.OPEN) {
+    if (keepaliveInterval) clearInterval(keepaliveInterval);
+    if (deepgramWs?.readyState === WebSocket.OPEN) {
       try {
         deepgramWs.send(JSON.stringify({ type: 'CloseStream' }));
         deepgramWs.close();

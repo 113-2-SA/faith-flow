@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { GoogleMap, LoadScript, InfoWindow } from "@react-google-maps/api";
-import { PrayerRecord } from "../app/prayerStore";
+import { PrayerRecord } from "../lib/prayerStore";
 
 type Props = {
   prayers: PrayerRecord[];

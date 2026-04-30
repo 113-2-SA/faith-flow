@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import { getAuth } from "firebase/auth";
+import { auth } from "../lib/firebase";
+import { API_BASE_URL } from "../lib/api";
 
 // ─── 型別 ───────────────────────────────────────────────────────────────────
 type TranscriptMsg = {
@@ -23,12 +24,10 @@ type PreviewData = {
 };
 
 // ─── 常數 ───────────────────────────────────────────────────────────────────
-const WS_URL = "ws://localhost:3000/ws/transcribe";
-const API_URL = "http://localhost:3000";
+const WS_URL = `${API_BASE_URL.replace(/^http/, "ws")}/ws/transcribe`;
 
 // ─── 工具函式 ────────────────────────────────────────────────────────────────
 const getAuthToken = async (): Promise<string> => {
-  const auth = getAuth();
   const user = auth.currentUser;
   if (!user) throw new Error("使用者未登入");
   return await user.getIdToken(true);
@@ -344,7 +343,7 @@ export default function Pray() {
     setError("");
     try {
       const token = await getAuthToken();
-      const res = await fetch(`${API_URL}/api/diary/preview-prayer`, {
+      const res = await fetch(`${API_BASE_URL}/api/diary/preview-prayer`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ transcript: text }),
@@ -371,7 +370,7 @@ export default function Pray() {
     setError("");
     try {
       const token = await getAuthToken();
-      const res = await fetch(`${API_URL}/api/diary/from-prayer`, {
+      const res = await fetch(`${API_BASE_URL}/api/diary/from-prayer`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -786,13 +785,13 @@ export default function Pray() {
               <div style={{ display: "flex", gap: 10 }}>
                 <button
                   className="nav-btn btn-green"
-                  onClick={() => router.push("/diary/list")}
+                  onClick={() => router.push("/diary/list" as any)}
                 >
                   前往日記
                 </button>
                 <button
                   className="nav-btn btn-gold"
-                  onClick={() => router.push("/pilgrimage")}
+                  onClick={() => router.push("/pilgrimage" as any)}
                 >
                   前往聖殿地圖
                 </button>

@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { PrayerRecord } from "../prayerStore";
+import { PrayerRecord } from "../lib/prayerStore";
 
 type Props = {
   prayers: PrayerRecord[];

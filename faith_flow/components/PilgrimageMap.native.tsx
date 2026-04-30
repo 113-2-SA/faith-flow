@@ -14,7 +14,7 @@ import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { useChurchPhoto } from "../hooks/useChurchPhoto";
 import { ChurchPanoramaViewer } from "./ChurchPanoramaViewer";
 import { ChurchVideoViewer } from "./ChurchVideoViewer";
-import { loadPrayers, PrayerRecord, clearPrayers } from "../app/prayerStore";
+import { loadPrayers, PrayerRecord, clearPrayers } from "../lib/prayerStore";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 export type Basilica = {

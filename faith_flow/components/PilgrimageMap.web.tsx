@@ -8,7 +8,7 @@ import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
 import { db } from "../lib/firebase";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
-import { loadPrayers, PrayerRecord, clearPrayers } from "../app/prayerStore";
+import { loadPrayers, PrayerRecord, clearPrayers } from "../lib/prayerStore";
 
 const GoogleMapsComponent = lazy(() => import("./GoogleMapsComponent.web"));
 

@@ -8,7 +8,7 @@ import {
   InfoWindow,
 } from "@react-google-maps/api";
 import { MAP_CONFIG, GLASS_RELIGIOUS_MAP_STYLE } from "../config/mapConfig";
-import type { PrayerRecord } from "../app/prayerStore";
+import type { PrayerRecord } from "../lib/prayerStore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type Basilica = {

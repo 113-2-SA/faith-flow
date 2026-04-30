@@ -11,7 +11,7 @@ import { useChurchPhoto } from "../hooks/useChurchPhoto";
 import { ChurchPanoramaViewer } from "./ChurchPanoramaViewer";
 import { ChurchVideoViewer } from "./ChurchVideoViewer";
 import { useFocusEffect } from "expo-router";
-import { loadPrayers, PrayerRecord } from "../app/prayerStore";
+import { loadPrayers, PrayerRecord } from "../lib/prayerStore";
 
 function ChurchPhoto({ nameEn, nameCh }: { nameEn: string; nameCh?: string }) {
   const { photoUrl, loading, error } = useChurchPhoto(nameEn, nameCh);
