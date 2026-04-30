@@ -65,9 +65,9 @@ function formatTime(iso: string): string {
 }
 
 function makeChurchCrossSvg(): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">`
-    + `<rect x="13" y="2" width="6" height="36" rx="3" fill="#1a73e8"/>`
-    + `<rect x="2" y="11" width="28" height="6" rx="3" fill="#1a73e8"/>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="34" viewBox="0 0 26 34">`
+    + `<rect x="10.5" y="3" width="5" height="28" rx="2" fill="#1a73e8"/>`
+    + `<rect x="3" y="9" width="20" height="5" rx="2" fill="#1a73e8"/>`
     + `</svg>`;
 }
 
@@ -96,7 +96,8 @@ export default function GoogleMapsComponent({
   autoFitBounds,
   prayers,
 }: GoogleMapsComponentProps) {
-  const { isLoaded } = useJsApiLoader({ googleMapsApiKey: MAP_CONFIG.apiKey });
+  const { isLoaded: jsApiLoaded } = useJsApiLoader({ googleMapsApiKey: MAP_CONFIG.apiKey });
+  const isLoaded = jsApiLoaded || (typeof window !== "undefined" && !!window.google?.maps);
   const mapRef           = useRef<google.maps.Map | null>(null);
   const prayerMarkersRef = useRef<google.maps.Marker[]>([]);
   const [mapReady, setMapReady]           = useState(false);
@@ -267,8 +268,8 @@ export default function GoogleMapsComponent({
                 onClick={() => onMarkerPress(basilica.id)}
                 icon={{
                   url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(makeChurchCrossSvg()),
-                  scaledSize: new google.maps.Size(32, 40),
-                  anchor: new google.maps.Point(16, 40),
+                  scaledSize: new google.maps.Size(26, 34),
+                  anchor: new google.maps.Point(13, 34),
                 }}
               />
               {selectedId === basilica.id && (
