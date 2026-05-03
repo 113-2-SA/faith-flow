@@ -36,6 +36,7 @@ router.post('/chat', async (req, res) => {
   if (!message) return res.status(400).json({ ok: false, error: 'message 必填' });
 
   const groqApiKey = process.env.GROQ_API_KEY;
+  console.log('[chat] groqApiKey:', groqApiKey ? '有值' : '⚠️ 空的！');
   const model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
   const systemPrompt = `你是「活水泉源」，一個溫暖的天主教信仰陪伴者。
@@ -52,6 +53,7 @@ router.post('/chat', async (req, res) => {
   const userMessage = `對話記錄：\n${conversation}\n\n使用者說：${message}`;
 
   try {
+    console.log('[chat] 開始呼叫 Groq...');
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -69,6 +71,7 @@ router.post('/chat', async (req, res) => {
       }),
     });
     const data = await groqRes.json();
+    console.log('[chat] Groq 回應：', JSON.stringify(data).slice(0, 200));
     const reply = data.choices?.[0]?.message?.content || '（AI 暫時無法回應）';
     return res.json({ ok: true, reply });
   } catch (err) {

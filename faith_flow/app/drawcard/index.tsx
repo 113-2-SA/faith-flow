@@ -26,6 +26,7 @@ type WeeklyCard = {
   depth: string;
   quote: string;
   quote_source: string;
+  image_base64?: string; // 從 daily-card API 取得
 };
 
 export default function DrawCardScreen() {
@@ -39,19 +40,37 @@ export default function DrawCardScreen() {
   }, []);
 
   const fetchWeeklyCards = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch(`${API_BASE}/api/livingwater/weekly-cards`);
-      const data = await res.json();
-      if (data.success) {
-        setCards(data.data);
+  try {
+    setLoading(true);
+
+    // 同時呼叫兩支 API：週卡列表 + 今日卡片（含圖片）
+    const [weeklyRes, dailyRes] = await Promise.all([
+      fetch(`${API_BASE}/api/livingwater/weekly-cards`),
+      fetch(`${API_BASE}/api/livingwater/daily-card`),
+    ]);
+
+    const weeklyData = await weeklyRes.json();
+    const dailyData = await dailyRes.json();
+
+    if (weeklyData.success) {
+      const cards = weeklyData.data;
+
+      // 把今日卡片的 image_base64 補進對應的卡片裡
+      if (dailyData.success && dailyData.data.image_base64) {
+        const todayIndex = cards.findIndex((c: WeeklyCard) => c.id === dailyData.data.id);
+        if (todayIndex !== -1) {
+          cards[todayIndex].image_base64 = dailyData.data.image_base64;
+        }
       }
-    } catch (err) {
-      console.error("[DrawCard] fetchWeeklyCards failed:", err);
-    } finally {
-      setLoading(false);
+
+      setCards(cards);
     }
-  };
+  } catch (err) {
+    console.error("[DrawCard] fetchWeeklyCards failed:", err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // 今天是星期幾（1=一 ~ 5=五）
   const todayDay = (() => {
@@ -117,15 +136,16 @@ export default function DrawCardScreen() {
               style={styles.startBtn}
               onPress={() =>
                 router.push({
-                  pathname: "/drawcard/chat",
-                  params: {
-                    questionId: selectedCard.id,
-                    question: selectedCard.question,
-                    theme: selectedCard.theme,
-                    quote: selectedCard.quote,
-                    quote_source: selectedCard.quote_source,
-                  },
-                })
+  pathname: "/drawcard/chat",
+  params: {
+    questionId: selectedCard.id,
+    question: selectedCard.question,
+    theme: selectedCard.theme,
+    quote: selectedCard.quote,
+    quote_source: selectedCard.quote_source,
+    image_base64: selectedCard.image_base64 || "", // 帶上圖片
+  },
+})
               }
             >
               <Text style={styles.startBtnText}>開啟對話</Text>

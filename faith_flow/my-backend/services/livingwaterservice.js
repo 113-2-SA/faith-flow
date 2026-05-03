@@ -58,27 +58,29 @@ ${conversation}
   "image_prompt": "英文，50-80字，象徵性藝術插畫風格，反映問題情感核心，含 soft warm light, watercolor texture, contemplative mood"
 }`;
 
-  // ── 呼叫 Qwen API ──────────────────────────────────────────
-  // Qwen 使用 OpenAI 相容格式，所以用 /v1/chat/completions
-  const response = await axios.post(
-    `${QWEN_BASE_URL}/v1/chat/completions`,
-    {
-      model: 'qwen2.5:14b', // 確認你們 VM 上跑的模型名稱
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user',   content: userPrompt   },
-      ],
-      temperature: 0.7,  // 0=保守固定, 1=創意發散，0.7 是平衡點
-      max_tokens: 1000,
+// ── 呼叫 Groq API（暫時代替 Qwen，待 Qwen 穩定後可切換回來）──
+const groqApiKey = process.env.GROQ_API_KEY;
+const groqModel = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+
+const response = await axios.post(
+  'https://api.groq.com/openai/v1/chat/completions',
+  {
+    model: groqModel,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user',   content: userPrompt   },
+    ],
+    temperature: 0.7,
+    max_tokens: 1000,
+  },
+  {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${groqApiKey}`,
     },
-    {
-      headers: {
-  'Content-Type': 'application/json',
-  'ngrok-skip-browser-warning': 'true',
-},
-      timeout: 300000, // 120 秒 timeout，避免 Qwen 沒回應就一直等
-    }
-  );
+    timeout: 30000, // Groq 很快，30 秒就夠
+  }
+);
 
   // ── 解析 Qwen 回傳的 JSON ──────────────────────────────────
   const rawText = response.data.choices[0].message.content;

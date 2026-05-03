@@ -18,7 +18,7 @@ import {
 } from "react-native";
 import { useAuth } from "../context/authcontext";
 
-const API_BASE = "http://140.136.155.150:3000";
+const API_BASE = "http://localhost:3000";// 改成 localhost，因為前後端都在同一台 VM 上
 
 type Message = {
   id: string;
@@ -35,16 +35,11 @@ export default function DrawCardChatScreen() {
     theme: string;
     quote: string;
     quote_source: string;
+    image_base64: string; // 新增圖片參數
   }>();
 
-  const [messages, setMessages] = useState<Message[]>([
-    // 第一則是 AI 的問題卡片內容
-    {
-      id: "0",
-      role: "assistant",
-      content: params.question || "",
-    },
-  ]);
+  // 對話串從空的開始，問題卡片已經顯示在上方了
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [showReview, setShowReview] = useState(false);
@@ -102,19 +97,20 @@ export default function DrawCardChatScreen() {
 
   // 結束對話 → 跳到對話總結（5.3）
   const handleEnd = () => {
-    router.push({
-      pathname: "/drawcard/summary",
-      params: {
-        question: params.question,
-        theme: params.theme,
-        quote: params.quote,
-        quote_source: params.quote_source,
-        conversation: messages
-          .map((m) => `${m.role === "user" ? "使用者" : "AI"}：${m.content}`)
-          .join("\n"),
-      },
-    });
-  };
+  router.push({
+    pathname: "/drawcard/summary",
+    params: {
+      question: params.question,
+      theme: params.theme,
+      quote: params.quote,
+      quote_source: params.quote_source,
+      image_base64: params.image_base64 || "", // 繼續帶下去
+      conversation: messages
+        .map((m) => `${m.role === "user" ? "使用者" : "AI"}：${m.content}`)
+        .join("\n"),
+    },
+  });
+};
 
   return (
     <View style={styles.bg}>
@@ -134,18 +130,38 @@ export default function DrawCardChatScreen() {
           <Text style={styles.questionText}>{params.question}</Text>
         </View>
 
-        {/* AI 角色圖（暫用文字代替） */}
+        {/* 🐱 AI 角色圖 */}
         <View style={styles.avatarArea}>
-          <Text style={styles.avatar}>🐱</Text>
+        <Text style={styles.avatar}>🐱</Text>
         </View>
 
-        {/* 最新一則使用者訊息 */}
-        {messages.filter((m) => m.role === "user").length > 0 && (
-          <View style={styles.userBubble}>
-            <Text style={styles.userBubbleText}>
-              {messages.filter((m) => m.role === "user").slice(-1)[0].content}
-            </Text>
-          </View>
+        {/* 完整對話串 */}
+        <FlatList
+        ref={flatListRef}
+        data={messages}
+        keyExtractor={(m) => m.id}
+        style={styles.messageList}
+        contentContainerStyle={styles.messageListContent}
+        onContentSizeChange={() =>
+            flatListRef.current?.scrollToEnd({ animated: true })
+        }
+        renderItem={({ item }) => (
+            <View
+            style={[
+                styles.bubble,
+                item.role === "user" ? styles.bubbleUser : styles.bubbleAI,
+            ]}
+            >
+            <Text style={styles.bubbleText}>{item.content}</Text>
+            </View>
+        )}
+        />
+
+        {/* 載入中提示 */}
+        {loading && (
+        <View style={styles.loadingRow}>
+            <Text style={styles.loadingText}>活水泉源思考中...</Text>
+        </View>
         )}
 
         {/* 輸入框 */}
@@ -239,12 +255,48 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     textAlign: "center",
   },
-  avatarArea: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatar: { fontSize: 80 },
+  // 把原本的 avatarArea 改成這樣（縮小，不佔滿畫面）
+avatarArea: {
+  alignItems: "center",
+  paddingVertical: 8,
+},
+avatar: { fontSize: 40 },  // 原本是 80，縮小一點
+
+// 新增以下樣式
+messageList: {
+  flex: 1,
+  paddingHorizontal: 16,
+},
+messageListContent: {
+  paddingBottom: 8,
+  gap: 8,
+},
+bubble: {
+  maxWidth: "80%",
+  padding: 12,
+  borderRadius: 16,
+},
+bubbleUser: {
+  alignSelf: "flex-end",
+  backgroundColor: "rgba(255,255,255,0.2)",
+},
+bubbleAI: {
+  alignSelf: "flex-start",
+  backgroundColor: "rgba(0,0,0,0.3)",
+},
+bubbleText: {
+  color: "#fff",
+  fontSize: 14,
+  lineHeight: 20,
+},
+loadingRow: {
+  paddingHorizontal: 16,
+  paddingBottom: 4,
+},
+loadingText: {
+  color: "rgba(255,255,255,0.5)",
+  fontSize: 12,
+},
   userBubble: {
     margin: 16,
     padding: 12,
