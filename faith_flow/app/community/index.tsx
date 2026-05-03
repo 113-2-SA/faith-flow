@@ -115,6 +115,10 @@ export default function CommunityFeedScreen() {
   const [searchResults, setSearchResults] = useState<Post[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [sortBy, setSortBy] = useState<'newest' | 'popular'>('newest');
+  const [reportMenuPostId, setReportMenuPostId] = useState<number | null>(null);
+  const [reportModalPostId, setReportModalPostId] = useState<number | null>(null);
+  const [reportReason, setReportReason] = useState('');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
 
   const fetchPosts = useCallback(async (reset = false, tag?: string | null) => {
     if (!currentUser) return;
@@ -234,6 +238,31 @@ export default function CommunityFeedScreen() {
     ]);
   };
 
+  const submitReport = async () => {
+    if (!reportModalPostId || !reportReason || !currentUser) return;
+    setReportSubmitting(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${API_BASE_URL}/api/post/${reportModalPostId}/report`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reportReason }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setReportModalPostId(null);
+        setReportReason('');
+        Alert.alert('已送出', '感謝您的檢舉，我們將盡快審查。');
+      } else {
+        Alert.alert('錯誤', data.error ?? '檢舉失敗');
+      }
+    } catch {
+      Alert.alert('錯誤', '網路連線失敗');
+    } finally {
+      setReportSubmitting(false);
+    }
+  };
+
   const submitShare = async () => {
     if (!shareTarget || !currentUser) return;
     setSharing(true);
@@ -332,18 +361,23 @@ export default function CommunityFeedScreen() {
               <TouchableOpacity onPress={(e) => { e.stopPropagation(); router.push(`/user/${item.author_user_id}` as never); }}>
                 <Text style={styles.authorName}>{item.username ?? '匿名'}</Text>
               </TouchableOpacity>
-              {item.is_owner && (
-                <TouchableOpacity
-                  onPress={() => Alert.alert('操作', '', [
-                    { text: '編輯', onPress: () => router.push(`/community/edit/${item.community_post_id}` as never) },
-                    { text: '刪除', style: 'destructive', onPress: () => deletePost(item.community_post_id) },
-                    { text: '取消', style: 'cancel' },
-                  ])}
+              <TouchableOpacity
+                  onPress={() => {
+                    if (item.is_owner) {
+                      Alert.alert('操作', '', [
+                        { text: '編輯', onPress: () => router.push(`/community/edit/${item.community_post_id}` as never) },
+                        { text: '刪除', style: 'destructive', onPress: () => deletePost(item.community_post_id) },
+                        { text: '取消', style: 'cancel' },
+                      ]);
+                    } else {
+                      setReportMenuPostId(item.community_post_id);
+                    }
+                  }}
                   style={styles.postMenuBtn}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <Text style={styles.postMenuIcon}>⋯</Text>
                 </TouchableOpacity>
-              )}
               {item.post_type !== 'original' && (
                 <Text style={styles.categoryLabel}>
                   {' > '}{POST_TYPE_LABELS[item.post_type]}
@@ -779,6 +813,77 @@ export default function CommunityFeedScreen() {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+      {/* 檢舉選單 Modal */}
+      <Modal
+        visible={reportMenuPostId !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setReportMenuPostId(null)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setReportMenuPostId(null)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.reportMenuCard}>
+            <View style={styles.reportMenuHandle} />
+            <TouchableOpacity
+              style={styles.reportMenuOption}
+              onPress={() => {
+                setReportModalPostId(reportMenuPostId);
+                setReportMenuPostId(null);
+              }}
+            >
+              <Text style={styles.reportMenuOptionRed}>檢舉</Text>
+              <Text style={styles.reportMenuOptionIcon}>⚠️</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* 檢舉原因 Modal */}
+      <Modal
+        visible={reportModalPostId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setReportModalPostId(null); setReportReason(''); }}
+      >
+        <View style={styles.diaryOverlay}>
+          <View style={styles.reportReasonCard}>
+            <Text style={styles.reportReasonTitle}>請選擇檢舉原因</Text>
+            {['我不喜歡', '騷擾', '不符合天主教教義', '不符現實', '其他'].map((r) => (
+              <TouchableOpacity
+                key={r}
+                style={[styles.reportReasonOption, reportReason === r && styles.reportReasonOptionSelected]}
+                onPress={() => setReportReason(r)}
+              >
+                <Text style={[styles.reportReasonOptionText, reportReason === r && styles.reportReasonOptionTextSelected]}>
+                  {r}
+                </Text>
+                {reportReason === r && <Text style={styles.reportReasonCheck}>✓</Text>}
+              </TouchableOpacity>
+            ))}
+            <View style={[styles.modalButtons, { marginTop: 12 }]}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => { setReportModalPostId(null); setReportReason(''); }}
+              >
+                <Text style={styles.modalCancelText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalSubmitBtn, (!reportReason || reportSubmitting) && { opacity: 0.5 }]}
+                onPress={submitReport}
+                disabled={!reportReason || reportSubmitting}
+              >
+                {reportSubmitting
+                  ? <ActivityIndicator size="small" color="white" />
+                  : <Text style={styles.modalSubmitText}>送出檢舉</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </VideoBackground>
   );
@@ -1277,5 +1382,83 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: 'white',
+  },
+
+  // 檢舉相關
+  reportMenuCard: {
+    backgroundColor: 'rgba(30,30,50,0.97)',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 12,
+    paddingBottom: 40,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  reportMenuHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  reportMenuOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+  },
+  reportMenuOptionRed: {
+    fontSize: 16,
+    color: '#FF3B30',
+    fontWeight: '500',
+  },
+  reportMenuOptionIcon: { fontSize: 20 },
+  reportReasonCard: {
+    width: '100%',
+    backgroundColor: 'rgba(18,18,38,0.97)',
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  reportReasonTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  reportReasonOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 6,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  reportReasonOptionSelected: {
+    backgroundColor: 'rgba(255,59,48,0.15)',
+    borderColor: 'rgba(255,59,48,0.4)',
+  },
+  reportReasonOptionText: {
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.85)',
+  },
+  reportReasonOptionTextSelected: {
+    color: '#FF3B30',
+    fontWeight: '600',
+  },
+  reportReasonCheck: {
+    fontSize: 16,
+    color: '#FF3B30',
+    fontWeight: '700',
   },
 });

@@ -598,6 +598,32 @@ class PostService {
         }
     }
 
+    // 檢舉貼文
+    async reportPost(postId, reporterUserId, reason) {
+        const validReasons = ['我不喜歡', '騷擾', '不符合天主教教義', '不符現實', '其他'];
+        if (!validReasons.includes(reason)) {
+            throw new Error('無效的檢舉原因');
+        }
+
+        const postCheck = await pool.query(
+            'SELECT community_post_id, author_user_id FROM community_posts WHERE community_post_id = $1 AND deleted_at IS NULL',
+            [postId]
+        );
+        if (postCheck.rows.length === 0) throw new Error('貼文不存在');
+        if (postCheck.rows[0].author_user_id === reporterUserId) throw new Error('不能檢舉自己的貼文');
+
+        try {
+            await pool.query(
+                'INSERT INTO post_reports (post_id, reporter_user_id, reason) VALUES ($1, $2, $3)',
+                [postId, reporterUserId, reason]
+            );
+            return { success: true };
+        } catch (error) {
+            if (error.code === '23505') throw new Error('您已經檢舉過這篇貼文');
+            throw error;
+        }
+    }
+
     // 驗證貼文擁有者
     async isPostOwner(postId, userId) {
         const query = `
