@@ -14,6 +14,7 @@ import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { useChurchPhoto } from "../hooks/useChurchPhoto";
 import { ChurchPanoramaViewer } from "./ChurchPanoramaViewer";
 import { ChurchVideoViewer } from "./ChurchVideoViewer";
+import { ChurchImageViewer } from "./ChurchImageViewer";
 import { loadPrayers, PrayerRecord, clearPrayers } from "../app/prayerStore";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -81,10 +82,11 @@ export function PilgrimageMap() {
   const [displayCount, setDisplayCount] = useState(3);
   const [showPanorama, setShowPanorama] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
+  const [showImages, setShowImages] = useState(false);
 
   useFocusEffect(useCallback(() => { loadPrayers().then(setPrayers); }, []));
 
-  useEffect(() => { setShowPanorama(false); setShowVideo(false); }, [selectedId]);
+  useEffect(() => { setShowPanorama(false); setShowVideo(false); setShowImages(false); }, [selectedId]);
 
   useEffect(() => {
     (async () => {
@@ -329,6 +331,19 @@ export function PilgrimageMap() {
                   <ThemedText type="defaultSemiBold" style={styles.detailSectionTitle}>介紹</ThemedText>
                   <ThemedText style={styles.detailDescription}>{selectedBasilica.description}</ThemedText>
                 </View>
+                <Pressable
+                  onPress={() => setShowImages(true)}
+                  style={({ pressed }) => [styles.actionBtn, styles.imageSearchBtn, pressed && styles.imageSearchBtnPressed]}
+                >
+                  <View style={styles.actionBtnInner}>
+                    <Text style={styles.actionBtnIcon}>🖼️</Text>
+                    <View>
+                      <ThemedText style={styles.actionBtnLabel}>查看圖片</ThemedText>
+                      <ThemedText style={[styles.actionBtnSub, { color: "rgba(52,168,83,0.9)" }]}>Google 圖片搜尋</ThemedText>
+                    </View>
+                    <Text style={[styles.actionBtnArrow, { color: "rgba(52,168,83,0.8)" }]}>›</Text>
+                  </View>
+                </Pressable>
                 {selectedBasilica.videoUrl ? (
                   <Pressable
                     onPress={() => { setShowVideo(true); scrollViewRef.current?.scrollTo({ y: 0, animated: true }); }}
@@ -464,6 +479,15 @@ export function PilgrimageMap() {
         )}
       </ScrollView>
 
+      {/* ── 浮動圖片 ─────────────────────────────────────────────── */}
+      {showImages && selectedBasilica && (
+        <ChurchImageViewer
+          nameEn={selectedBasilica.nameEn}
+          basilicaName={selectedBasilica.name}
+          onClose={() => setShowImages(false)}
+        />
+      )}
+
       {/* ── 浮動影片 ─────────────────────────────────────────────── */}
       {showVideo && selectedBasilica?.videoUrl && (
         <ChurchVideoViewer
@@ -579,6 +603,8 @@ const styles = StyleSheet.create({
   actionBtnSub: { fontSize: 11, marginTop: 2 },
   actionBtnArrow: { fontSize: 24, marginLeft: "auto" as any },
 
+  imageSearchBtn: { borderColor: "rgba(52,168,83,0.6)", backgroundColor: "rgba(52,168,83,0.18)" },
+  imageSearchBtnPressed: { backgroundColor: "rgba(52,168,83,0.38)", borderColor: "rgba(52,168,83,1)" },
   videoBtn: { borderColor: "rgba(220,80,60,0.6)", backgroundColor: "rgba(220,80,60,0.18)" },
   videoBtnPressed: { backgroundColor: "rgba(220,80,60,0.38)", borderColor: "rgba(220,80,60,1)" },
   panoramaBtn: { borderColor: "rgba(102,126,234,0.6)", backgroundColor: "rgba(102,126,234,0.18)" },

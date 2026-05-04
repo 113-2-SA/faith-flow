@@ -10,6 +10,7 @@ import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { useChurchPhoto } from "../hooks/useChurchPhoto";
 import { ChurchPanoramaViewer } from "./ChurchPanoramaViewer";
 import { ChurchVideoViewer } from "./ChurchVideoViewer";
+import { ChurchImageViewer } from "./ChurchImageViewer";
 import { useFocusEffect } from "expo-router";
 import { loadPrayers, PrayerRecord } from "../app/prayerStore";
 
@@ -90,6 +91,7 @@ export function BasilicaMap() {
   const [displayCount, setDisplayCount] = useState(3);
   const [showPanorama, setShowPanorama] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
+  const [showImages, setShowImages] = useState(false);
   const [prayers, setPrayers] = useState<PrayerRecord[]>([]);
 
   useFocusEffect(
@@ -98,10 +100,11 @@ export function BasilicaMap() {
     }, [])
   );
 
-  // 切換教堂時關閉全景與影片
+  // 切換教堂時關閉全景、影片與圖片
   useEffect(() => {
     setShowPanorama(false);
     setShowVideo(false);
+    setShowImages(false);
   }, [selectedId]);
 
   useEffect(() => {
@@ -411,6 +414,28 @@ export function BasilicaMap() {
               </ThemedText>
             </View>
 
+            {/* Google 圖片搜尋按鈕 */}
+            <Pressable
+              onPress={() => setShowImages(true)}
+              style={({ pressed }) => [
+                styles.imageSearchBtn,
+                pressed && styles.imageSearchBtnPressed,
+              ]}
+            >
+              <View style={styles.imageSearchBtnInner}>
+                <Text style={styles.imageSearchBtnIcon}>🖼️</Text>
+                <View>
+                  <ThemedText style={styles.imageSearchBtnLabel}>
+                    查看圖片
+                  </ThemedText>
+                  <ThemedText style={styles.imageSearchBtnSub}>
+                    Google 圖片搜尋
+                  </ThemedText>
+                </View>
+                <Text style={styles.imageSearchBtnArrow}>›</Text>
+              </View>
+            </Pressable>
+
             {/* 查看影片按鈕 */}
             {selectedBasilica.videoUrl ? (
               <Pressable
@@ -590,6 +615,15 @@ export function BasilicaMap() {
         </View>
       </GlassCard>
       </ScrollView>
+
+      {/* 圖片檢視器 */}
+      {showImages && selectedBasilica && (
+        <ChurchImageViewer
+          nameEn={selectedBasilica.nameEn}
+          basilicaName={selectedBasilica.name}
+          onClose={() => setShowImages(false)}
+        />
+      )}
 
       {/* 影片檢視器放置於 ScrollView 外以防佈局干擾 */}
       {showVideo && selectedBasilica?.videoUrl && (
@@ -966,6 +1000,43 @@ const styles = StyleSheet.create({
   noPanoramaText: {
     fontSize: 11,
     color: "rgba(255,255,255,0.4)",
+  },
+  imageSearchBtn: {
+    marginTop: 16,
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(52,168,83,0.6)",
+    backgroundColor: "rgba(52,168,83,0.18)",
+  },
+  imageSearchBtnPressed: {
+    backgroundColor: "rgba(52,168,83,0.38)",
+    borderColor: "rgba(52,168,83,1)",
+  },
+  imageSearchBtnInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  imageSearchBtnIcon: {
+    fontSize: 28,
+  },
+  imageSearchBtnLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.95)",
+  },
+  imageSearchBtnSub: {
+    fontSize: 11,
+    color: "rgba(52,168,83,0.9)",
+    marginTop: 2,
+  },
+  imageSearchBtnArrow: {
+    fontSize: 24,
+    color: "rgba(52,168,83,0.8)",
+    marginLeft: "auto",
   },
   videoBtn: {
     marginTop: 16,

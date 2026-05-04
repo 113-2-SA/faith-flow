@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, TextInput } from "react-
 import React, { useMemo, useState, useEffect, useRef, lazy, Suspense } from "react";
 import { ChurchPanoramaViewer } from "./ChurchPanoramaViewer";
 import { ChurchVideoViewer } from "./ChurchVideoViewer";
+import { ChurchImageViewer } from "./ChurchImageViewer";
 import { GlassCard } from "./GlassCard";
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
@@ -45,11 +46,13 @@ export function BasilicaMap() {
     const [displayCount, setDisplayCount] = useState(3);
     const [showPanorama, setShowPanorama] = useState(false);
     const [showVideo, setShowVideo] = useState(false);
+    const [showImages, setShowImages] = useState(false);
 
-    // 切換教堂時關閉全景與影片
+    // 切換教堂時關閉全景、影片與圖片
     useEffect(() => {
         setShowPanorama(false);
         setShowVideo(false);
+        setShowImages(false);
     }, [selectedId]);
 
     useEffect(() => {
@@ -285,6 +288,28 @@ export function BasilicaMap() {
                                 </ThemedText>
                             </View>
 
+                            {/* Google 圖片搜尋按鈕 */}
+                            <Pressable
+                                onPress={() => setShowImages(true)}
+                                style={({ pressed }) => [
+                                    styles.imageSearchBtn,
+                                    pressed && styles.imageSearchBtnPressed,
+                                ]}
+                            >
+                                <View style={styles.imageSearchBtnInner}>
+                                    <Text style={styles.imageSearchBtnIcon}>🖼️</Text>
+                                    <View>
+                                        <ThemedText style={styles.imageSearchBtnLabel}>
+                                            查看圖片
+                                        </ThemedText>
+                                        <ThemedText style={styles.imageSearchBtnSub}>
+                                            Google 圖片搜尋
+                                        </ThemedText>
+                                    </View>
+                                    <Text style={styles.imageSearchBtnArrow}>›</Text>
+                                </View>
+                            </Pressable>
+
                             {/* 查看影片按鈕 */}
                             {selectedBasilica.videoUrl ? (
                                 <Pressable
@@ -456,6 +481,15 @@ export function BasilicaMap() {
             </View>
 
         </ScrollView>
+
+        {/* 圖片浮動視窗 */}
+        {showImages && selectedBasilica && (
+            <ChurchImageViewer
+                nameEn={selectedBasilica.nameEn}
+                basilicaName={selectedBasilica.name}
+                onClose={() => setShowImages(false)}
+            />
+        )}
 
         {/* 影片浮動視窗 */}
         {showVideo && selectedBasilica?.videoUrl && (
@@ -771,6 +805,44 @@ const styles = StyleSheet.create({
     noPanoramaText: {
         fontSize: 11,
         color: "rgba(255,255,255,0.4)",
+    },
+    imageSearchBtn: {
+        marginTop: 16,
+        borderRadius: 14,
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: "rgba(52,168,83,0.6)",
+        backgroundColor: "rgba(52,168,83,0.18)",
+        cursor: "pointer",
+    },
+    imageSearchBtnPressed: {
+        backgroundColor: "rgba(52,168,83,0.38)",
+        borderColor: "rgba(52,168,83,1)",
+    },
+    imageSearchBtnInner: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        gap: 12,
+    },
+    imageSearchBtnIcon: {
+        fontSize: 28,
+    },
+    imageSearchBtnLabel: {
+        fontSize: 14,
+        fontWeight: "700",
+        color: "rgba(255,255,255,0.95)",
+    },
+    imageSearchBtnSub: {
+        fontSize: 11,
+        color: "rgba(52,168,83,0.9)",
+        marginTop: 2,
+    },
+    imageSearchBtnArrow: {
+        fontSize: 24,
+        color: "rgba(52,168,83,0.8)",
+        marginLeft: "auto",
     },
     videoBtn: {
         marginTop: 16,
