@@ -9,6 +9,7 @@ const attachUserId = require("../middleware/attachuserId");
 const mcp = require("../services/magisteriumMcp");
 const pool = require("../config/database");
 const { findRelevantDiaries } = require("../services/embeddingService");
+const { findRelevantKnowledge } = require("../services/catholicKnowledgeService");
 
 const SOURCE_TIER = {
   MAGISTERIUM: "A",
@@ -189,7 +190,21 @@ async function answererAgent(query, quotedContent, quotedType, options = {}) {
 5. 【語氣要求】用現代口語的繁體中文，像在和朋友聊天一樣自然，避免文言文、宗教腔或過度莊嚴的說法（例如不要用「誠然」「蒙恩」「聖言」「主恩浩蕩」等詞彙），但仍保持尊重
 6. 【重要】請只使用繁體中文，絕對不得使用簡體字`;
 
-  const knowledgeUserMessage = `使用者的問題：${query}${quoteContext}
+  // 從本地知識庫找出相關聖經金句 / 通諭段落
+  let catholicKnowledgeContext = "";
+  try {
+    const relevantKnowledge = await findRelevantKnowledge(query, pool, 3);
+    if (relevantKnowledge.length > 0) {
+      const knowledgeSnippets = relevantKnowledge.map((k, i) =>
+        "[參考資料 " + (i + 1) + "] " + k.reference + "（" + k.title + "）：" + k.content
+      ).join("\n\n");
+      catholicKnowledgeContext = "\n\n[本地天主教知識庫參考資料（聖經金句與通諭段落）]：\n" + knowledgeSnippets + "\n\n以上是從本地知識庫找到的相關資料，可作為補充或引用。";
+    }
+  } catch (err) {
+    console.warn("[Answerer] Catholic knowledge RAG failed:", err.message);
+  }
+
+  const knowledgeUserMessage = `使用者的問題：${query}${quoteContext}${catholicKnowledgeContext}
 
 Magisterium AI 的回答（請整理成繁體中文）：
 ${rawAnswer}`;
@@ -456,6 +471,21 @@ router.post("/stream", verifyToken, attachUserId, async (req, res) => {
       console.warn("[Stream] diary RAG failed:", err.message);
     }
 
+    // Step 2.7：向量搜尋本地天主教知識庫（聖經金句、通諭段落）
+    let catholicKnowledgeContext = "";
+    try {
+      const relevantKnowledge = await findRelevantKnowledge(query, pool, 3);
+      if (relevantKnowledge.length > 0) {
+        console.log("[Stream] 找到 " + relevantKnowledge.length + " 筆相關天主教知識");
+        const knowledgeSnippets = relevantKnowledge.map((k, i) =>
+          "[參考資料 " + (i + 1) + "] " + k.reference + "（" + k.title + "）：" + k.content
+        ).join("\n\n");
+        catholicKnowledgeContext = "\n\n[本地天主教知識庫參考資料（聖經金句與通諭段落）]：\n" + knowledgeSnippets + "\n\n以上是從本地知識庫找到的相關資料，可作為補充或引用。";
+      }
+    } catch (err) {
+      console.warn("[Stream] Catholic knowledge RAG failed:", err.message);
+    }
+
         // Step 3：Retriever（search 供 Magisterium 參考）+ Magisterium chat
     await retrieverAgent(query);
     const chatResult = await mcp.chat(query);
@@ -478,7 +508,7 @@ router.post("/stream", verifyToken, attachUserId, async (req, res) => {
 5. 【語氣要求】用現代口語的繁體中文，像在和朋友聊天一樣自然，避免文言文、宗教腔或過度莊嚴的說法（例如不要用「誠然」「蒙恩」「聖言」「主恩浩蕩」等詞彙），但仍保持尊重
 6. 【重要】請只使用繁體中文，絕對不得使用簡體字`;
 
-    const knowledgeUserMessage = `使用者的問題：${query}${quoteContext}${diaryContext}
+    const knowledgeUserMessage = `使用者的問題：${query}${quoteContext}${diaryContext}${catholicKnowledgeContext}
 
 Magisterium AI 的回答（請整理成繁體中文）：
 ${rawAnswer}`;
