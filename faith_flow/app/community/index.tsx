@@ -15,11 +15,16 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../context/authcontext';
 import { API_BASE_URL } from '../../lib/api';
 import { VideoBackground } from '../../components/VideoBackground';
 import { GlassCard } from '../../components/GlassCard';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CopilotStep, walkthroughable, useCopilot } from 'react-native-copilot';
+
+const WalkthroughableView = walkthroughable(View);
+const COMMUNITY_TOUR_KEY = 'faith_flow_community_tour_v1';
 
 
 
@@ -95,6 +100,7 @@ function timeAgo(dateStr: string): string {
 export default function CommunityFeedScreen() {
   const router = useRouter();
   const { currentUser } = useAuth();
+  const { start } = useCopilot();
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,6 +126,24 @@ export default function CommunityFeedScreen() {
   const [reportModalPostId, setReportModalPostId] = useState<number | null>(null);
   const [reportReason, setReportReason] = useState('');
   const [reportSubmitting, setReportSubmitting] = useState(false);
+
+  // 首次進入自動啟動導覽
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      AsyncStorage.getItem(COMMUNITY_TOUR_KEY).then((done) => {
+        if (!done && !cancelled) {
+          setTimeout(() => {
+            if (!cancelled) {
+              start('community_topbar');
+              AsyncStorage.setItem(COMMUNITY_TOUR_KEY, 'true');
+            }
+          }, 1200);
+        }
+      });
+      return () => { cancelled = true; };
+    }, [start])
+  );
 
   const fetchPosts = useCallback(async (reset = false, tag?: string | null, postType?: string | null) => {
     if (!currentUser) return;
@@ -566,12 +590,26 @@ export default function CommunityFeedScreen() {
     <VideoBackground source={require('../../assets/backgrounds/main.mp4')}>
       <View style={styles.container}>
         {/* Top bar */}
-        <GlassCard style={styles.topBar}>
-          <Text style={styles.topBarTitle}>心靈營火</Text>
-        </GlassCard>
+        <CopilotStep
+          text="心靈營火：這是信仰分享的社群空間，你可以在這裡閱讀他人的祈禱日記與週回顧，互相鼓勵。"
+          order={10}
+          name="community_topbar"
+        >
+          <WalkthroughableView collapsable={false}>
+            <GlassCard style={styles.topBar}>
+              <Text style={styles.topBarTitle}>心靈營火</Text>
+            </GlassCard>
+          </WalkthroughableView>
+        </CopilotStep>
 
         {/* Search bar */}
-        <View style={styles.searchBar}>
+        <CopilotStep
+          text="搜尋貼文：輸入關鍵字可搜尋社群內容，點貼文上的 # 標籤可快速篩選同主題分享。"
+          order={11}
+          name="community_search"
+        >
+          <WalkthroughableView collapsable={false}>
+            <View style={styles.searchBar}>
           <TextInput
             style={styles.searchInput}
             placeholder="搜尋貼文..."
@@ -590,7 +628,9 @@ export default function CommunityFeedScreen() {
               <Text style={styles.searchBtnText}>🔍</Text>
             </TouchableOpacity>
           )}
-        </View>
+            </View>
+          </WalkthroughableView>
+        </CopilotStep>
 
         {/* Sort tabs (only in search mode) */}
         {searchMode && (
@@ -634,6 +674,15 @@ export default function CommunityFeedScreen() {
           </TouchableOpacity>
         )}
 
+        {/* 步驟 12：貼文互動提示 */}
+        <CopilotStep
+          text="貼文互動：🙏 為貼文祈禱按讚、💬 留言回應、🔄 轉發分享，點貼文標題可閱讀完整內容。"
+          order={12}
+          name="community_actions"
+        >
+          <View />
+        </CopilotStep>
+
         {(loading && !refreshing) || searchLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="rgba(255,255,255,0.9)" />
@@ -673,12 +722,37 @@ export default function CommunityFeedScreen() {
           />
         )}
 
-        {/* FAB */}
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => router.push('./community/create')}
+        {/* 步驟 13：發文按鈕 */}
+        <CopilotStep
+          text="發表貼文：點此分享你的祈禱日記、週回顧或信仰心得，讓火苗溫暖更多人。"
+          order={13}
+          name="community_fab"
         >
-          <Text style={styles.fabText}>+</Text>
+          <WalkthroughableView collapsable={false} style={styles.fabWrapper}>
+            <TouchableOpacity
+              style={styles.fab}
+              onPress={() => router.push('./community/create')}
+            >
+              <Text style={styles.fabText}>+</Text>
+            </TouchableOpacity>
+          </WalkthroughableView>
+        </CopilotStep>
+
+        {/* 步驟 14：分享卡片說明 */}
+        <CopilotStep
+          text="點擊分享文字或卡片可閱讀完整內容，與原作者互動。"
+          order={14}
+          name="community_share"
+        >
+          <WalkthroughableView collapsable={false} style={{ height: 0 }} />
+        </CopilotStep>
+
+        {/* 重新啟動導覽 */}
+        <TouchableOpacity
+          style={styles.helpButton}
+          onPress={() => start('community_topbar')}
+        >
+          <Text style={styles.helpButtonText}>?</Text>
         </TouchableOpacity>
       </View>
 
@@ -750,7 +824,9 @@ export default function CommunityFeedScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
-
+    
+    
+    
       {/* Share Modal */}
       <Modal
         visible={!!shareTarget}
@@ -815,7 +891,6 @@ export default function CommunityFeedScreen() {
                 )}
               </View>
             )}
-
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={styles.modalCancelBtn}
@@ -835,8 +910,10 @@ export default function CommunityFeedScreen() {
               </TouchableOpacity>
             </View>
           </View>
+          
         </KeyboardAvoidingView>
       </Modal>
+
       {/* 檢舉選單 Modal */}
       <Modal
         visible={reportMenuPostId !== null}
@@ -1068,10 +1145,46 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.8)',
     textAlign: 'center',
   },
-  fab: {
+  tourActionHint: {
+    marginHorizontal: 16,
+    marginBottom: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  tourActionText: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.6)',
+    textAlign: 'center',
+    letterSpacing: 2,
+  },
+  fabWrapper: {
     position: 'absolute',
     right: 24,
     bottom: 24,
+  },
+  helpButton: {
+    position: 'absolute',
+    right: 24,
+    bottom: 92,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helpButtonText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  fab: {
+    right: 0,
+    bottom: 0,
     width: 56,
     height: 56,
     borderRadius: 28,

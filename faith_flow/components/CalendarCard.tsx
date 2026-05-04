@@ -157,9 +157,7 @@ export function CalendarCard() {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    flex: 1,
-  },
+  card: {},
 
   header: {
     flexDirection: "row",

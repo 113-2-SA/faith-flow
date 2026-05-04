@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { AuthProvider ,useAuth} from "./context/authcontext"
 // import { useAuth } from "../hooks/useAuth";
 import { AppShellProvider } from "../components/AppShell";
+import { CopilotProvider } from "react-native-copilot";
 
 /** 注入全域 CSS，禁止瀏覽器選取畫面元素（僅 web） */
 function GlobalWebStyles() {
@@ -58,9 +59,17 @@ function RootLayoutNav() {
   // 已登入的情況，用共用 Layout 包裹（含側邊欄）
   if (currentUser) {
     return (
-      <AppShellProvider>
-        <Stack screenOptions={{ headerShown: false }} />
-      </AppShellProvider>
+      <CopilotProvider
+        animated
+        overlay="view"
+        stopOnOutsideClick
+        backdropColor="transparent"
+        labels={{ skip: "略過", previous: "上一步", next: "下一步", finish: "完成" }}
+      >
+        <AppShellProvider>
+          <Stack screenOptions={{ headerShown: false }} />
+        </AppShellProvider>
+      </CopilotProvider>
     );
   }
 
