@@ -5,7 +5,19 @@
       "Bash(node -e \"const pkg = require\\(''./package.json''\\); console.log\\(''expo:'', pkg.dependencies.expo\\); console.log\\(''expo-router:'', pkg.dependencies[''expo-router'']\\); console.log\\(''react:'', pkg.dependencies.react\\); console.log\\(''react-native:'', pkg.dependencies[''react-native'']\\);\")",
       "Bash(python3 -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\(''''version:'''', p.get\\(''''version''''\\)\\); print\\(''''exports keys:'''', list\\(p.get\\(''''exports'''',{}\\).keys\\(\\)\\)[:10]\\)\")",
       "Bash(node -e \"const p=require\\(''c:/Users/johan/OneDrive/文件/GitHub/faith-flow/faith_flow/node_modules/@expo/metro-runtime/package.json''\\); console.log\\(''version:'', p.version\\)\")",
-      "Bash(node -e \"const p=require\\(''''c:/Users/johan/OneDrive/文件/GitHub/faith-flow/faith_flow/node_modules/expo-video/package.json''''\\); console.log\\(''''version:'''', p.version\\); console.log\\(''''platforms:'''', p.platforms || p.main\\)\")"
+      "Bash(node -e \"const p=require\\(''''c:/Users/johan/OneDrive/文件/GitHub/faith-flow/faith_flow/node_modules/expo-video/package.json''''\\); console.log\\(''''version:'''', p.version\\); console.log\\(''''platforms:'''', p.platforms || p.main\\)\")",
+      "Bash(git ls-tree *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(npx expo *)",
+      "Bash(curl --connect-timeout 3 -v http://localhost:3000/)",
+      "Bash(curl --connect-timeout 3 -v http://140.136.155.150:3000/)",
+      "Bash(node server.js)",
+      "Bash(curl -s --connect-timeout 3 http://localhost:3000/)",
+      "Bash(curl -s --connect-timeout 3 http://localhost:3000/health)",
+      "Bash(npm show *)",
+      "Bash(node -e \"const f = require\\('@expo-google-fonts/playwrite-no'\\); console.log\\(Object.keys\\(f\\).filter\\(k => k !== 'useFonts'\\)\\);\")",
+      "Bash(node -e \"const fs=require\\('fs'\\); const f=fs.readFileSync\\('c:/Users/johan/OneDrive/文件/GitHub/faith-flow/faith_flow/node_modules/@expo-google-fonts/noto-serif-tc/index.js','utf8'\\); console.log\\(f.match\\(/export const \\\\w+/g\\)?.join\\('\\\\n'\\)\\);\")"
     ]
   }
 }
