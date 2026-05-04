@@ -23,12 +23,12 @@ async function importAllFirebaseUsers() {
   let imported = 0;
   let nextPageToken = undefined;
   
-  console.log("[importAllFirebaseUsers] 開始批次匯入...");
+  console.log("[importAllFirebaseUsers] ?��??�次?�入...");
   
   while (true) {
     const batch = await admin.auth().listUsers(1000, nextPageToken);
     
-    console.log(`[importAllFirebaseUsers] 處理 ${batch.users.length} 位使用者`);
+    console.log(`[importAllFirebaseUsers] ?��? ${batch.users.length} 位使?�者`);
     
     for (const user of batch.users) {
       const firebaseUid = user.uid;
@@ -50,7 +50,7 @@ async function importAllFirebaseUsers() {
         
         imported++;
       } catch (error) {
-        console.error(`[importAllFirebaseUsers] 匯入使用者失敗 (${firebaseUid}):`, error.message);
+        console.error(`[importAllFirebaseUsers] ?�入使用?�失??(${firebaseUid}):`, error.message);
       }
     }
     
@@ -58,7 +58,7 @@ async function importAllFirebaseUsers() {
     if (!nextPageToken) break;
   }
   
-  console.log(`[importAllFirebaseUsers] 完成！共匯入 ${imported} 位使用者`);
+  console.log(`[importAllFirebaseUsers] 完�?！共?�入 ${imported} 位使?�者`);
   return imported;
 }
 
