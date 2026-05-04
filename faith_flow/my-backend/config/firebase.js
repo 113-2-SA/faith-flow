@@ -15,7 +15,8 @@ const serviceAccount = JSON.parse(
 );
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+  credential: admin.credential.cert(serviceAccount),
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
 });
 
 console.log("✅ Firebase Admin SDK 已初始化");

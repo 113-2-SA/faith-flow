@@ -60,7 +60,7 @@ export default function Home() {
             <CalendarCard
               onDatePress={(date) => {
                 setSheetDate(date);
-                setSheetCreateMode(false); // 點擊日期 → 列表模式
+                setSheetCreateMode(false);
                 setSheetOpen(true);
               }}
             />
@@ -94,8 +94,8 @@ export default function Home() {
           date={sheetDate}
           openInCreateMode={sheetCreateMode}
           onDragOpen={() => {
-            setSheetDate(todayStr()); // 拖曳 → 重設為今天
-            setSheetCreateMode(true); // 拖曳 → 新增模式
+            setSheetDate(todayStr());
+            setSheetCreateMode(true);
             setSheetOpen(true);
           }}
           onClose={() => setSheetOpen(false)}

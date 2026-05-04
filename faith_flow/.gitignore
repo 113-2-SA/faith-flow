@@ -47,3 +47,10 @@ my-backend/.env
 my-backend/firebase-sa.json
 *.pem
 *.key
+
+# Magisterium OAuth local secrets
+faith_flow/my-backend/.magisterium.client.json
+faith_flow/my-backend/.magisterium.tokens.json
+
+my-backend/.magisterium.client.json
+my-backend/.magisterium.tokens.json

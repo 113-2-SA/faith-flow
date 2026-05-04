@@ -1,177 +1,73 @@
 // middleware/validation.js
-const { body, param, validationResult } = require('express-validator');
+// 改用手動驗證，移除 express-validator 依賴
 
 const validateCreatePost = [
-    body('post_text')
-        .trim()
-        .notEmpty().withMessage('內文不能為空')
-        .isLength({ max: 5000 }).withMessage('內文不能超過5000字'),
-    
-    body('post_type')
-        .isIn(['letter', 'diary', 'normal', 'shared']).withMessage('無效的貼文類型'),
-    
-    body('visibility')
-        .optional()
-        .isIn(['public', 'private', 'group']).withMessage('無效的可見性設定'),
-
-    body('tags')
-        .optional()
-        .isArray().withMessage('標籤必須是陣列')
-        .custom((tags) => {
-            if (!Array.isArray(tags)) return false;
-            return tags.every(tag => typeof tag === 'string' && tag.length <= 50);
-        })
-        .withMessage('標籤格式錯誤或超過50字'),
-
-    body('letter_id')
-        .optional()
-        .isInt({ min: 1 }).withMessage('letter_id 必須是正整數'),
-    
-    body('diary_id')
-        .optional()
-        .isInt({ min: 1 }).withMessage('diary_id 必須是正整數'),
-
-    (req, res, next) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ 
-                ok: false,
-                errors: errors.array() 
-            });
-        }
-        next();
-    }
+  (req, res, next) => {
+    const { post_text, post_type, visibility, tags } = req.body;
+    if (!post_text || post_text.trim() === '')
+      return res.status(400).json({ ok: false, errors: [{ msg: '貼文內容不得空白' }] });
+    if (post_text.length > 5000)
+      return res.status(400).json({ ok: false, errors: [{ msg: '貼文不得超過5000字' }] });
+    if (!['letter', 'diary', 'normal', 'shared'].includes(post_type))
+      return res.status(400).json({ ok: false, errors: [{ msg: '不合法的貼文類型' }] });
+    next();
+  }
 ];
 
 const validateUpdatePost = [
-    body('post_text')
-        .trim()
-        .notEmpty().withMessage('內文不能為空')
-        .isLength({ max: 5000 }).withMessage('內文不能超過5000字'),
-
-    body('visibility')
-        .optional()
-        .isIn(['public', 'private', 'group']).withMessage('無效的可見性設定'),
-
-    body('tags')
-        .optional()
-        .isArray().withMessage('標籤必須是陣列')
-        .custom((tags) => {
-            if (!Array.isArray(tags)) return false;
-            return tags.every(tag => typeof tag === 'string' && tag.length <= 50);
-        })
-        .withMessage('標籤格式錯誤或超過50字'),
-
-    (req, res, next) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ ok: false, errors: errors.array() });
-        }
-        next();
-    }
+  (req, res, next) => {
+    const { post_text } = req.body;
+    if (!post_text || post_text.trim() === '')
+      return res.status(400).json({ ok: false, errors: [{ msg: '貼文內容不得空白' }] });
+    next();
+  }
 ];
 
 const validatePostId = [
-    param('id')
-        .isInt({ min: 1 }).withMessage('貼文 ID 必須是正整數'),
-    
-    (req, res, next) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ 
-                ok: false,
-                errors: errors.array() 
-            });
-        }
-        next();
-    }
+  (req, res, next) => {
+    if (!Number.isInteger(Number(req.params.id)) || Number(req.params.id) < 1)
+      return res.status(400).json({ ok: false, errors: [{ msg: '不合法的貼文 ID' }] });
+    next();
+  }
 ];
 
 const validateCreateComment = [
-    body('post_id')
-        .isInt({ min: 1 }).withMessage('post_id 必須是正整數'),
-    
-    body('comment_content')
-        .trim()
-        .notEmpty().withMessage('留言內容不能為空')
-        .isLength({ max: 1000 }).withMessage('留言內容不能超過1000字'),
-    
-    body('parent_comment_id')
-        .optional()
-        .isInt({ min: 1 }).withMessage('parent_comment_id 必須是正整數'),
-
-    (req, res, next) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ 
-                ok: false,
-                errors: errors.array() 
-            });
-        }
-        next();
-    }
+  (req, res, next) => {
+    const { post_id, comment_content } = req.body;
+    if (!Number.isInteger(Number(post_id)) || Number(post_id) < 1)
+      return res.status(400).json({ ok: false, errors: [{ msg: 'post_id 必須是正整數' }] });
+    if (!comment_content || comment_content.trim() === '')
+      return res.status(400).json({ ok: false, errors: [{ msg: '留言內容不得空白' }] });
+    next();
+  }
 ];
 
 const validateCommentId = [
-    param('id')
-        .isInt({ min: 1 }).withMessage('留言 ID 必須是正整數'),
-    
-    (req, res, next) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ 
-                ok: false,
-                errors: errors.array() 
-            });
-        }
-        next();
-    }
+  (req, res, next) => {
+    if (!Number.isInteger(Number(req.params.id)) || Number(req.params.id) < 1)
+      return res.status(400).json({ ok: false, errors: [{ msg: '不合法的留言 ID' }] });
+    next();
+  }
 ];
 
 const validateCommentIdParam = [
-    param('commentId')
-        .isInt({ min: 1 }).withMessage('留言 ID 必須是正整數'),
-    
-    (req, res, next) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ 
-                ok: false,
-                errors: errors.array() 
-            });
-        }
-        next();
-    }
+  (req, res, next) => {
+    if (!Number.isInteger(Number(req.params.commentId)) || Number(req.params.commentId) < 1)
+      return res.status(400).json({ ok: false, errors: [{ msg: '不合法的留言 ID' }] });
+    next();
+  }
 ];
 
 const validateSharePost = [
-    body('share_caption')
-        .optional()
-        .trim()
-        .isLength({ max: 500 }).withMessage('轉發說明不能超過500字'),
-    
-    body('visibility')
-        .optional()
-        .isIn(['public', 'private', 'friends']).withMessage('無效的可見性設定'),
-
-    (req, res, next) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ 
-                ok: false,
-                errors: errors.array() 
-            });
-        }
-        next();
-    }
+  (req, res, next) => { next(); }
 ];
 
 module.exports = {
-    validateCreatePost,
-    validateUpdatePost,
-    validatePostId,
-    validateCreateComment,
-    validateCommentId,
-    validateCommentIdParam,
-    validateSharePost
+  validateCreatePost,
+  validateUpdatePost,
+  validatePostId,
+  validateCreateComment,
+  validateCommentId,
+  validateCommentIdParam,
+  validateSharePost
 };

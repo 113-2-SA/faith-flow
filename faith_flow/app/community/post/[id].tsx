@@ -4,6 +4,7 @@ import {
   Text,
   Image,
   FlatList,
+  ScrollView,
   TextInput,
   TouchableOpacity,
   StyleSheet,
@@ -11,6 +12,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Modal,
+  StatusBar,
+  Pressable,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../context/authcontext';
@@ -24,12 +28,21 @@ interface Tag {
   tag_name: string;
 }
 
+interface DiaryCard {
+  diary_id: number;
+  diary_title: string;
+  diary_content: string;
+  diary_date: string;
+}
+
 interface OriginalPost {
   community_post_id: number;
   post_text: string;
+  post_type?: string;
   created_at: string;
   original_author_name: string | null;
   original_author_avatar: string | null;
+  diary_card?: DiaryCard;
 }
 
 interface Post {
@@ -42,11 +55,13 @@ interface Post {
   avatar_url: string | null;
   tags: Tag[];
   created_at: string;
+  post_pic?: string | null;
   like_count?: number;
   comment_count?: number;
   is_liked?: boolean;
   is_owner?: boolean;
   original_post?: OriginalPost;
+  diary_card?: DiaryCard;
 }
 
 interface Comment {
@@ -96,6 +111,8 @@ export default function PostDetailScreen() {
   const [commentText, setCommentText] = useState('');
   const [replyTo, setReplyTo] = useState<{ id: number; username: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [imageModalUri, setImageModalUri] = useState<string | null>(null);
+  const [diaryModalCard, setDiaryModalCard] = useState<DiaryCard | null>(null);
   const inputRef = useRef<TextInput>(null);
 
   const postId = parseInt(id ?? '0');
@@ -357,6 +374,36 @@ export default function PostDetailScreen() {
                 {/* Content */}
                 {post.post_text ? <Text style={styles.postText}>{post.post_text}</Text> : null}
 
+                {/* Post image — 點擊可全螢幕預覽 */}
+                {post.post_pic ? (
+                  <TouchableOpacity activeOpacity={0.9} onPress={() => setImageModalUri(post.post_pic!)}>
+                    <Image source={{ uri: post.post_pic }} style={styles.postImage} resizeMode="contain" />
+                  </TouchableOpacity>
+                ) : null}
+
+                {/* Diary card attachment */}
+                {post.diary_card && (
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setDiaryModalCard(post.diary_card!)}
+                    style={styles.diaryCard}
+                  >
+                    <View style={styles.diaryCardHeader}>
+                      <Text style={styles.diaryCardIcon}>📖</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.diaryCardDate}>{post.diary_card.diary_date}</Text>
+                        <Text style={styles.diaryCardTitle} numberOfLines={1}>
+                          {post.diary_card.diary_title}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.diaryCardPreview} numberOfLines={2}>
+                      {post.diary_card.diary_content.slice(0, 30)}
+                      {post.diary_card.diary_content.length > 30 ? '...' : ''}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
                 {/* Embedded original post for shared type */}
                 {post.post_type === 'shared' && post.original_post && (
                   <TouchableOpacity
@@ -379,7 +426,27 @@ export default function PostDetailScreen() {
                       </Text>
                       <Text style={styles.quotedTime}> · {timeAgo(post.original_post.created_at)}</Text>
                     </View>
-                    <Text style={styles.quotedText}>{post.original_post.post_text}</Text>
+                    {post.original_post.post_text ? (
+                      <Text style={styles.quotedText} numberOfLines={3}>
+                        {post.original_post.post_text}
+                      </Text>
+                    ) : null}
+                    {post.original_post.diary_card && (
+                      <View style={[styles.diaryCard, { marginBottom: 0, marginTop: 6 }]}>
+                        <View style={styles.diaryCardHeader}>
+                          <Text style={styles.diaryCardIcon}>📖</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.diaryCardTitle} numberOfLines={1}>
+                              {post.original_post.diary_card.diary_title}
+                            </Text>
+                            <Text style={styles.diaryCardPreview} numberOfLines={1}>
+                              {post.original_post.diary_card.diary_content.slice(0, 30)}
+                              {post.original_post.diary_card.diary_content.length > 30 ? '...' : ''}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    )}
                   </TouchableOpacity>
                 )}
 
@@ -458,6 +525,57 @@ export default function PostDetailScreen() {
           </View>
         </GlassCard>
       </KeyboardAvoidingView>
+      {/* 日記完整內容 Modal — 置中懸浮視窗 */}
+      <Modal
+        visible={!!diaryModalCard}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDiaryModalCard(null)}
+      >
+        <TouchableOpacity
+          style={styles.diaryModalOverlay}
+          activeOpacity={1}
+          onPress={() => setDiaryModalCard(null)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.diaryModalSheet} onPress={() => {}}>
+            <View style={styles.diaryModalHeader}>
+              <Text style={styles.diaryModalIcon}>📖</Text>
+              <Text style={styles.diaryModalTitle} numberOfLines={2}>
+                {diaryModalCard?.diary_title}
+              </Text>
+              <TouchableOpacity onPress={() => setDiaryModalCard(null)} style={styles.diaryModalClose}>
+                <Text style={styles.diaryModalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.diaryModalDate}>{diaryModalCard?.diary_date}</Text>
+            <View style={styles.diaryModalDivider} />
+            <ScrollView style={styles.diaryModalScroll} showsVerticalScrollIndicator={false}>
+              <Text style={styles.diaryModalContent}>{diaryModalCard?.diary_content}</Text>
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* 全螢幕圖片預覽 Modal */}
+      <Modal
+        visible={!!imageModalUri}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setImageModalUri(null)}
+        statusBarTranslucent
+      >
+        <Pressable style={styles.imageModalOverlay} onPress={() => setImageModalUri(null)}>
+          <StatusBar hidden />
+          <Image
+            source={{ uri: imageModalUri ?? '' }}
+            style={styles.imageModalImg}
+            resizeMode="contain"
+          />
+          <TouchableOpacity style={styles.imageModalClose} onPress={() => setImageModalUri(null)}>
+            <Text style={styles.imageModalCloseText}>✕</Text>
+          </TouchableOpacity>
+        </Pressable>
+      </Modal>
     </VideoBackground>
   );
 }
@@ -517,6 +635,39 @@ const styles = StyleSheet.create({
   postText: {
     fontSize: 15, color: 'rgba(255,255,255,0.9)', lineHeight: 23, marginBottom: 14,
   },
+  postImage: {
+    width: '100%',
+    aspectRatio: 1 / 1,
+    borderRadius: 10,
+    marginBottom: 14,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  imageModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.93)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalImg: {
+    width: '100%',
+    height: '100%',
+  },
+  imageModalClose: {
+    position: 'absolute',
+    top: 48,
+    right: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalCloseText: {
+    fontSize: 18,
+    color: 'rgba(255,255,255,0.9)',
+    fontWeight: '600',
+  },
   actions: {
     flexDirection: 'row',
     borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.15)',
@@ -569,6 +720,38 @@ const styles = StyleSheet.create({
   emptyCard: { alignItems: 'center', paddingVertical: 24 },
   emptyText: { fontSize: 14, color: 'rgba(255,255,255,0.6)' },
 
+  // Diary card attachment
+  diaryCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(100,180,255,0.35)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 14,
+    backgroundColor: 'rgba(0,80,180,0.12)',
+  },
+  diaryCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 4,
+  },
+  diaryCardIcon: { fontSize: 16 },
+  diaryCardDate: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.5)',
+    marginBottom: 2,
+  },
+  diaryCardTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
+  },
+  diaryCardPreview: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.65)',
+    lineHeight: 18,
+  },
+
   // Quoted / embedded original post
   quotedCard: {
     borderWidth: 1,
@@ -603,6 +786,68 @@ const styles = StyleSheet.create({
   },
   quotedText: {
     fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 20,
+  },
+
+  // Diary Modal — 置中懸浮視窗
+  diaryModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  diaryModalSheet: {
+    width: '100%',
+    maxHeight: '75%',
+    backgroundColor: 'rgba(18,18,38,0.97)',
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  diaryModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 6,
+  },
+  diaryModalIcon: { fontSize: 20, marginTop: 2 },
+  diaryModalTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
+    lineHeight: 22,
+  },
+  diaryModalClose: {
+    padding: 4,
+    marginTop: -2,
+  },
+  diaryModalCloseText: {
+    fontSize: 18,
+    color: 'rgba(255,255,255,0.5)',
+  },
+  diaryModalDate: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.4)',
+    marginBottom: 12,
+    marginLeft: 30,
+  },
+  diaryModalDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    marginBottom: 14,
+  },
+  diaryModalScroll: { flexGrow: 0 },
+  diaryModalContent: {
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.85)',
+    lineHeight: 25,
   },
 
   // Input bar
