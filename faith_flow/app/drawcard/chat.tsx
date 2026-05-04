@@ -2,9 +2,8 @@
 // 活水泉源 - 對話視窗（5.2）
 
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
-  Dimensions,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -18,7 +17,8 @@ import {
 } from "react-native";
 import { useAuth } from "../context/authcontext";
 
-const API_BASE = "http://localhost:3000";// 改成 localhost，因為前後端都在同一台 VM 上
+// ⚠️ 改用環境變數，手機版才能正常連線
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
 
 type Message = {
   id: string;
@@ -29,16 +29,18 @@ type Message = {
 export default function DrawCardChatScreen() {
   const router = useRouter();
   const { currentUser } = useAuth();
+
+  // 接收從 index.tsx 傳來的參數（新增 weekly_card_id）
   const params = useLocalSearchParams<{
     questionId: string;
+    weekly_card_id: string; // 新增：用於記錄抽卡完成
     question: string;
     theme: string;
     quote: string;
     quote_source: string;
-    image_base64: string; // 新增圖片參數
+    image_base64: string;
   }>();
 
-  // 對話串從空的開始，問題卡片已經顯示在上方了
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -47,6 +49,7 @@ export default function DrawCardChatScreen() {
 
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
+
     const userMsg: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -58,7 +61,7 @@ export default function DrawCardChatScreen() {
 
     try {
       const token = await currentUser?.getIdToken();
-      // 先用 chat API 暫代，之後可換成專屬的活水泉源 AI
+
       const conversationText = messages
         .map((m) => `${m.role === "user" ? "使用者" : "AI"}：${m.content}`)
         .join("\n");
@@ -96,21 +99,23 @@ export default function DrawCardChatScreen() {
   };
 
   // 結束對話 → 跳到對話總結（5.3）
+  // ⭐ 新增：把 weekly_card_id 一起帶下去
   const handleEnd = () => {
-  router.push({
-    pathname: "/drawcard/summary",
-    params: {
-      question: params.question,
-      theme: params.theme,
-      quote: params.quote,
-      quote_source: params.quote_source,
-      image_base64: params.image_base64 || "", // 繼續帶下去
-      conversation: messages
-        .map((m) => `${m.role === "user" ? "使用者" : "AI"}：${m.content}`)
-        .join("\n"),
-    },
-  });
-};
+    router.push({
+      pathname: "/drawcard/summary",
+      params: {
+        weekly_card_id: params.weekly_card_id || "", // ⭐ 新增
+        question: params.question,
+        theme: params.theme,
+        quote: params.quote,
+        quote_source: params.quote_source,
+        image_base64: params.image_base64 || "",
+        conversation: messages
+          .map((m) => `${m.role === "user" ? "使用者" : "AI"}：${m.content}`)
+          .join("\n"),
+      },
+    });
+  };
 
   return (
     <View style={styles.bg}>
@@ -130,38 +135,38 @@ export default function DrawCardChatScreen() {
           <Text style={styles.questionText}>{params.question}</Text>
         </View>
 
-        {/* 🐱 AI 角色圖 */}
+        {/* AI 角色圖 */}
         <View style={styles.avatarArea}>
-        <Text style={styles.avatar}>🐱</Text>
+          <Text style={styles.avatar}>🐱</Text>
         </View>
 
         {/* 完整對話串 */}
         <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(m) => m.id}
-        style={styles.messageList}
-        contentContainerStyle={styles.messageListContent}
-        onContentSizeChange={() =>
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(m) => m.id}
+          style={styles.messageList}
+          contentContainerStyle={styles.messageListContent}
+          onContentSizeChange={() =>
             flatListRef.current?.scrollToEnd({ animated: true })
-        }
-        renderItem={({ item }) => (
+          }
+          renderItem={({ item }) => (
             <View
-            style={[
+              style={[
                 styles.bubble,
                 item.role === "user" ? styles.bubbleUser : styles.bubbleAI,
-            ]}
+              ]}
             >
-            <Text style={styles.bubbleText}>{item.content}</Text>
+              <Text style={styles.bubbleText}>{item.content}</Text>
             </View>
-        )}
+          )}
         />
 
         {/* 載入中提示 */}
         {loading && (
-        <View style={styles.loadingRow}>
+          <View style={styles.loadingRow}>
             <Text style={styles.loadingText}>活水泉源思考中...</Text>
-        </View>
+          </View>
         )}
 
         {/* 輸入框 */}
@@ -187,7 +192,7 @@ export default function DrawCardChatScreen() {
         </KeyboardAvoidingView>
       </SafeAreaView>
 
-      {/* 對話回顧 Modal（5.2.2） */}
+      {/* 對話回顧 Modal */}
       <Modal visible={showReview} animationType="slide" transparent>
         <View style={styles.reviewOverlay}>
           <View style={styles.reviewPanel}>
@@ -208,9 +213,7 @@ export default function DrawCardChatScreen() {
                 <View
                   style={[
                     styles.reviewMsg,
-                    item.role === "user"
-                      ? styles.reviewUser
-                      : styles.reviewAI,
+                    item.role === "user" ? styles.reviewUser : styles.reviewAI,
                   ]}
                 >
                   <Text style={styles.reviewMsgText}>{item.content}</Text>
@@ -255,57 +258,45 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     textAlign: "center",
   },
-  // 把原本的 avatarArea 改成這樣（縮小，不佔滿畫面）
-avatarArea: {
-  alignItems: "center",
-  paddingVertical: 8,
-},
-avatar: { fontSize: 40 },  // 原本是 80，縮小一點
-
-// 新增以下樣式
-messageList: {
-  flex: 1,
-  paddingHorizontal: 16,
-},
-messageListContent: {
-  paddingBottom: 8,
-  gap: 8,
-},
-bubble: {
-  maxWidth: "80%",
-  padding: 12,
-  borderRadius: 16,
-},
-bubbleUser: {
-  alignSelf: "flex-end",
-  backgroundColor: "rgba(255,255,255,0.2)",
-},
-bubbleAI: {
-  alignSelf: "flex-start",
-  backgroundColor: "rgba(0,0,0,0.3)",
-},
-bubbleText: {
-  color: "#fff",
-  fontSize: 14,
-  lineHeight: 20,
-},
-loadingRow: {
-  paddingHorizontal: 16,
-  paddingBottom: 4,
-},
-loadingText: {
-  color: "rgba(255,255,255,0.5)",
-  fontSize: 12,
-},
-  userBubble: {
-    margin: 16,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    alignSelf: "flex-end",
-    maxWidth: "80%",
+  avatarArea: {
+    alignItems: "center",
+    paddingVertical: 8,
   },
-  userBubbleText: { color: "#fff", fontSize: 14 },
+  avatar: { fontSize: 40 },
+  messageList: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  messageListContent: {
+    paddingBottom: 8,
+    gap: 8,
+  },
+  bubble: {
+    maxWidth: "80%",
+    padding: 12,
+    borderRadius: 16,
+  },
+  bubbleUser: {
+    alignSelf: "flex-end",
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  bubbleAI: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
+  bubbleText: {
+    color: "#fff",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  loadingRow: {
+    paddingHorizontal: 16,
+    paddingBottom: 4,
+  },
+  loadingText: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 12,
+  },
   inputArea: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -323,12 +314,57 @@ loadingText: {
     fontSize: 14,
     maxHeight: 100,
   },
-    sendBtn: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: "rgba(255,255,255,0.3)",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-  });
+  sendBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sendIcon: { color: "#fff", fontSize: 18 },
+
+  // Modal 樣式
+  reviewOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  reviewPanel: {
+    backgroundColor: "#1a3a2a",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: "70%",
+  },
+  closeBtn: { alignSelf: "flex-end", padding: 4 },
+  closeText: { color: "#fff", fontSize: 18 },
+  reviewTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  reviewHint: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 12,
+    marginBottom: 12,
+  },
+  reviewMsg: {
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  reviewUser: { backgroundColor: "rgba(255,255,255,0.15)", alignSelf: "flex-end" },
+  reviewAI: { backgroundColor: "rgba(0,0,0,0.3)", alignSelf: "flex-start" },
+  reviewMsgText: { color: "#fff", fontSize: 13 },
+  userBubble: {
+    margin: 16,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignSelf: "flex-end",
+    maxWidth: "80%",
+  },
+  userBubbleText: { color: "#fff", fontSize: 14 },
+});

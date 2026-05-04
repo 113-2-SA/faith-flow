@@ -1,13 +1,21 @@
 // ==================== services/prayerService.js ====================
-const { Mistral } = require('@mistralai/mistralai');
+// ⚠️ 注意：@mistralai/mistralai 新版只支援 ESM，
+// 因此改用 dynamic import() 在每次呼叫時動態載入，
+// 這樣就不會在 require 階段報錯。
 const pool = require("../config/database");
 const { parseJsonFromLLM } = require('../utils/parseJsonFromLLM');
 
 class PrayerService {
   constructor() {
-    this.mistral = new Mistral({
-      apiKey: process.env.MISTRAL_API_KEY
-    });
+    // 把 API key 存起來，等實際呼叫時再建立 Mistral 實例
+    this.mistralApiKey = process.env.MISTRAL_API_KEY;
+  }
+
+  // 🔧 helper：動態載入 Mistral 並建立實例
+  // 因為 ESM 模組不能用 require()，所以改用 async import()
+  async getMistralClient() {
+    const { Mistral } = await import('@mistralai/mistralai');
+    return new Mistral({ apiKey: this.mistralApiKey });
   }
 
   //* ⭐ 主要方法：將祈禱轉換為日記
@@ -28,7 +36,10 @@ ${prayerText}
 }`;
 
     try {
-      const message = await this.mistral.chat.complete({
+      // 每次呼叫時動態取得 mistral 實例
+      const mistral = await this.getMistralClient();
+
+      const message = await mistral.chat.complete({
         model: 'mistral-small-latest',
         maxTokens: 1000,
         messages: [{
@@ -80,7 +91,10 @@ ${prayerText}
 「將你們的一切掛慮都託給他，因為他必關照你們。」（伯多祿前書 5:7）`;
 
     try {
-      const message = await this.mistral.chat.complete({
+      // 每次呼叫時動態取得 mistral 實例
+      const mistral = await this.getMistralClient();
+
+      const message = await mistral.chat.complete({
         model: 'mistral-small-latest',
         maxTokens: 500,
         messages: [{
@@ -100,7 +114,6 @@ ${prayerText}
 
   /**
    * ⭐ 將祈禱轉換為日記（直接寫入資料庫）
-   * 這個方法獨立於 diaryService，專門處理祈禱轉日記的邏輯
    */
   async convertPrayerToDiary(userId, prayerText, collectId = null) {
     console.log('🔄 [prayerService] 開始轉換祈禱為日記...');
@@ -141,7 +154,7 @@ ${prayerText}
         collectId || null,
         title,
         prayerText,
-        JSON.stringify(tags), // PostgreSQL jsonb 類型
+        JSON.stringify(tags),
         bibleQuote
       ];
 
@@ -160,7 +173,6 @@ ${prayerText}
 
   /**
    * ⭐ 預覽功能：只生成標題和標籤，不儲存
-   * 讓使用者在儲存前可以先看到 AI 的建議
    */
   async previewDiary(prayerText) {
     console.log('👁️ [prayerService] 預覽模式：生成標題和標籤');
