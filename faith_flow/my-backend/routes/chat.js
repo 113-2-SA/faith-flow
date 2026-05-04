@@ -164,15 +164,12 @@ async function retrieverAgent(query) {
 }
 
 // Agent 2：Answerer
-// quotedContent: 使用者引用的內容（可選）
-// quotedType: 'knowledge'（知識回答）或 'companion'（陪伴回應）
 async function answererAgent(query, quotedContent, quotedType, options = {}) {
   const { knowledgeMaxTokens = 800, companionMaxTokens = 250, companionTone = 'BALANCED' } = options;
   const chatResult = await mcp.chat(query);
   const rawAnswer = chatResult?.answer || "";
   const magisteriumCitations = chatResult?.citations || [];
 
-  // 有引用內容時，加進 prompt 讓 AI 針對引用內容回答
   const quoteLabel = quotedType === "knowledge" ? "知識回答" : "陪伴回應";
   const quoteContext = quotedContent
     ? `\n\n[使用者引用的${quoteLabel}]：\n${quotedContent}\n\n請特別針對使用者引用的這段內容來回答。`
@@ -234,29 +231,53 @@ ${rawAnswer}`;
   return { knowledgeAnswer, companionResponse, citations };
 }
 
+// ⭐ 情緒分析函式（獨立出來，方便在串流前呼叫）
+async function analyzeEmotion(query) {
+  try {
+    const emotionSystemPrompt = `你是一個情緒分析助理。
+請分析使用者的問題，判斷這個問題偏向「感性（情感需求）」還是「理性（知識探索）」。
+
+請只回傳一個 0 到 100 的整數，不要有任何其他文字：
+- 0 = 完全感性（例如：我很難過、我需要幫助、我感到迷茫）
+- 50 = 中性（例如：請解釋聖經某段經文）
+- 100 = 完全理性（例如：天主教的神學定義是什麼）
+
+只回傳數字，不要解釋。`;
+
+    const emotionResult = await callLLM(
+      emotionSystemPrompt,
+      `使用者的問題：${query}`,
+      { temperature: 0.1, max_tokens: 10 }
+    );
+
+    const parsed = parseInt(emotionResult.trim(), 10);
+    if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
+      return parsed;
+    }
+    return 50; // 解析失敗用預設值
+  } catch (err) {
+    console.warn("[analyzeEmotion] failed:", err.message);
+    return 50;
+  }
+}
+
+// ⭐ 根據情緒分數決定回覆比重
+function getTokenConfig(emotionScore) {
+  if (emotionScore <= 30) {
+    return { companionMaxTokens: 400, knowledgeMaxTokens: 1200, companionTone: 'HIGH_EMOTION' };
+  } else if (emotionScore <= 60) {
+    return { companionMaxTokens: 250, knowledgeMaxTokens: 2000, companionTone: 'BALANCED' };
+  } else {
+    return { companionMaxTokens: 120, knowledgeMaxTokens: 3000, companionTone: 'LOW_EMOTION' };
+  }
+}
+
 // POST /api/chat/send（需要 Firebase token + userId）
 router.post("/send", verifyToken, attachUserId, async (req, res) => {
-  // quoted_content: 使用者引用的內容（可選）
-  // quoted_type: 'knowledge' 或 'companion'
   const { message, conversationId, quoted_content, quoted_type, emotion_score } = req.body;
 
-  // ⭐ 根據前端傳來的累積情緒分數決定回覆比重
+  // 前端傳來的累積分數（用於計算加權平均，不直接決定比重）
   const currentEmotionScore = typeof emotion_score === 'number' ? emotion_score : 50;
-
-  let companionMaxTokens, knowledgeMaxTokens, companionTone;
-  if (currentEmotionScore <= 30) {
-    companionMaxTokens = 400;
-    knowledgeMaxTokens = 400;
-    companionTone = 'HIGH_EMOTION';
-  } else if (currentEmotionScore <= 60) {
-    companionMaxTokens = 250;
-    knowledgeMaxTokens = 2000;
-    companionTone = 'BALANCED';
-  } else {
-    companionMaxTokens = 120;
-    knowledgeMaxTokens = 3000;
-    companionTone = 'LOW_EMOTION';
-  }
 
   if (!message || typeof message !== "string" || !message.trim()) {
     return res.status(400).json({ ok: false, error: "message 欄位不得為空" });
@@ -269,7 +290,7 @@ router.post("/send", verifyToken, attachUserId, async (req, res) => {
     // Step 1：建立或取得對話
     const convId = await getOrCreateConversation(userId, conversationId);
 
-    // Step 2：存使用者訊息（如果有引用，也一起記錄在 metadata）
+    // Step 2：存使用者訊息
     await saveMessage({
       conversationId: convId,
       role: "user",
@@ -278,12 +299,17 @@ router.post("/send", verifyToken, attachUserId, async (req, res) => {
       citations: quoted_content ? [{ quoted_type, quoted_content }] : [],
     });
 
-    // Step 3：呼叫 AI（把引用內容傳進去）
+    // ⭐ Step 2.5：先做情緒分析，決定這次回覆的比重
+    const newEmotionScore = await analyzeEmotion(query);
+    const { companionMaxTokens, knowledgeMaxTokens, companionTone } = getTokenConfig(newEmotionScore);
+    console.log(`[Send] 情緒分析完成: ${newEmotionScore}，tone: ${companionTone}`);
+
+    // Step 3：呼叫 AI
     const evidence = await retrieverAgent(query);
     const { knowledgeAnswer, companionResponse, citations } =
       await answererAgent(query, quoted_content, quoted_type, { knowledgeMaxTokens, companionMaxTokens, companionTone });
 
-    // Step 4：存 AI 回答（含 citations 在 metadata）
+    // Step 4：存 AI 回答
     await saveMessage({
       conversationId: convId,
       role: "assistant",
@@ -300,6 +326,7 @@ router.post("/send", verifyToken, attachUserId, async (req, res) => {
         knowledge_answer: knowledgeAnswer,
         companion_response: companionResponse,
         citations,
+        emotion_score: newEmotionScore, // 回傳新的情緒分數
         meta: {
           retriever_count: evidence.results.length,
           citations_count: citations.length,
@@ -337,7 +364,7 @@ router.get("/history", verifyToken, attachUserId, async (req, res) => {
   }
 });
 
-// POST /api/chat/conversations（建立新對話，4.3.2）
+// POST /api/chat/conversations（建立新對話）
 router.post("/conversations", verifyToken, attachUserId, async (req, res) => {
   const userId = req.userId;
   try {
@@ -354,27 +381,9 @@ router.post("/conversations", verifyToken, attachUserId, async (req, res) => {
   }
 });
 
-// POST /api/chat/stream（SSE 串流版發送，4.1.3 逐句顯示）
+// POST /api/chat/stream（SSE 串流版）
 router.post("/stream", verifyToken, attachUserId, async (req, res) => {
   const { message, conversationId, quoted_content, quoted_type, emotion_score } = req.body;
-
-  // ⭐ 根據前端傳來的累積情緒分數決定回覆比重
-  const currentEmotionScore = typeof emotion_score === 'number' ? emotion_score : 50;
-
-  let companionMaxTokens, knowledgeMaxTokens, companionTone;
-  if (currentEmotionScore <= 30) {
-    companionMaxTokens = 400;
-    knowledgeMaxTokens = 1200;
-    companionTone = 'HIGH_EMOTION';
-  } else if (currentEmotionScore <= 60) {
-    companionMaxTokens = 250;
-    knowledgeMaxTokens = 2000;
-    companionTone = 'BALANCED';
-  } else {
-    companionMaxTokens = 120;
-    knowledgeMaxTokens = 3000;
-    companionTone = 'LOW_EMOTION';
-  }
 
   if (!message || typeof message !== "string" || !message.trim()) {
     return res.status(400).json({ ok: false, error: "message 欄位不得為空" });
@@ -405,56 +414,71 @@ router.post("/stream", verifyToken, attachUserId, async (req, res) => {
       citations: quoted_content ? [{ quoted_type, quoted_content }] : [],
     });
 
-    // Step 2.5：如果是對話的第一則訊息，自動生成標題
-    try {
-      const msgCount = await pool.query(
-        `SELECT COUNT(*) FROM messages WHERE conversation_id = $1`,
-        [convId]
-      );
-      const count = parseInt(msgCount.rows[0].count, 10);
-      if (count <= 1) {
-        // 第一則訊息，用 Groq 生成標題
-        const titleResult = await callLLM(
-          `你是一個標題生成助理。請根據使用者的問題，生成一個簡短、精準的對話標題。
+    // ⭐ Step 2.5：情緒分析 + 標題生成 + 日記RAG 並行執行（節省時間）
+    const [newEmotionScore, , diaryContextResult] = await Promise.allSettled([
+      // 任務1：情緒分析（本次問題）
+      analyzeEmotion(query),
+
+      // 任務2：自動生成標題（第一則訊息才做）
+      (async () => {
+        try {
+          const msgCount = await pool.query(
+            `SELECT COUNT(*) FROM messages WHERE conversation_id = $1`,
+            [convId]
+          );
+          const count = parseInt(msgCount.rows[0].count, 10);
+          if (count <= 1) {
+            const titleResult = await callLLM(
+              `你是一個標題生成助理。請根據使用者的問題，生成一個簡短、精準的對話標題。
 規則：
 1. 標題長度：10個字以內
 2. 直接輸出標題文字，不要加引號或標點
 3. 使用繁體中文
 4. 捕捉問題的核心主題`,
-          `使用者的問題：${query}
-
-請生成標題：`,
-          { temperature: 0.3, max_tokens: 30 }
-        );
-        const autoTitle = titleResult.trim().slice(0, 20); // 最多20字保險
-        if (autoTitle) {
-          await pool.query(
-            `UPDATE conversations SET title = $1, updated_at = NOW() WHERE conversation_id = $2`,
-            [autoTitle, convId]
-          );
-          send({ type: "title", title: autoTitle }); // 推給前端更新顯示
+              `使用者的問題：${query}\n\n請生成標題：`,
+              { temperature: 0.3, max_tokens: 30 }
+            );
+            const autoTitle = titleResult.trim().slice(0, 20);
+            if (autoTitle) {
+              await pool.query(
+                `UPDATE conversations SET title = $1, updated_at = NOW() WHERE conversation_id = $2`,
+                [autoTitle, convId]
+              );
+              send({ type: "title", title: autoTitle });
+            }
+          }
+        } catch (err) {
+          console.warn("[Stream] auto title failed:", err.message);
         }
-      }
-    } catch (err) {
-      console.warn("[Stream] auto title failed:", err.message);
-    }
+      })(),
 
-    // Step 2.6：向量搜尋使用者日記，找出相關內容（日記 RAG）
-    let diaryContext = "";
-    try {
-      const relevantDiaries = await findRelevantDiaries(userId, query, pool, 3);
-      if (relevantDiaries.length > 0) {
-        console.log("[Stream] 找到 " + relevantDiaries.length + " 篇相關日記");
-        const diarySnippets = relevantDiaries.map((d, i) =>
-          "[日記 " + (i + 1) + "] " + d.diary_date + " - " + d.diary_title + "：" + d.diary_content.slice(0, 300)
-        ).join("\n\n");
-        diaryContext = "\n\n[使用者的相關日記紀錄（請參考這些內容來個人化回答）]：\n" + diarySnippets + "\n\n請根據以上日記，結合教會教義，給予更貼近使用者個人處境的回答。";
-      }
-    } catch (err) {
-      console.warn("[Stream] diary RAG failed:", err.message);
-    }
+      // 任務3：日記 RAG
+      (async () => {
+        try {
+          const relevantDiaries = await findRelevantDiaries(userId, query, pool, 3);
+          if (relevantDiaries.length > 0) {
+            console.log("[Stream] 找到 " + relevantDiaries.length + " 篇相關日記");
+            const diarySnippets = relevantDiaries.map((d, i) =>
+              "[日記 " + (i + 1) + "] " + d.diary_date + " - " + d.diary_title + "：" + d.diary_content.slice(0, 300)
+            ).join("\n\n");
+            return "\n\n[使用者的相關日記紀錄（請參考這些內容來個人化回答）]：\n" + diarySnippets + "\n\n請根據以上日記，結合教會教義，給予更貼近使用者個人處境的回答。";
+          }
+          return "";
+        } catch (err) {
+          console.warn("[Stream] diary RAG failed:", err.message);
+          return "";
+        }
+      })(),
+    ]);
 
-        // Step 3：Retriever（search 供 Magisterium 參考）+ Magisterium chat
+    // ⭐ 取得情緒分析結果，決定這次回覆的 token 比重
+    const thisEmotionScore = newEmotionScore.status === 'fulfilled' ? newEmotionScore.value : 50;
+    const { companionMaxTokens, knowledgeMaxTokens, companionTone } = getTokenConfig(thisEmotionScore);
+    const diaryContext = diaryContextResult.status === 'fulfilled' ? diaryContextResult.value : "";
+
+    console.log(`[Stream] 情緒分析: ${thisEmotionScore}，tone: ${companionTone}，knowledge: ${knowledgeMaxTokens}, companion: ${companionMaxTokens}`);
+
+    // Step 3：Magisterium 搜尋
     await retrieverAgent(query);
     const chatResult = await mcp.chat(query);
     const rawAnswer = chatResult?.answer || "";
@@ -495,7 +519,7 @@ ${rawAnswer}`;
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
-        buffer = lines.pop(); // 保留未完成的行
+        buffer = lines.pop();
 
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
@@ -512,13 +536,11 @@ ${rawAnswer}`;
         }
       }
     } else {
-      // Fallback：Ollama 不支援串流，一次送出
       knowledgeAnswer = await callOllama(knowledgeSystemPrompt, knowledgeUserMessage, { temperature: 0.3, max_tokens: knowledgeMaxTokens });
       send({ type: "knowledge_chunk", text: knowledgeAnswer });
     }
 
-    // Step 5：陪伴回應（非串流，送出後一次推播）
-    // 根據情緒分數動態調整語氣指示
+    // Step 5：陪伴回應（根據情緒分數調整語氣）
     const toneInstruction = companionTone === 'HIGH_EMOTION'
       ? '使用者情緒低落，需要大量情感支持，請給予4-5句溫暖安慰的話。'
       : companionTone === 'BALANCED'
@@ -567,39 +589,13 @@ ${rawAnswer}`;
       citations,
     });
 
-    // Step 7：情緒分析（根據使用者問題判斷感性/理性程度）
-let emotionScore = 50; // 預設中間值
-try {
-  const emotionSystemPrompt = `你是一個情緒分析助理。
-請分析使用者的問題，判斷這個問題偏向「感性（情感需求）」還是「理性（知識探索）」。
-
-請只回傳一個 0 到 100 的整數，不要有任何其他文字：
-- 0 = 完全感性（例如：我很難過、我需要幫助、我感到迷茫）
-- 50 = 中性（例如：請解釋聖經某段經文）
-- 100 = 完全理性（例如：天主教的神學定義是什麼）
-
-只回傳數字，不要解釋。`;
-
-  const emotionResult = await callLLM(
-    emotionSystemPrompt,
-    `使用者的問題：${query}`,
-    { temperature: 0.1, max_tokens: 10 }
-  );
-
-  const parsed = parseInt(emotionResult.trim(), 10);
-  if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
-    emotionScore = parsed;
-  }
-} catch (err) {
-  console.warn("[Stream] emotion analysis failed:", err.message);
-}
-
-// Step 8：推播剩餘資料後結束
-send({ type: "companion", text: companionResponse });
-send({ type: "citations", data: citations });
-send({ type: "emotion", score: emotionScore }); // ← 新增情緒分數
-send({ type: "done", conversationId: convId });
+    // Step 7：推播剩餘資料後結束
+    send({ type: "companion", text: companionResponse });
+    send({ type: "citations", data: citations });
+    send({ type: "emotion", score: thisEmotionScore }); // ⭐ 回傳本次分析的情緒分數
+    send({ type: "done", conversationId: convId });
     res.end();
+
   } catch (err) {
     console.error("[POST /api/chat/stream] failed:", err.message);
     send({ type: "error", message: "有答大師暫時無法回應，請稍後再試" });
@@ -642,7 +638,7 @@ router.get("/:conversationId/messages", verifyToken, attachUserId, async (req, r
   }
 });
 
-// PATCH /api/chat/:conversationId/title（修改對話標題，4.4.2）
+// PATCH /api/chat/:conversationId/title（修改對話標題）
 router.patch("/:conversationId/title", verifyToken, attachUserId, async (req, res) => {
   const userId = req.userId;
   const { conversationId } = req.params;
@@ -670,7 +666,7 @@ router.patch("/:conversationId/title", verifyToken, attachUserId, async (req, re
   }
 });
 
-// DELETE /api/chat/:conversationId（軟刪除對話，4.4.3）
+// DELETE /api/chat/:conversationId（軟刪除對話）
 router.delete("/:conversationId", verifyToken, attachUserId, async (req, res) => {
   const userId = req.userId;
   const { conversationId } = req.params;
@@ -693,7 +689,7 @@ router.delete("/:conversationId", verifyToken, attachUserId, async (req, res) =>
   }
 });
 
-// POST /api/chat/test-send（開發測試用，上線前刪掉）
+// POST /api/chat/test-send（開發測試用）
 router.post("/test-send", async (req, res) => {
   const { message, quoted_content, quoted_type } = req.body;
   if (!message) return res.status(400).json({ ok: false, error: "message 必填" });
