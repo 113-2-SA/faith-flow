@@ -124,6 +124,7 @@ const chatRoutes = require("./routes/chat");
 console.log("[DEBUG] ✅ 所有路由已 require");
 console.log("[DEBUG] chatRoutes type:", typeof chatRoutes);
 console.log("[DEBUG] chatRoutes methods:", Object.keys(chatRoutes));
+const livingwaterRoutes = require('./routes/livingwater'); // 活水泉源路由
 
 // ==================== 註冊路由 ====================
 
@@ -220,6 +221,9 @@ app.use('/api/liturgical', liturgicalRoutes);
 // 禱告回顧光點路由
 app.use('/api/nudge', nudgeRoutes);
 
+// 活水泉源相關路由
+app.use('/api/livingwater', livingwaterRoutes);
+
 // ==================== 臨時測試端點（確認 AI 流程可用後可刪除）====================
 app.post("/debug/ai-pipeline", async (req, res) => {
   const { diary_id, user_id } = req.body;
@@ -289,13 +293,17 @@ app.use((req, res) => {
     error: "API 端點不存在",
     path: req.url,
     availableEndpoints: [
-      "GET  /health",
-      "GET  /debug/user",
-      "POST /auth/sync",
-      "POST /admin/import-firebase-auth-users",
-      "GET  /api/weekly-summary",
-      "POST /api/weekly-summary/generate"
-    ]
+  "GET  /health",
+  "GET  /debug/user",
+  "POST /auth/sync",
+  "POST /admin/import-firebase-auth-users",
+  "GET  /api/weekly-summary",
+  "POST /api/weekly-summary/generate",
+  "POST /api/diary/from-prayer",
+  "POST /api/diary/preview-prayer",
+  "POST /api/livingwater/generate-letter",
+  "POST /api/livingwater/generate-image"
+]
   });
 });
 
@@ -354,6 +362,8 @@ server.listen(port, () => {
   console.log("   POST /api/weekly-summary/generate");
   console.log("   POST /api/diary/from-prayer"); 
   console.log("   POST /api/diary/preview-prayer"); 
+  console.log("   POST /api/livingwater/generate-letter");
+  console.log("   POST /api/livingwater/generate-image");
   console.log("✝️  ==========================================");
   console.log("📅 定時任務已啟動：每週日 02:00 自動生成周回顧");
   console.log("🎙️ 語音轉錄服務已啟動：WebSocket 連線可用");

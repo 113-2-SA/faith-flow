@@ -2,7 +2,6 @@
 // 有答大師 - 聊天介面（含引用回覆 + 情緒指標 + 對話管理）
 
 import React, { useCallback, useRef, useState } from 'react';
-import Marked from 'react-native-marked';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -414,7 +413,7 @@ export default function ChatScreen() {
                         <Text style={styles.quoteBtnText}>引用</Text>
                       </TouchableOpacity>
                     </View>
-                    <Marked value={msg.companion_response} styles={{ paragraph: { color: '#333', fontSize: 14, lineHeight: 22 }, strong: { fontWeight: 'bold' as const, color: '#333' } }} />
+                    <Text style={{ color: '#333', fontSize: 14, lineHeight: 22 }}>{msg.companion_response}</Text>
                   </View>
                 )}
 
@@ -427,11 +426,10 @@ export default function ChatScreen() {
                           <Text style={styles.quoteBtnText}>引用</Text>
                         </TouchableOpacity>
                       </View>
-                      <Marked value={msg.knowledge_blocks[0]} styles={markdownStyles} />
+                      <Text style={{ color: '#333', fontSize: 14, lineHeight: 22 }}>{msg.knowledge_blocks[0]}</Text>
                     </View>
                     {expandedAnswers.has(msg.id) && msg.knowledge_blocks.slice(1).map((block, i) => (
-                      <View key={i} style={styles.knowledgeBubble}><Marked value={block} styles={markdownStyles} /></View>
-                    ))}
+<View key={i} style={styles.knowledgeBubble}><Text style={{ color: '#333', fontSize: 14, lineHeight: 22 }}>{block}</Text></View>                    ))}
                     {msg.knowledge_blocks.length > 1 && (
                       <TouchableOpacity style={styles.expandBtn} onPress={() => toggleAnswer(msg.id)}>
                         <Text style={styles.expandBtnText}>
@@ -443,8 +441,7 @@ export default function ChatScreen() {
                 ) : msg.knowledge_answer ? (
                   <View style={styles.knowledgeBubble}>
                     <View style={styles.bubbleHeader}><Text style={styles.knowledgeLabel}>📖 知識回答</Text></View>
-                    <Marked value={msg.knowledge_answer} styles={markdownStyles} />
-                  </View>
+<Text style={{ color: '#333', fontSize: 14, lineHeight: 22 }}>{msg.knowledge_answer}</Text>                  </View>
                 ) : null}
 
                 {msg.citations && msg.citations.length > 0 && (
