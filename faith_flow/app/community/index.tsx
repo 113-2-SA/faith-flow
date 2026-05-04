@@ -102,6 +102,7 @@ export default function CommunityFeedScreen() {
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [selectedPostType, setSelectedPostType] = useState<string | null>(null);
   const [shareTarget, setShareTarget] = useState<Post | null>(null);
   const [shareCaption, setShareCaption] = useState('');
   const [sharing, setSharing] = useState(false);
@@ -120,15 +121,17 @@ export default function CommunityFeedScreen() {
   const [reportReason, setReportReason] = useState('');
   const [reportSubmitting, setReportSubmitting] = useState(false);
 
-  const fetchPosts = useCallback(async (reset = false, tag?: string | null) => {
+  const fetchPosts = useCallback(async (reset = false, tag?: string | null, postType?: string | null) => {
     if (!currentUser) return;
     try {
       const token = await currentUser.getIdToken();
       const currentOffset = reset ? 0 : offset;
       const activeTag = tag !== undefined ? tag : selectedTag;
+      const activePostType = postType !== undefined ? postType : selectedPostType;
       const tagParam = activeTag ? `&tag=${encodeURIComponent(activeTag)}` : '';
+      const typeParam = activePostType ? `&post_type=${encodeURIComponent(activePostType)}` : '';
       const res = await fetch(
-        `${API_BASE_URL}/api/post?visibility=public&limit=${LIMIT}&offset=${currentOffset}${tagParam}`,
+        `${API_BASE_URL}/api/post?visibility=public&limit=${LIMIT}&offset=${currentOffset}${tagParam}${typeParam}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const data = await res.json();
@@ -155,14 +158,21 @@ export default function CommunityFeedScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     setOffset(0);
-    fetchPosts(true, selectedTag);
+    fetchPosts(true, selectedTag, selectedPostType);
   };
 
   const onTagPress = (tag: string) => {
     const next = selectedTag === tag ? null : tag;
     setSelectedTag(next);
     setOffset(0);
-    fetchPosts(true, next);
+    fetchPosts(true, next, selectedPostType);
+  };
+
+  const onPostTypePress = (postType: string) => {
+    const next = selectedPostType === postType ? null : postType;
+    setSelectedPostType(next);
+    setOffset(0);
+    fetchPosts(true, selectedTag, next);
   };
 
   const onLoadMore = () => {
@@ -378,10 +388,12 @@ export default function CommunityFeedScreen() {
                 >
                   <Text style={styles.postMenuIcon}>⋯</Text>
                 </TouchableOpacity>
-              {item.post_type !== 'original' && (
-                <Text style={styles.categoryLabel}>
-                  {' > '}{POST_TYPE_LABELS[item.post_type]}
-                </Text>
+              {item.post_type !== 'original' && POST_TYPE_LABELS[item.post_type] && (
+                <TouchableOpacity onPress={() => onPostTypePress(item.post_type)}>
+                  <Text style={[styles.categoryLabel, selectedPostType === item.post_type && styles.categoryLabelActive]}>
+                    {' > '}{POST_TYPE_LABELS[item.post_type]}
+                  </Text>
+                </TouchableOpacity>
               )}
               {/* Tags inline after username */}
               {item.tags && item.tags.length > 0 && (
@@ -598,6 +610,17 @@ export default function CommunityFeedScreen() {
               </TouchableOpacity>
             ))}
           </View>
+        )}
+
+        {/* Active post type filter */}
+        {!searchMode && selectedPostType && (
+          <TouchableOpacity
+            style={[styles.filterBar, styles.filterBarType]}
+            onPress={() => onPostTypePress(selectedPostType)}
+          >
+            <Text style={[styles.filterBarText, styles.filterBarTypeText]}>{POST_TYPE_LABELS[selectedPostType]}</Text>
+            <Text style={[styles.filterBarClose, styles.filterBarTypeText]}>✕</Text>
+          </TouchableOpacity>
         )}
 
         {/* Active tag filter */}
@@ -965,6 +988,10 @@ const styles = StyleSheet.create({
     color: 'rgba(135,206,250,0.9)',
     fontWeight: '500',
   },
+  categoryLabelActive: {
+    color: 'rgba(255,215,0,0.95)',
+    fontWeight: '700',
+  },
   inlineTag: {
     fontSize: 14,
     color: 'rgba(173,216,230,0.9)',
@@ -1133,6 +1160,13 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(255,215,0,0.4)',
+  },
+  filterBarType: {
+    backgroundColor: 'rgba(135,206,250,0.15)',
+    borderColor: 'rgba(135,206,250,0.4)',
+  },
+  filterBarTypeText: {
+    color: 'rgba(135,206,250,0.95)',
   },
   filterBarText: {
     fontSize: 14,

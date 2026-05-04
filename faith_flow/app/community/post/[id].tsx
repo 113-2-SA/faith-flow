@@ -339,13 +339,14 @@ export default function PostDetailScreen() {
       >
         {/* Header */}
         <GlassCard style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/community' as never)} style={styles.backBtn}>
             <Text style={styles.backIcon}>‹</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>貼文</Text>
-          {/* {post ? (
+          {post ? (
             <TouchableOpacity
               style={styles.backBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               onPress={() => {
                 if (post.is_owner) {
                   Alert.alert('操作', '', [
@@ -358,11 +359,11 @@ export default function PostDetailScreen() {
                 }
               }}
             >
-              <Text style={styles.menuIcon}>⋯</Text>
+              {/* <Text style={styles.menuIcon}>⋯</Text> */}
             </TouchableOpacity>
           ) : (
             <View style={styles.backBtn} />
-          )} */}
+          )}
         </GlassCard>
 
         <FlatList
