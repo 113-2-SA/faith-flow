@@ -163,7 +163,6 @@ export default function Pray() {
   // ⭐ 新增狀態
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   const [debug, setDebug] = useState<string[]>([]);
@@ -556,123 +555,6 @@ export default function Pray() {
         />
       )}
 
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
-        <button
-          onClick={requestMic}
-          disabled={isRecording}
-          style={{ padding: "8px 12px" }}
-        >
-          允許麥克風
-        </button>
-
-        {!isRecording ? (
-          <button
-            onClick={startRecording}
-            disabled={hasMicPermission === false}
-            style={{ padding: "8px 12px" }}
-          >
-            開始祈禱（錄音轉錄）
-          </button>
-        ) : (
-          <button onClick={stopRecording} style={{ padding: "8px 12px" }}>
-            結束祈禱
-          </button>
-        )}
-
-        {/* ⭐ 新增：預覽按鈕 */}
-        <button
-          onClick={loadPreview}
-          disabled={isRecording || !combinedText.trim() || isLoadingPreview}
-          style={{ 
-            padding: "8px 12px",
-            backgroundColor: "#FF9800",
-            color: "white",
-            border: "none",
-            borderRadius: 4,
-            cursor: isRecording || !combinedText.trim() || isLoadingPreview ? "not-allowed" : "pointer",
-            opacity: isRecording || !combinedText.trim() || isLoadingPreview ? 0.5 : 1
-          }}
-        >
-          {isLoadingPreview ? "⏳ 生成中..." : "👁️ 預覽日記"}
-        </button>
-
-        {/* ⭐ 新增：儲存按鈕（只有預覽後才能按） */}
-        <button
-          onClick={saveToDiary}
-          disabled={!previewData || isSaving}
-          style={{
-            padding: "8px 12px",
-            backgroundColor: saveSuccess ? "#4CAF50" : "#2196F3",
-            color: "white",
-            border: "none",
-            borderRadius: 4,
-            cursor: !previewData || isSaving ? "not-allowed" : "pointer",
-            opacity: !previewData || isSaving ? 0.5 : 1
-          }}
-        >
-          {isSaving ? "⏳ 儲存中..." : saveSuccess ? "✅ 已儲存！" : "💾 儲存為日記"}
-        </button>
-
-        <button
-          onClick={() => {
-            setFinalText("");
-            setInterimText("");
-            setDebug([]);
-            setError("");
-            setShowCross(false);
-            setPreviewData(null);
-            setSaveSuccess(false);
-          }}
-          disabled={isRecording}
-          style={{ padding: "8px 12px" }}
-        >
-          清除
-        </button> 
-            padding: "8px 12px",
-            backgroundColor: saveSuccess ? "#4CAF50" : "#2196F3",
-            color: "white",
-            border: "none",
-            borderRadius: 4,
-            cursor: !previewData || isSaving ? "not-allowed" : "pointer",
-            opacity: !previewData || isSaving ? 0.5 : 1
-          }}
-        >
-          {isSaving ? "⏳ 儲存中..." : saveSuccess ? "✅ 已儲存！" : "💾 儲存為日記"}
-        </button>
-
-        <button
-          onClick={() => {
-            setFinalText("");
-            setInterimText("");
-            setDebug([]);
-            setError("");
-            setShowCross(false);
-            setPreviewData(null);
-            setSaveSuccess(false);
-          }}
-          disabled={isRecording}
-          style={{ padding: "8px 12px" }}
-        >
-          清除
-        </button>
-
-        <div style={{ alignSelf: "center" }}>
-          <div style={{ fontSize: 12, opacity: 0.8 }}>
-            麥克風權限：
-            {hasMicPermission === true ? "已允許" : hasMicPermission === false ? "未允許" : "未確認"}
-            {" | "}
-            WS：
-            {wsStatus}
-            {" | "}
-            錄音：
-            {isRecording ? "進行中" : "未開始"}
-          </div>
-          <div style={{ fontSize: 12, opacity: 0.8 }}>
-            音訊格式：{mimeType || "browser default"}
-          </div>
-        </div>
-      </div>
-
       {/* ⭐ 成功通知 */}
       {saveSuccess && (
         <div style={{
@@ -710,21 +592,21 @@ export default function Pray() {
           <div style={{ marginBottom: 12 }}>
             <strong>標題：</strong>
             <div style={{ padding: 8, backgroundColor: "white", borderRadius: 4, marginTop: 4 }}>
-              {previewData.suggestedTitle}
+              {previewData!.suggestedTitle}
             </div>
           </div>
 
           <div style={{ marginBottom: 12 }}>
             <strong>語音內容：</strong>
             <div style={{ padding: 8, backgroundColor: "white", borderRadius: 4, marginTop: 4 }}>
-              {previewData.content}
+              {previewData!.content}
             </div>
           </div>
           
           <div style={{ marginBottom: 12 }}>
             <strong>標籤：</strong>
             <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
-              {previewData.suggestedTags.map((tag, index) => (
+              {previewData!.suggestedTags.map((tag, index) => (
                 <span key={index} style={{ 
                   padding: "4px 12px", 
                   backgroundColor: "#2196F3", 
@@ -738,7 +620,7 @@ export default function Pray() {
             </div>
           </div>
 
-          {previewData.suggestedBibleQuote && (
+          {previewData!.suggestedBibleQuote && (
             <div style={{ marginBottom: 12 }}>
               <strong>聖經經文：</strong>
               <div style={{ 
@@ -750,7 +632,7 @@ export default function Pray() {
                 borderLeft: "4px solid #2196F3",
                 paddingLeft: 12
               }}>
-                {previewData.suggestedBibleQuote}
+                {previewData!.suggestedBibleQuote}
               </div>
             </div>
           )}
@@ -783,7 +665,7 @@ export default function Pray() {
             fontSize: 16,
           }}
         />
-      )}
+      </div>
 
       {/* 取得中 */}
       {locationPerm === "asking" && (
@@ -818,175 +700,12 @@ export default function Pray() {
 
       {/* ── 步驟二：祈禱錄音區（定位授權後才顯示）────────────────── */}
       {canPray && (
-        <>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
-            <button onClick={requestMic} disabled={isRecording} style={{ padding: "8px 12px" }}>
-              允許麥克風
-            </button>
-
-            {(["zh-TW", "en-US"] as const).map((l) => (
-              <button
-                key={l}
-                onClick={() => setLang(l)}
-                disabled={isRecording}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 6,
-                  border: "1px solid #c8922a",
-                  background: lang === l ? "#c8922a" : "transparent",
-                  color: lang === l ? "#fff" : "#c8922a",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                {l === "zh-TW" ? "中文" : "English"}
-              </button>
-            ))}
-
-            {!isRecording ? (
-              <button
-                onClick={startRecording}
-                disabled={hasMicPermission === false}
-                style={{ padding: "8px 12px" }}
-              >
-                開始祈禱（錄音轉錄）
-              </button>
-            ) : (
-              <button onClick={stopRecording} style={{ padding: "8px 12px" }}>
-                結束祈禱
-              </button>
-            )}
-
-            <button
-              onClick={() => {
-                setFinalText(""); setInterimText("");
-                setDebug([]); setError("");
-                setShowCross(false); setRecordSaved(false);
-              }}
-              disabled={isRecording}
-              style={{ padding: "8px 12px" }}
-            >
-              清除
-            </button>
-
-            <div style={{ alignSelf: "center", fontSize: 12, opacity: 0.8 }}>
-              WS：{wsStatus} | 錄音：{isRecording ? "進行中" : "未開始"}
-            </div>
-          </div>
-
-          {error && (
-            <div style={{ padding: 12, marginBottom: 12, border: "1px solid #c00", color: "#c00", borderRadius: 6 }}>
-              {error}
-            </div>
-          )}
-
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 12, marginBottom: 6, opacity: 0.8 }}>即時結果（可修改）</div>
-            <textarea
-              value={combinedText}
-              onChange={(e) => { setFinalText(e.target.value); setInterimText(""); }}
-              placeholder="等待語音輸入..."
-              rows={6}
-              style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #ccc", fontSize: 16, lineHeight: 1.5 }}
-            />
-          </div>
-
-          <details>
-            <summary style={{ cursor: "pointer", marginBottom: 8 }}>除錯訊息</summary>
-            <div style={{ fontFamily: "monospace", fontSize: 12, border: "1px solid #ddd", borderRadius: 8, padding: 12, maxHeight: 200, overflow: "auto", whiteSpace: "pre-wrap" }}>
-              {debug.join("\n") || "（無）"}
-            </div>
-          </details>
-        </>
+        <div>步驟二</div>
       )}
 
       {/* ── 步驟三：祈禱完成 → 確認記錄 ─────────────────────────── */}
       {showCross && canPray && (
-        <>
-          {/* 十字架動畫（保持原樣）*/}
-          <style>{`
-            @keyframes crossFadeIn {
-              0%   { opacity:0; transform:translateY(18px) scale(0.88); }
-              60%  { opacity:1; transform:translateY(-4px) scale(1.04); }
-              100% { opacity:1; transform:translateY(0) scale(1); }
-            }
-            @keyframes glowPulse {
-              0%,100% { filter: drop-shadow(0 0 10px rgba(255,220,100,.55)); }
-              50%     { filter: drop-shadow(0 0 22px rgba(255,230,120,.85)); }
-            }
-            @keyframes beamExpand {
-              from { opacity:0; transform:scaleY(0.2); }
-              to   { opacity:0.18; transform:scaleY(1); }
-            }
-            @keyframes btnSlideIn {
-              from { opacity:0; transform:translateY(10px); }
-              to   { opacity:1; transform:translateY(0); }
-            }
-            .cross-wrap      { display:flex; flex-direction:column; align-items:center; padding:36px 0 24px; gap:14px; }
-            .cross-container { position:relative; display:flex; align-items:center; justify-content:center; }
-            .cross-svg       { animation: crossFadeIn .9s cubic-bezier(.22,1,.36,1) forwards, glowPulse 3.2s ease-in-out .9s infinite; }
-            .cross-beam      { position:absolute; left:50%; top:0; transform:translateX(-50%); width:56px; height:260px; background:linear-gradient(to bottom,rgba(255,230,120,0),rgba(255,220,100,.55),rgba(255,230,120,0)); border-radius:50%; animation:beamExpand 1.1s cubic-bezier(.22,1,.36,1) .5s forwards; opacity:0; pointer-events:none; }
-            .cross-caption   { font-size:15px; letter-spacing:.12em; color:#8b7355; opacity:0; animation:crossFadeIn .8s ease 1.1s forwards; font-style:italic; }
-            .confirm-btn     { margin-top:4px; padding:11px 32px; border:none; border-radius:24px; font-size:15px; font-weight:600; letter-spacing:.08em; cursor:pointer; animation:btnSlideIn .7s ease 1.4s both; transition:opacity .2s,transform .15s; }
-            .confirm-btn:active   { transform:scale(0.96); }
-            .confirm-btn:disabled { cursor:default; opacity:.65; }
-            .btn-gold  { background:linear-gradient(135deg,#c8922a,#f5d680); color:#4a2e00; box-shadow:0 2px 12px rgba(200,146,42,.35); }
-            .btn-green { background:linear-gradient(135deg,#3a8a5a,#6fcf97); color:#fff; box-shadow:0 2px 12px rgba(58,138,90,.3); }
-          `}</style>
-
-          <div className="cross-wrap">
-            <div className="cross-container">
-              <div className="cross-beam" />
-              <svg className="cross-svg" width="96" height="128" viewBox="0 0 96 128" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="40" y="8"  width="16" height="112" rx="3" fill="url(#gV)" />
-                <rect x="12" y="34" width="72" height="16"  rx="3" fill="url(#gH)" />
-                <circle cx="48" cy="42" r="5" fill="#fffbe6" opacity=".85" />
-                <defs>
-                  <linearGradient id="gV" x1="48" y1="8" x2="48" y2="120" gradientUnits="userSpaceOnUse">
-                    <stop offset="0%"   stopColor="#f5d680" />
-                    <stop offset="45%"  stopColor="#c8922a" />
-                    <stop offset="100%" stopColor="#a06a10" />
-                  </linearGradient>
-                  <linearGradient id="gH" x1="12" y1="42" x2="84" y2="42" gradientUnits="userSpaceOnUse">
-                    <stop offset="0%"   stopColor="#a06a10" />
-                    <stop offset="50%"  stopColor="#f5d680" />
-                    <stop offset="100%" stopColor="#a06a10" />
-                  </linearGradient>
-                </defs>
-              </svg>
-            </div>
-
-            <div className="cross-caption">祈禱已蒙垂聽</div>
-
-            {!recordSaved ? (
-              <button
-                className="confirm-btn btn-gold"
-                onClick={handleConfirmRecord}
-                disabled={isSaving}
-              >
-                {isSaving ? "記錄中…" : "✝  確認記錄此次祈禱"}
-              </button>
-            ) : (
-              <div style={{ display: "flex", gap: 10 }}>
-                <button className="confirm-btn btn-green" disabled>
-                  ✓  已標記於朝聖地圖
-                </button>
-                <button
-                  className="confirm-btn btn-gold"
-                  onClick={() => router.push("/pilgrimage")}
-                >
-                  前往朝聖地圖
-                </button>
-              </div>
-            )}
-
-            {recordSaved && locationPerm === "denied" && (
-              <p style={{ fontSize: 12, color: "#8b6020", textAlign: "center", maxWidth: 280, lineHeight: 1.5 }}>
-                您的祈禱以匿名方式標示在聖殿附近。
-              </p>
-            )}
-          </div>
-        </>
+        <div>步驟三</div>
       )}
     </div>
   );
