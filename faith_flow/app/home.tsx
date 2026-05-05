@@ -51,7 +51,7 @@ export default function Home() {
     <VideoBackground source={require("../assets/backgrounds/main.mp4")}>
       <View style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: 88 }}>
-          <View style={{ flex: 1, padding: 24 }}>
+          <View style={{ flex: 1, paddingHorizontal: 24, paddingBottom: 24 }}>
             <View style={{ flexDirection: "row", gap: 12, marginBottom: 16 }}>
               <DateDisplay date={today} />
               <LiturgicalInfo date={today} />

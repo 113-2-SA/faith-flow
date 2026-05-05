@@ -92,16 +92,17 @@ export function LiturgicalInfo({ date }: LiturgicalInfoProps) {
 
 const styles = StyleSheet.create({
   card: {
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
   loading: {
     color: "rgba(255,255,255,0.5)",
-    fontSize: 14,
+    fontSize: 11,
     textAlign: "center",
+    fontFamily: "NotoSerifTC_400Regular",
   },
   header: {
     flexDirection: "row",
@@ -110,31 +111,36 @@ const styles = StyleSheet.create({
   },
   season: {
     color: "rgba(255,255,255,0.95)",
-    fontSize: 22,
+    fontSize: 16,
     fontWeight: "600",
-    letterSpacing: 1.5,
+    letterSpacing: 1,
+    textAlign: "center",
+    fontFamily: "NotoSerifTC_400Regular",
   },
   badge: {
     backgroundColor: "rgba(255,255,255,0.2)",
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
   badgeText: {
     color: "rgba(255,255,255,0.95)",
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
+    fontFamily: "NotoSerifTC_400Regular",
   },
   feast: {
-    color: "rgba(255,255,255,0.82)",
-    fontSize: 16,
-    marginTop: 6,
-    letterSpacing: 0.8,
+    color: "rgba(255,255,255,0.80)",
+    fontSize: 11,
+    marginTop: 3,
+    textAlign: "center",
+    fontFamily: "NotoSerifTC_400Regular",
   },
   rank: {
-    color: "rgba(255,255,255,0.65)",
-    fontSize: 12,
-    marginTop: 4,
+    color: "rgba(255,255,255,0.58)",
+    fontSize: 10,
+    marginTop: 2,
     fontStyle: "italic",
+    fontFamily: "NotoSerifTC_400Regular",
   },
 });

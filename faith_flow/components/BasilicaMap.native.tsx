@@ -245,6 +245,12 @@ export function BasilicaMap() {
           ref={mapRef}
           provider={PROVIDER_GOOGLE}
           style={styles.map}
+          mapType="hybrid"
+          showsCompass={false}
+          rotateEnabled={false}
+          toolbarEnabled={false}
+          showsScale={false}
+          zoomControlEnabled={false}
           initialRegion={{
             latitude: MAP_CONFIG.defaultCenter.lat,
             longitude: MAP_CONFIG.defaultCenter.lng,

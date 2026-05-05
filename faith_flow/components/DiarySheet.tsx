@@ -193,18 +193,24 @@ export function DiaryHandle({ open, date, openInCreateMode, onDragOpen, onClose 
       {/* ── 視覺把手區（純顯示，不處理事件） ── */}
       <View style={styles.handleArea} pointerEvents="none">
         <View style={styles.dragBar} />
-        <View style={styles.handleRow}>
-          <View>
-            <Text selectable={false} style={styles.handleDate}>
-              {open ? formatDate(date) : formatDate(todayStr)}
-            </Text>
-            <Text selectable={false} style={styles.handleHint}>
-              {open
-                ? mode === "create" ? "記錄今日日記" : `${diaries.length} 篇日記`
-                : "向上拖曳，記錄日記"}
+        {open ? (
+          <View style={styles.handleRow}>
+            <View>
+              <Text selectable={false} style={styles.handleDate}>
+                {formatDate(date)}
+              </Text>
+              <Text selectable={false} style={styles.handleHint}>
+                {mode === "create" ? "記錄今日日記" : `${diaries.length} 篇日記`}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.handleRowCollapsed}>
+            <Text selectable={false} style={styles.handleHintBold}>
+              向上拉動記錄今日日記
             </Text>
           </View>
-        </View>
+        )}
       </View>
 
       {/* ── 主體內容 ── */}
@@ -373,16 +379,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
   },
+  handleRowCollapsed: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+  },
   handleDate: {
     fontSize: 16,
     fontWeight: "700",
     color: "rgba(0,0,0,0.78)",
     lineHeight: 20,
+    fontFamily: "NotoSerifTC_400Regular",
+  },
+  handleHintBold: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "rgba(0,0,0,0.70)",
+    fontFamily: "NotoSerifTC_400Regular",
   },
   handleHint: {
     fontSize: 12,
     color: "rgba(0,0,0,0.40)",
     marginTop: 1,
+    fontFamily: "NotoSerifTC_400Regular",
   },
 
   body: {
@@ -396,16 +415,16 @@ const styles = StyleSheet.create({
   listContent: { paddingBottom: 16 },
   emptyState: { marginTop: 48, alignItems: "center" },
   emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyText: { fontSize: 15, color: "rgba(0,0,0,0.45)" },
+  emptyText: { fontSize: 15, color: "rgba(0,0,0,0.45)", fontFamily: "NotoSerifTC_400Regular" },
   diaryCard: {
     backgroundColor: "rgba(0,0,0,0.04)",
     borderRadius: 14,
     padding: 16,
     marginBottom: 12,
   },
-  diaryTitle: { fontSize: 16, fontWeight: "700", color: "rgba(0,0,0,0.82)", marginBottom: 6 },
-  diaryPreview: { fontSize: 14, color: "rgba(0,0,0,0.52)", lineHeight: 20, marginBottom: 4 },
-  bibleQuote: { fontSize: 12, color: "rgba(70,130,180,0.85)", fontStyle: "italic", marginTop: 4 },
+  diaryTitle: { fontSize: 16, fontWeight: "700", color: "rgba(0,0,0,0.82)", marginBottom: 6, fontFamily: "NotoSerifTC_400Regular" },
+  diaryPreview: { fontSize: 14, color: "rgba(0,0,0,0.52)", lineHeight: 20, marginBottom: 4, fontFamily: "NotoSerifTC_400Regular" },
+  bibleQuote: { fontSize: 12, color: "rgba(70,130,180,0.85)", fontStyle: "italic", marginTop: 4, fontFamily: "NotoSerifTC_400Regular" },
   addButton: {
     marginTop: 8,
     paddingVertical: 14,
@@ -413,15 +432,15 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.06)",
     alignItems: "center",
   },
-  addButtonText: { fontSize: 15, fontWeight: "600", color: "rgba(0,0,0,0.6)" },
+  addButtonText: { fontSize: 15, fontWeight: "600", color: "rgba(0,0,0,0.6)", fontFamily: "NotoSerifTC_400Regular" },
 
   // 新增表單
   backRow: { paddingVertical: 8, marginBottom: 4 },
-  backText: { fontSize: 15, color: "rgba(0,0,0,0.45)", fontWeight: "500" },
-  titleInput: { fontSize: 26, fontWeight: "700", color: "rgba(0,0,0,0.85)", paddingVertical: 8 },
+  backText: { fontSize: 15, color: "rgba(0,0,0,0.45)", fontWeight: "500", fontFamily: "NotoSerifTC_400Regular" },
+  titleInput: { fontSize: 26, fontWeight: "700", color: "rgba(0,0,0,0.85)", paddingVertical: 8, fontFamily: "NotoSerifTC_400Regular" },
   divider: { height: 1, backgroundColor: "rgba(0,0,0,0.08)", marginVertical: 10 },
   contentScroll: { flex: 1 },
-  contentInput: { fontSize: 16, color: "rgba(0,0,0,0.78)", lineHeight: 26, minHeight: 200 },
+  contentInput: { fontSize: 16, color: "rgba(0,0,0,0.78)", lineHeight: 26, minHeight: 200, fontFamily: "NotoSerifTC_400Regular" },
   submitRow: { alignItems: "flex-end", paddingTop: 12 },
   submitBtn: {
     width: 52,
