@@ -4,6 +4,9 @@ import { buildMonthGrid, addMonths, monthNameEn } from "./calendarUtils";
 import { GlassCard } from "./GlassCard";
 import { useAuth } from "../hooks/useAuth";
 import { API_BASE_URL } from "../lib/api";
+import { useFonts } from "expo-font";
+import { PlaywriteNO_400Regular } from "@expo-google-fonts/playwrite-no";
+import { CrimsonText_400Regular, CrimsonText_600SemiBold } from "@expo-google-fonts/crimson-text";
 
 const WEEK = ["Sun", "Mon", "Tue", "WED", "THU", "FRI", "SAT"];
 
@@ -12,6 +15,11 @@ type Props = {
 };
 
 export function CalendarCard({ onDatePress }: Props) {
+  const [fontsLoaded] = useFonts({
+    PlaywriteNO_400Regular,
+    CrimsonText_400Regular,
+    CrimsonText_600SemiBold,
+  });
   const { user } = useAuth();
   const [viewDate, setViewDate] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -79,7 +87,10 @@ export function CalendarCard({ onDatePress }: Props) {
 
         <View style={styles.headerCenter}>
           <Text style={styles.year} selectable={false}>{year}</Text>
-          <Text style={styles.month} selectable={false}>{monthTitle}</Text>
+          <Text
+            style={[styles.month, fontsLoaded && { fontFamily: "PlaywriteNO_400Regular" }]}
+            selectable={false}
+          >{monthTitle}</Text>
         </View>
 
         <Pressable
@@ -94,7 +105,7 @@ export function CalendarCard({ onDatePress }: Props) {
       {/* Week row */}
       <View style={styles.weekRow}>
         {WEEK.map((w) => (
-          <Text key={w} style={styles.weekText} selectable={false}>
+          <Text key={w} style={[styles.weekText, fontsLoaded && { fontFamily: "CrimsonText_600SemiBold" }]} selectable={false}>
             {w}
           </Text>
         ))}
@@ -129,6 +140,7 @@ export function CalendarCard({ onDatePress }: Props) {
                 selectable={false}
                 style={[
                   styles.cellText,
+                  fontsLoaded && { fontFamily: "CrimsonText_400Regular" },
                   !c.inMonth && styles.cellTextDim,
                   c.isToday && styles.cellTextToday,
                   isSelected && styles.cellTextSelected,
@@ -182,8 +194,6 @@ const styles = StyleSheet.create({
   month: {
     color: "rgba(255,255,255,0.95)",
     fontSize: 40,
-    fontStyle: "italic",
-    fontWeight: "600",
     marginTop: 2,
   },
 

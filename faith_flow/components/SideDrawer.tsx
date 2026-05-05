@@ -28,7 +28,6 @@ export function SideDrawer({ open, onClose }: Props) {
     { label: "有答大師", href: "/answer" },
     { label: "心靈營火", href: "/community" },
     { label: "朝聖之地", href: "/pilgrimage" },
-    { label: "思高聖經", href: "/bible" },
     { label: "說明", href: "/about" },
     { label: "帳號設定", href: "/settings" },
   ];
@@ -159,7 +158,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 14,
   },
-  itemText: { color: "rgba(0,0,0,0.88)", fontSize: 16 },
+  itemText: { color: "rgba(0,0,0,0.88)", fontSize: 16, fontFamily: "NotoSerifTC_400Regular" },
   footer: { marginTop: "auto", paddingBottom: 20 },
   logoutBtn: {
     paddingVertical: 12,
@@ -167,5 +166,5 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: "rgba(0,0,0,0.08)",
   },
-  logoutText: { color: "rgba(0,0,0,0.9)", textAlign: "center" },
+  logoutText: { color: "rgba(0,0,0,0.9)", textAlign: "center", fontFamily: "NotoSerifTC_400Regular" },
 });

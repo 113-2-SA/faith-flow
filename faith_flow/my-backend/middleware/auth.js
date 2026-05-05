@@ -2,6 +2,8 @@
 const admin = require("../config/firebase");
 
 function getBearerToken(req) {
+  // 支援 query param token（給 expo-av 直接播放用）
+  if (req.query?.token) return req.query.token;
   const authHeader = req.headers.authorization;
   if (!authHeader) return null;
   if (!authHeader.startsWith("Bearer ")) return null;

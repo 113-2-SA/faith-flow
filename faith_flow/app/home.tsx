@@ -60,7 +60,7 @@ export default function Home() {
             <CalendarCard
               onDatePress={(date) => {
                 setSheetDate(date);
-                setSheetCreateMode(false); // 點擊日期 → 列表模式
+                setSheetCreateMode(false);
                 setSheetOpen(true);
               }}
             />
@@ -82,7 +82,7 @@ export default function Home() {
               </GlassCard>
             </TouchableOpacity>
 
-            <Text style={{ marginTop: 12, color: "rgba(255,255,255,0.72)" }}>
+            <Text style={{ marginTop: 12, color: "rgba(255,255,255,0.72)", fontFamily: "NotoSerifTC_400Regular" }}>
               你已登入：{user?.email ?? "(no email)"}
             </Text>
           </View>
@@ -94,8 +94,8 @@ export default function Home() {
           date={sheetDate}
           openInCreateMode={sheetCreateMode}
           onDragOpen={() => {
-            setSheetDate(todayStr()); // 拖曳 → 重設為今天
-            setSheetCreateMode(true); // 拖曳 → 新增模式
+            setSheetDate(todayStr());
+            setSheetCreateMode(true);
             setSheetOpen(true);
           }}
           onClose={() => setSheetOpen(false)}
@@ -137,11 +137,13 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: 'rgba(255,255,255,0.95)',
+    fontFamily: 'NotoSerifTC_400Regular',
   },
   diaryListSub: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.65)',
     marginTop: 2,
+    fontFamily: 'NotoSerifTC_400Regular',
   },
   diaryListArrow: {
     fontSize: 26,
