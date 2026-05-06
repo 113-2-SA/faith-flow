@@ -57,7 +57,7 @@ export default function Home() {
   }, [start]);
 
   const handleStartConversation = () => {
-    router.push('/pilgrimage');
+    router.push('/chat');
   };
 
   return (
