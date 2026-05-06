@@ -204,8 +204,8 @@ export default function WeeklySummaryDetailScreen() {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return `${date.getMonth() + 1}/${date.getDate()}`;
+    const [, month, day] = dateString.split('-');
+    return `${parseInt(month)}/${parseInt(day)}`;
   };
 
   if (loading) {

@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../context/authcontext';
+import { toLocaleDateCST } from '../../utils/dateUtils';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -593,7 +594,7 @@ export default function ChatScreen() {
                           <Text style={[styles.convTitle, currentConversationId === conv.conversation_id && styles.convTitleActive]}>
                             {currentConversationId === conv.conversation_id ? '▶ ' : ''}{conv.title || '新對話'}
                           </Text>
-                          <Text style={styles.convDate}>{new Date(conv.updated_at).toLocaleDateString('zh-TW')}</Text>
+                          <Text style={styles.convDate}>{toLocaleDateCST(conv.updated_at)}</Text>
                         </TouchableOpacity>
                         <View style={styles.convActions}>
                           <TouchableOpacity style={styles.convActionBtn}

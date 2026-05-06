@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../context/authcontext';
 import { VideoBackground } from '../../components/VideoBackground';
 import { GlassCard } from '../../components/GlassCard';
+import { toDateOnlyCST } from '../../utils/dateUtils';
 
 interface Diary {
   diary_id: number;
@@ -117,7 +118,7 @@ export default function DiaryListScreen() {
       onPress={() => router.push({ pathname: '/diary/[id]', params: { id: item.diary_id } })}
     >
       <GlassCard style={styles.diaryCard}>
-        <Text style={styles.diaryDate}>{item.diary_date}</Text>
+        <Text style={styles.diaryDate}>{toDateOnlyCST(item.diary_date)}</Text>
         <Text style={styles.diaryTitle}>{item.diary_title}</Text>
         <Text style={styles.diaryContent} numberOfLines={2}>
           {item.diary_content}
