@@ -1,12 +1,13 @@
 // ==================== services/aiPrayerService.js ====================
-// AI 禱告歷程追蹤服務（整合於 Node.js，使用 Mistral AI + pgvector）
+// AI 禱告歷程追蹤服務（整合於 Node.js，使用 Jina embedding + Mistral AI + pgvector）
 //
 // 流程：
-//   Step 1: processDiary  → 生成 embedding + 情緒分析（並行），更新 diary 表，回傳 embedding 向量
+//   Step 1: processDiary  → 生成 embedding（Jina）+ 情緒分析（Mistral，並行），更新 diary 表，回傳 embedding 向量
 //   Step 2: findSimilar   → 用 pgvector 找相似日記（cosine similarity > 0.75）
 //   Step 3: analyzeTheme  → 深度主題分析，寫入 prayer_clusters 表
 
 const { Mistral } = require('@mistralai/mistralai');
+const axios = require('axios');
 const pool = require('../config/database');
 const { parseJsonFromLLM } = require('../utils/parseJsonFromLLM');
 
@@ -21,7 +22,11 @@ async function processDiary(diaryId, content, userId, title = '', tags = []) {
   const embeddingInput = [title, tagStr, content].filter(Boolean).join('\n');
 
   const [embedRes, emotionRes] = await Promise.all([
-    mistral.embeddings.create({ model: 'mistral-embed', inputs: [embeddingInput] }),
+    axios.post(
+      'https://api.jina.ai/v1/embeddings',
+      { model: 'jina-embeddings-v3', input: [embeddingInput], task: 'text-matching' },
+      { headers: { Authorization: `Bearer ${process.env.JINA_API_KEY}`, 'Content-Type': 'application/json' } }
+    ),
     mistral.chat.complete({
       model: 'mistral-small-latest',
       maxTokens: 200,
@@ -35,7 +40,7 @@ async function processDiary(diaryId, content, userId, title = '', tags = []) {
     })
   ]);
 
-  const embedding = embedRes.data[0].embedding;
+  const embedding = embedRes.data.data[0].embedding;
 
   let emotion_score = 0.5;
   let emotion_label = '平靜';
