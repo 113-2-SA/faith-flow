@@ -229,6 +229,20 @@ class PostController {
         }
     }
 
+    // 檢舉貼文
+    async reportPost(req, res) {
+        try {
+            const postId = parseInt(req.params.id);
+            const { reason } = req.body;
+            if (!reason) return res.status(400).json({ ok: false, error: '請選擇檢舉原因' });
+            await postService.reportPost(postId, req.userId, reason);
+            res.json({ ok: true, message: '檢舉已送出' });
+        } catch (error) {
+            const status = ['已經', '不能', '無效', '不存在'].some(k => error.message.includes(k)) ? 400 : 500;
+            res.status(status).json({ ok: false, error: error.message });
+        }
+    }
+
     // 獲取我的貼文
     async getMyPosts(req, res, next) {
         try {

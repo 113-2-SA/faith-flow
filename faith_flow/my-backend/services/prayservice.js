@@ -124,11 +124,11 @@ ${prayerText}
       // 2. 插入資料庫
       const query = `
         INSERT INTO diary (
-          user_id, 
-          collect_id, 
-          diary_title, 
-          diary_content, 
-          tags, 
+          user_id,
+          collect_id,
+          diary_title,
+          diary_content,
+          tags,
           bible_quote,
           diary_date,
           created_at
@@ -141,7 +141,7 @@ ${prayerText}
         collectId || null,
         title,
         prayerText,
-        JSON.stringify(tags), // PostgreSQL jsonb 類型
+        JSON.stringify(tags),
         bibleQuote
       ];
 

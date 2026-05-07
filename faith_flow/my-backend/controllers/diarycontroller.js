@@ -2,6 +2,7 @@
 const diaryService = require("../services/diaryservice");
 const prayerService = require("../services/prayservice");
 const { runAIPrayerPipeline } = require("../services/aiPrayerService");
+const pool = require("../config/database");
 console.log("[diarycontroller] hit /api/diary");
 
 /**
@@ -421,27 +422,37 @@ exports.createFromPrayer = async (req, res) => {
   try {
     console.log('🙏 [createFromPrayer] 收到祈禱轉日記請求');
     
-    const userId = req.userId; // 從 attachUserId middleware 取得
-    const { transcript, collectId } = req.body;
+    const userId = req.userId;
+    const { transcript, collectId, latitude, longitude } = req.body;
 
     console.log('👤 使用者 ID:', userId);
     console.log('📝 祈禱文字長度:', transcript?.length);
+    console.log('📍 位置:', latitude != null ? `${latitude}, ${longitude}` : '無');
 
-    // 驗證輸入
     if (!transcript || transcript.trim().length === 0) {
       console.log('❌ [createFromPrayer] 祈禱內容為空');
-      return res.status(400).json({ 
+      return res.status(400).json({
         ok: false,
-        error: '祈禱內容不能為空' 
+        error: '祈禱內容不能為空'
       });
     }
 
-    // 使用 prayerService 轉換為日記
+    // 1. 轉換語音為日記（AI 生成標題/標籤/聖經金句）
     const diary = await prayerService.convertPrayerToDiary(
       userId,
       transcript.trim(),
       collectId
     );
+
+    // 2. 若有座標，將位置寫入 prayer_locations（關聯到剛建立的日記）
+    if (latitude != null && longitude != null) {
+      await pool.query(
+        `INSERT INTO prayer_locations (diary_id, latitude, longitude)
+         VALUES ($1, $2, $3)`,
+        [diary.diary_id, parseFloat(latitude), parseFloat(longitude)]
+      );
+      console.log('📍 [createFromPrayer] 禱告位置已記錄 diary_id:', diary.diary_id);
+    }
 
     console.log('✅ [createFromPrayer] 祈禱日記建立成功! ID:', diary.diary_id);
 
@@ -501,5 +512,36 @@ exports.previewPrayer = async (req, res) => {
       error: '預覽生成失敗',
       detail: error.message
     });
+  }
+};
+
+/**
+ * 取得使用者的禱告地點（含日記內容）
+ * GET /api/diary/prayer-locations
+ */
+exports.getPrayerLocations = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    const result = await pool.query(
+      `SELECT
+         pl.prayp_id  AS id,
+         pl.diary_id,
+         pl.latitude::float  AS latitude,
+         pl.longitude::float AS longitude,
+         pl.created_at,
+         d.diary_content AS text,
+         d.diary_title   AS title
+       FROM prayer_locations pl
+       JOIN diary d ON pl.diary_id = d.diary_id
+       WHERE d.user_id = $1
+       ORDER BY pl.created_at DESC`,
+      [userId]
+    );
+
+    res.json({ ok: true, data: result.rows });
+  } catch (error) {
+    console.error('❌ [getPrayerLocations] 錯誤:', error);
+    res.status(500).json({ ok: false, error: '取得禱告位置失敗', detail: error.message });
   }
 };

@@ -169,6 +169,23 @@ export default function DiaryListScreen() {
             </View>
           )}
 
+          {/* 週統整入口 */}
+          <TouchableOpacity
+            style={styles.weeklyBtn}
+            onPress={() => router.push('/diary/weeklysummary')}
+          >
+            <GlassCard style={styles.weeklyCard}>
+              <View style={styles.weeklyRow}>
+                <Text style={styles.weeklyIcon}>✨</Text>
+                <View style={styles.weeklyText}>
+                  <Text style={styles.weeklyTitle}>週統整</Text>
+                  <Text style={styles.weeklySub}>查看 AI 自動生成的每週祈禱回顧</Text>
+                </View>
+                <Text style={styles.weeklyArrow}>›</Text>
+              </View>
+            </GlassCard>
+          </TouchableOpacity>
+
           {/* 搜尋欄 */}
           <GlassCard style={styles.searchCard}>
             <View style={styles.searchRow}>
@@ -313,6 +330,40 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: 'rgba(255,255,255,0.95)',
+  },
+  weeklyBtn: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
+  weeklyCard: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  weeklyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  weeklyIcon: {
+    fontSize: 22,
+  },
+  weeklyText: {
+    flex: 1,
+  },
+  weeklyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
+  },
+  weeklySub: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 2,
+  },
+  weeklyArrow: {
+    fontSize: 22,
+    color: 'rgba(255,255,255,0.5)',
+    fontWeight: '300',
   },
   searchCard: {
     marginHorizontal: 16,

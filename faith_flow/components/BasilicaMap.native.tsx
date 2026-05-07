@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, ActivityIndicator, TextInput } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { GlassCard } from "./GlassCard";
@@ -9,6 +9,9 @@ import { db } from "../lib/firebase";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { useChurchPhoto } from "../hooks/useChurchPhoto";
 import { ChurchPanoramaViewer } from "./ChurchPanoramaViewer";
+import { ChurchVideoViewer } from "./ChurchVideoViewer";
+import { useFocusEffect } from "expo-router";
+import { loadPrayers, PrayerRecord } from "../lib/prayerStore";
 
 function ChurchPhoto({ nameEn, nameCh }: { nameEn: string; nameCh?: string }) {
   const { photoUrl, loading, error } = useChurchPhoto(nameEn, nameCh);
@@ -69,6 +72,7 @@ export type Basilica = {
   viewerUrl: string;
   panoramaId?: string | null;
   panoramaHeading?: number;
+  videoUrl?: string | null;
 };
 
 type FilterType = "all" | "major" | "cathedral" | "chapel";
@@ -85,10 +89,19 @@ export function BasilicaMap() {
   const [detailY, setDetailY] = useState(0);
   const [displayCount, setDisplayCount] = useState(3);
   const [showPanorama, setShowPanorama] = useState(false);
+  const [showVideo, setShowVideo] = useState(false);
+  const [prayers, setPrayers] = useState<PrayerRecord[]>([]);
 
-  // 切換教堂時關閉全景
+  useFocusEffect(
+    useCallback(() => {
+      loadPrayers().then(setPrayers);
+    }, [])
+  );
+
+  // 切換教堂時關閉全景與影片
   useEffect(() => {
     setShowPanorama(false);
+    setShowVideo(false);
   }, [selectedId]);
 
   useEffect(() => {
@@ -115,6 +128,7 @@ export function BasilicaMap() {
             viewerUrl: data.viewerUrl,
             panoramaId: data.panoramaId || null,
             panoramaHeading: data.panoramaHeading ?? undefined,
+            videoUrl: data.videoUrl || null,
           });
         });
         setBasilicas(basilicasData);
@@ -228,6 +242,7 @@ export function BasilicaMap() {
         ref={scrollViewRef}
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
+        nestedScrollEnabled={true}
       >
         {/* Header */}
         <View style={styles.headerSection}>
@@ -269,7 +284,42 @@ export function BasilicaMap() {
               </View>
             </Marker>
           ))}
+          {prayers.map((p) => (
+            <Marker
+              key={`prayer-${p.id}`}
+              coordinate={{ latitude: p.latitude, longitude: p.longitude }}
+              tracksViewChanges={false}
+            >
+              <View style={[
+                styles.prayerMarker,
+                p.locationSource === "gps" ? styles.prayerMarkerGps : styles.prayerMarkerAnon,
+              ]}>
+                <View style={[styles.prayerCrossV, p.locationSource === "gps" ? styles.prayerCrossGold : styles.prayerCrossSilver]} />
+                <View style={[styles.prayerCrossH, p.locationSource === "gps" ? styles.prayerCrossGold : styles.prayerCrossSilver]} />
+              </View>
+            </Marker>
+          ))}
         </MapView>
+      </View>
+
+      {/* Map Legend */}
+      <View style={styles.mapLegend}>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, styles.legendDotChurch]} />
+          <Text style={styles.legendLabel}>教堂</Text>
+        </View>
+        {prayers.length > 0 && (
+          <>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, styles.legendDotGps]} />
+              <Text style={styles.legendLabel}>祈禱（定位）</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, styles.legendDotAnon]} />
+              <Text style={styles.legendLabel}>祈禱（匿名）</Text>
+            </View>
+          </>
+        )}
       </View>
 
       {/* Search */}
@@ -360,6 +410,33 @@ export function BasilicaMap() {
                 {selectedBasilica.description}
               </ThemedText>
             </View>
+
+            {/* 查看影片按鈕 */}
+            {selectedBasilica.videoUrl ? (
+              <Pressable
+                onPress={() => {
+                  setShowVideo(true);
+                  scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+                }}
+                style={({ pressed }) => [
+                  styles.videoBtn,
+                  pressed && styles.videoBtnPressed,
+                ]}
+              >
+                <View style={styles.videoBtnInner}>
+                  <Text style={styles.videoBtnIcon}>🎬</Text>
+                  <View>
+                    <ThemedText style={styles.videoBtnLabel}>
+                      查看影片
+                    </ThemedText>
+                    <ThemedText style={styles.videoBtnSub}>
+                      教堂介紹影片
+                    </ThemedText>
+                  </View>
+                  <Text style={styles.videoBtnArrow}>›</Text>
+                </View>
+              </Pressable>
+            ) : null}
 
             {/* 360° 全景按鈕 */}
             {selectedBasilica.panoramaId ? (
@@ -507,12 +584,21 @@ export function BasilicaMap() {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <ThemedText style={styles.statValue}>11+</ThemedText>
-            <ThemedText style={styles.statLabel}>個國家</ThemedText>
+            <ThemedText style={styles.statValue}>{prayers.length}</ThemedText>
+            <ThemedText style={styles.statLabel}>次祈禱</ThemedText>
           </View>
         </View>
       </GlassCard>
       </ScrollView>
+
+      {/* 影片檢視器放置於 ScrollView 外以防佈局干擾 */}
+      {showVideo && selectedBasilica?.videoUrl && (
+        <ChurchVideoViewer
+          videoUrl={selectedBasilica.videoUrl}
+          basilicaName={selectedBasilica.name}
+          onClose={() => setShowVideo(false)}
+        />
+      )}
 
       {/* 360° 全景檢視器改放置於 ScrollView 外以防佈局干擾 */}
       {showPanorama && selectedBasilica?.panoramaId && (
@@ -883,6 +969,43 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "rgba(255,255,255,0.4)",
   },
+  videoBtn: {
+    marginTop: 16,
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(220,80,60,0.6)",
+    backgroundColor: "rgba(220,80,60,0.18)",
+  },
+  videoBtnPressed: {
+    backgroundColor: "rgba(220,80,60,0.38)",
+    borderColor: "rgba(220,80,60,1)",
+  },
+  videoBtnInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  videoBtnIcon: {
+    fontSize: 28,
+  },
+  videoBtnLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.95)",
+  },
+  videoBtnSub: {
+    fontSize: 11,
+    color: "rgba(220,80,60,0.9)",
+    marginTop: 2,
+  },
+  videoBtnArrow: {
+    fontSize: 24,
+    color: "rgba(220,80,60,0.8)",
+    marginLeft: "auto",
+  },
   panoramaBtn: {
     marginTop: 16,
     borderRadius: 14,
@@ -919,5 +1042,74 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: "rgba(102,126,234,0.8)",
     marginLeft: "auto",
+  },
+  prayerMarker: {
+    width: 26,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+    borderRadius: 4,
+  },
+  prayerMarkerGps: {
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  prayerMarkerAnon: {
+    backgroundColor: "rgba(60,60,80,0.45)",
+  },
+  prayerCrossV: {
+    position: "absolute",
+    width: 5,
+    height: 28,
+    borderRadius: 2,
+  },
+  prayerCrossH: {
+    position: "absolute",
+    top: 6,
+    width: 20,
+    height: 5,
+    borderRadius: 2,
+  },
+  prayerCrossGold: {
+    backgroundColor: "#f5d680",
+    shadowColor: "#c8922a",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  prayerCrossSilver: {
+    backgroundColor: "#b0b8c8",
+  },
+  mapLegend: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 4,
+  },
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  legendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  legendDotChurch: {
+    backgroundColor: "rgba(102,126,234,0.9)",
+  },
+  legendDotGps: {
+    backgroundColor: "#f5d680",
+  },
+  legendDotAnon: {
+    backgroundColor: "#b0b8c8",
+  },
+  legendLabel: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.6)",
   },
 });
