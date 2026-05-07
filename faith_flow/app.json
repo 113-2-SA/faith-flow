@@ -12,6 +12,15 @@
       "supportsTablet": true,
       "config": {
         "googleMapsApiKey": "$EXPO_PUBLIC_GOOGLE_MAPS_API_KEY"
+      },
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.213812049105-1gi6t7i7o5ns23m4kocahtn3cdk8bgcs"
+            ]
+          }
+        ]
       }
     },
     "android": {
@@ -36,6 +45,7 @@
     },
     "plugins": [
       "expo-router",
+      
       [
         "expo-splash-screen",
         {

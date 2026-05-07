@@ -16,6 +16,7 @@ import { useAuth } from '../context/authcontext';
 import { API_BASE_URL } from '../../lib/api';
 import { VideoBackground } from '../../components/VideoBackground';
 import { GlassCard } from '../../components/GlassCard';
+import { toDateOnlyCST } from '../../utils/dateUtils';
 
 interface Diary {
   diary_id: number;
@@ -239,7 +240,7 @@ export default function DiaryDetailScreen() {
                 />
               </>
             ) : (
-              <Text style={styles.date}>{diary.diary_date}</Text>
+              <Text style={styles.date}>{toDateOnlyCST(diary.diary_date)}</Text>
             )}
 
             {/* 標題 */}

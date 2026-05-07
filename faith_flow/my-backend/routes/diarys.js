@@ -31,7 +31,12 @@ router.get("/stats",verifyToken, attachUserId, diarycontroller.getStats);
 router.get("/",verifyToken, attachUserId, diarycontroller.getDiaries);
 
 // GET /api/diary/search
-router.get("/search",verifyToken, attachUserId, diarycontroller.searchDiaries);
+router.get("/search", verifyToken, attachUserId, diarycontroller.searchDiaries);
+
+// 固定路徑必須在 /:id 之前，否則會被當成 ID
+router.post('/from-prayer', auth, diarycontroller.createFromPrayer);
+router.post('/preview-prayer', auth, diarycontroller.previewPrayer);
+router.get('/prayer-locations', auth, diarycontroller.getPrayerLocations);
 
 // GET /api/diary/:id
 router.get("/:id", verifyToken, attachUserId, diarycontroller.getDiaryById);
@@ -48,7 +53,4 @@ router.delete("/:id", verifyToken, attachUserId, diarycontroller.deleteDiary);
 // GET /api/diary/date/:date
 router.get("/date/:date", verifyToken, attachUserId, diarycontroller.getDiaryByDate);
 
-// POST /api/diary/pray
-router.post('/from-prayer', auth, diarycontroller.createFromPrayer);
-router.post('/preview-prayer', auth, diarycontroller.previewPrayer);
 module.exports = router;

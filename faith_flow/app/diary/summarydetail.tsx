@@ -204,8 +204,8 @@ export default function WeeklySummaryDetailScreen() {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return `${date.getMonth() + 1}/${date.getDate()}`;
+    const [, month, day] = dateString.split('-');
+    return `${parseInt(month)}/${parseInt(day)}`;
   };
 
   if (loading) {
@@ -321,11 +321,24 @@ export default function WeeklySummaryDetailScreen() {
           )}
         </TouchableOpacity>
 
+        {/* 分享到社群 */}
+        <TouchableOpacity
+          onPress={() =>
+            router.push(
+              { pathname: '/community/create', params: { summary_year: String(summary.year), summary_week: String(summary.week_number) } } as never
+            )
+          }
+          activeOpacity={0.7}
+          style={styles.communityShareBtn}
+        >
+          <Text style={styles.communityShareBtnText}>🔥 分享到心靈營火</Text>
+        </TouchableOpacity>
+
         {/* 操作按鈕 */}
         <View style={styles.actionButtons}>
           <TouchableOpacity onPress={handleShare} activeOpacity={0.7} style={styles.actionBtnOuter}>
             <View style={styles.actionButton}>
-              <Text style={styles.actionButtonText}>📤 分享</Text>
+              <Text style={styles.actionButtonText}>📤 系統分享</Text>
             </View>
           </TouchableOpacity>
 
@@ -501,6 +514,22 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     color: '#FFFFFF',
     fontStyle: 'italic',
+  },
+
+  communityShareBtn: {
+    marginHorizontal: 16,
+    marginTop: 20,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 122, 255, 0.35)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 122, 255, 0.55)',
+    alignItems: 'center',
+  },
+  communityShareBtnText: {
+    color: 'rgba(135, 206, 250, 0.95)',
+    fontSize: 16,
+    fontWeight: '600',
   },
 
   // 操作按鈕

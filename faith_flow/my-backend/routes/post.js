@@ -63,10 +63,17 @@ router.put('/:id',
 );
 
 // ⭐ 刪除貼文（需要登入）
-router.delete('/:id', 
+router.delete('/:id',
     verifyToken,
     attachUserId,
     postController.deletePost
+);
+
+// ⭐ 檢舉貼文（需要登入）
+router.post('/:id/report',
+    verifyToken,
+    attachUserId,
+    postController.reportPost
 );
 
 module.exports = router;

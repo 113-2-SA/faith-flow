@@ -119,10 +119,8 @@ export default function WeeklySummaryScreen() {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    return `${month}/${day}`;
+    const [, month, day] = dateString.split('-');
+    return `${parseInt(month)}/${parseInt(day)}`;
   };
 
   const groupByYear = (summaries: WeeklySummary[]) => {

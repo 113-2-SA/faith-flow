@@ -1,7 +1,11 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { CopilotStep, walkthroughable } from "react-native-copilot";
 
 import { SideDrawer } from "./SideDrawer";
+
+const WalkthroughablePressable = walkthroughable(Pressable);
 
 type AppShellContextValue = {
   openDrawer: () => void;
@@ -30,9 +34,15 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
 
         {/* 固定在左上角的漢堡按鈕（所有頁面位置一致） */}
         <SafeAreaView style={styles.hamburgerArea} edges={["top"]}>
-          <Pressable onPress={openDrawer} style={styles.hamburgerButton}>
-            <Text style={styles.hamburgerText}>☰</Text>
-          </Pressable>
+          <CopilotStep
+            text="這裡是功能選單！點開可找到週統整、日記管理等所有功能入口。"
+            order={1}
+            name="menu"
+          >
+            <WalkthroughablePressable onPress={openDrawer} style={styles.hamburgerButton}>
+              <Text style={styles.hamburgerText}>☰</Text>
+            </WalkthroughablePressable>
+          </CopilotStep>
         </SafeAreaView>
 
         <SideDrawer open={open} onClose={closeDrawer} />

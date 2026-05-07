@@ -1,8 +1,31 @@
 import { Redirect, Stack, useSegments } from "expo-router";
-import { ActivityIndicator, View } from "react-native";
-import { AuthProvider ,useAuth} from "./context/authcontext"  
+import { ActivityIndicator, Platform, View } from "react-native";
+import { useEffect } from "react";
+import { AuthProvider ,useAuth} from "./context/authcontext"
 // import { useAuth } from "../hooks/useAuth";
 import { AppShellProvider } from "../components/AppShell";
+import { CopilotProvider } from "react-native-copilot";
+
+/** 注入全域 CSS，禁止瀏覽器選取畫面元素（僅 web） */
+function GlobalWebStyles() {
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const style = document.createElement("style");
+    style.textContent = `
+      * {
+        user-select: none !important;
+        -webkit-user-select: none !important;
+      }
+      input, textarea, [contenteditable="true"] {
+        user-select: text !important;
+        -webkit-user-select: text !important;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
+  return null;
+}
 
 
 /**
@@ -36,9 +59,17 @@ function RootLayoutNav() {
   // 已登入的情況，用共用 Layout 包裹（含側邊欄）
   if (currentUser) {
     return (
-      <AppShellProvider>
-        <Stack screenOptions={{ headerShown: false }} />
-      </AppShellProvider>
+      <CopilotProvider
+        animated
+        overlay="view"
+        stopOnOutsideClick
+        backdropColor="transparent"
+        labels={{ skip: "略過", previous: "上一步", next: "下一步", finish: "完成" }}
+      >
+        <AppShellProvider>
+          <Stack screenOptions={{ headerShown: false }} />
+        </AppShellProvider>
+      </CopilotProvider>
     );
   }
 
@@ -53,6 +84,7 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <AuthProvider>
+      <GlobalWebStyles />
       <RootLayoutNav />
     </AuthProvider>
   );

@@ -1,14 +1,26 @@
 // ==================== services/aiPrayerService.js ====================
+<<<<<<< HEAD
 // AI 祈禱分析服務：Node.js 使用 Mistral AI + pgvector
 //
 // 流程：
 //   Step 1: processDiary  → 生成 embedding + 情緒分析，寫入 diary 的 embedding 欄位
+=======
+// AI 禱告歷程追蹤服務（整合於 Node.js，使用 Jina embedding + Mistral AI + pgvector）
+//
+// 流程：
+//   Step 1: processDiary  → 生成 embedding（Jina）+ 情緒分析（Mistral，並行），更新 diary 表，回傳 embedding 向量
+>>>>>>> origin/main
 //   Step 2: findSimilar   → 用 pgvector 找相似日記（cosine similarity > 0.75）
 //   Step 3: analyzeTheme  → 分析主題趨勢，寫入 prayer_clusters 表
 
 // ⚠️ 注意：@mistralai/mistralai 新版只支援 ESM，
 // 因此改用 getMistral() helper，每次呼叫時動態 import，避免 require() 報錯。
 
+<<<<<<< HEAD
+=======
+const { Mistral } = require('@mistralai/mistralai');
+const axios = require('axios');
+>>>>>>> origin/main
 const pool = require('../config/database');
 const { parseJsonFromLLM } = require('../utils/parseJsonFromLLM');
 
@@ -30,23 +42,36 @@ async function processDiary(diaryId, content, userId, title = '', tags = []) {
   const mistral = await getMistral();
 
   const [embedRes, emotionRes] = await Promise.all([
+<<<<<<< HEAD
     // 生成向量 embedding（用於 RAG 相似度搜尋）
     mistral.embeddings.create({ model: 'mistral-embed', inputs: [embeddingInput] }),
     // 情緒分析：請 LLM 輸出 emotion_score 和 emotion_label
+=======
+    axios.post(
+      'https://api.jina.ai/v1/embeddings',
+      { model: 'jina-embeddings-v3', input: [embeddingInput], task: 'text-matching' },
+      { headers: { Authorization: `Bearer ${process.env.JINA_API_KEY}`, 'Content-Type': 'application/json' } }
+    ),
+>>>>>>> origin/main
     mistral.chat.complete({
       model: 'mistral-small-latest',
       maxTokens: 200,
       messages: [{
         role: 'user',
+<<<<<<< HEAD
         content: `請分析以下日記內容的情緒，只回傳 JSON，不要有其他文字：
 {"emotion_score": 0到1的數字（0=非常負面/悲傷，1=非常正面/喜悅）, "emotion_label": "用一個中文詞描述主要情緒，例如：感恩、平靜、焦慮、喜悅、悲傷"}
+=======
+        content: `分析以下祈禱日記的情緒狀態，只回傳 JSON，不要其他文字：
+{"emotion_score": 0到1之間的數字（0=非常悲傷/焦慮，1=非常喜悅/平靜）, "emotion_label": "一個中文情緒標籤（感恩、平靜、焦慮、難過、開心、期待、放鬆、擔心等日常用語）"}
+>>>>>>> origin/main
 
 日記內容：${content}`
       }]
     })
   ]);
 
-  const embedding = embedRes.data[0].embedding;
+  const embedding = embedRes.data.data[0].embedding;
 
   // 解析情緒分析結果
   let emotion_score = 0.5;
@@ -150,12 +175,21 @@ async function analyzeTheme(diaryIds, userId) {
     maxTokens: 800,
     messages: [{
       role: 'user',
+<<<<<<< HEAD
       content: `請分析以下幾篇日記的共同主題和情緒趨勢，並給予靈性上的洞察與陪伴。
 只回傳 JSON，格式如下：
 {
   "theme": "用10字內描述共同主題",
   "emotion_trend": "情緒走向描述（例如：從焦慮逐漸轉向平靜）",
   "ai_insight": "對使用者的靈性洞察與陪伴（100字以內，溫暖的語氣）",
+=======
+      content: `以下是同一位用戶在不同時間寫的數篇祈禱日記，它們有相似的主題。
+請分析這些日記，只回傳 JSON，不要其他文字：
+{
+  "theme": "這些日記的核心主題（10字以內）",
+  "emotion_trend": "描述情緒變化的趨勢（例如：從焦慮慢慢變得平靜）",
+  "ai_insight": "給這位用戶的洞察與鼓勵（100字以內，語氣自然像朋友說話，不要用文言文或宗教術語，直接講重點）",
+>>>>>>> origin/main
   "should_ask_question": true 或 false,
   "question": "如果 should_ask_question 為 false 則填 null"
 }
