@@ -32,7 +32,7 @@ export function SideDrawer({ open, onClose }: Props) {
   const items = [
     { label: "首頁", href: "/home" },
     { label: "活水泉源", href: "/drawcard" },
-    { label: "有答大師", href: "/answer" },
+    { label: "有答大師", href: "/chat" },
     { label: "心靈營火", href: "/community" },
     { label: "朝聖之地", href: "/pilgrimage" },
     { label: "說明", href: "/about" },

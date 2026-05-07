@@ -1,4 +1,8 @@
 import { Redirect, Stack, useSegments } from "expo-router";
+
+export const unstable_settings = {
+  initialRouteName: "index",
+};
 import { ActivityIndicator, Platform, Text, View } from "react-native";
 import { useEffect } from "react";
 import { useFonts } from "expo-font";

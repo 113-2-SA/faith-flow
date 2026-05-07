@@ -1,67 +1,52 @@
 import React from "react";
-import { Text, View, StyleSheet } from "react-native";
+import { Text, StyleSheet, Pressable } from "react-native";
 import { useFonts } from "expo-font";
 import { PlaywriteNO_400Regular } from "@expo-google-fonts/playwrite-no";
 import { GlassCard } from "./GlassCard";
+import { monthNameEn } from "./calendarUtils";
 
 interface DateDisplayProps {
-  date: Date;
+  viewDate: Date;
+  expanded: boolean;
+  onToggle: () => void;
 }
 
-export function DateDisplay({ date }: DateDisplayProps) {
+export function DateDisplay({ viewDate, expanded, onToggle }: DateDisplayProps) {
   const [fontsLoaded] = useFonts({ PlaywriteNO_400Regular });
 
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const weekdays = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-  const weekday = weekdays[date.getDay()];
-
+  const year = viewDate.getFullYear();
+  const monthTitle = monthNameEn(viewDate);
   const pw = fontsLoaded ? { fontFamily: "PlaywriteNO_400Regular" } : {};
 
   return (
-    <GlassCard style={styles.card}>
-      <View style={styles.topRow}>
+    <Pressable onPress={onToggle} style={styles.pressable}>
+      <GlassCard style={styles.card}>
         <Text selectable={false} style={[styles.year, pw]}>{year}</Text>
-        <Text selectable={false} style={[styles.weekday, pw]}>{weekday}</Text>
-      </View>
-      <Text
-        selectable={false}
-        style={[styles.date, pw]}
-        adjustsFontSizeToFit
-        numberOfLines={1}
-      >
-        {month}/{day}
-      </Text>
-    </GlassCard>
+        <Text selectable={false} style={[styles.month, pw]}>{monthTitle}</Text>
+      </GlassCard>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  pressable: {
     flex: 1,
   },
-  topRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  card: {
     alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
   },
   year: {
-    color: "rgba(255,255,255,0.70)",
+    color: "rgba(255,255,255,0.60)",
     fontSize: 11,
-    letterSpacing: 1.5,
+    letterSpacing: 2,
+    marginBottom: 2,
   },
-  weekday: {
-    color: "rgba(255,255,255,0.65)",
-    fontSize: 11,
-    letterSpacing: 1,
-  },
-  date: {
+  month: {
     color: "rgba(255,255,255,0.95)",
-    fontSize: 44,
-    lineHeight: 48,
-    marginTop: 2,
+    fontSize: 22,
+    textAlign: "center",
   },
 });

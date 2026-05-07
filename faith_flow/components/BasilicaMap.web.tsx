@@ -10,9 +10,10 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { ChurchPanoramaViewer } from "./ChurchPanoramaViewer";
+import { GlassCard } from "./GlassCard";
 import { db } from "../lib/firebase";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 
@@ -43,11 +44,6 @@ const FILTER_LABELS: Record<FilterType, string> = {
   chapel: "聖堂",
 };
 
-// Glass gradient — matches DEFAULT_GLASS: #B3CADA → #75859B → #415367, CSS 60° (lower-left to upper-right)
-const GLASS_COLORS = ["#B3CADA", "#75859B", "#415367"] as const;
-const GLASS_START = { x: 0.067, y: 0.75 };
-const GLASS_END   = { x: 0.933, y: 0.25 };
-const GLASS_BORDER = "rgba(194,212,255,0.5)";
 
 const WIN_H = Dimensions.get("window").height;
 const SHEET_H = Math.round(Math.min(460, WIN_H * 0.60));
@@ -56,6 +52,7 @@ const COLLAPSED_Y = SHEET_H - HANDLE_H;
 
 export function BasilicaMap() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   const [basilicas, setBasilicas] = useState<Basilica[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,13 +72,13 @@ export function BasilicaMap() {
 
   // ── Sheet ────────────────────────────────────────────────────────
   const openSheet = () => {
-    Animated.spring(sheetY, { toValue: 0, useNativeDriver: false, bounciness: 4 }).start();
+    Animated.spring(sheetY, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
     currentSheetY.current = 0;
     setSheetOpen(true);
   };
 
   const closeSheet = () => {
-    Animated.spring(sheetY, { toValue: COLLAPSED_Y, useNativeDriver: false, bounciness: 4 }).start();
+    Animated.spring(sheetY, { toValue: COLLAPSED_Y, useNativeDriver: true, bounciness: 4 }).start();
     currentSheetY.current = COLLAPSED_Y;
     setSheetOpen(false);
   };
@@ -99,9 +96,11 @@ export function BasilicaMap() {
       },
       onPanResponderRelease: (_, g) => {
         const projected = currentSheetY.current + g.dy;
-        if (g.vy < -0.5 || projected < COLLAPSED_Y * 0.45) {
+        const fastUp = g.vy < -0.5;
+        const fastDown = g.vy > 0.5;
+        if (fastUp || projected < COLLAPSED_Y * 0.5) {
           openSheet();
-        } else {
+        } else if (fastDown || projected >= COLLAPSED_Y * 0.5) {
           closeSheet();
         }
       },
@@ -221,45 +220,44 @@ export function BasilicaMap() {
       {/* ── Bottom sheet ── */}
       <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetY }] }]}>
 
-        {/* Glass gradient background */}
-        <LinearGradient
-          colors={GLASS_COLORS}
-          start={GLASS_START}
-          end={GLASS_END}
-          style={[StyleSheet.absoluteFill, styles.sheetGradient]}
-        />
-        {/* Glass border */}
-        <View style={[StyleSheet.absoluteFill, styles.sheetBorder, { borderColor: GLASS_BORDER }]} />
+        {/* GlassCard 提供主題玻璃背景（跟隨 GlassTheme） */}
+        <GlassCard style={styles.sheetGlass}>
 
-        {/* Drag handle */}
-        <View {...panResponder.panHandlers} style={styles.handleArea}>
-          <View style={styles.dragBar} />
-          {sheetOpen ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterContent}
-            >
-              {(["all", "major", "cathedral", "chapel"] as FilterType[]).map((type) => (
-                <Pressable
-                  key={type}
-                  onPress={() => setFilterType(type)}
-                  style={[styles.filterBtn, filterType === type && styles.filterBtnActive]}
-                >
-                  <Text style={[styles.filterText, filterType === type && styles.filterTextActive]}>
-                    {FILTER_LABELS[type]}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          ) : (
-            <Text style={styles.handleHint} selectable={false}>向上拉動查看教堂列表</Text>
-          )}
-        </View>
+          {/* Drag handle（純視覺，不接受事件） */}
+          <View style={styles.handleArea} pointerEvents="none">
+            <View style={styles.dragBar} />
+            <Text style={styles.handleHint} selectable={false}>
+              {sheetOpen
+                ? (selectedBasilica ? selectedBasilica.name : "教堂列表")
+                : "向上拉動查看教堂列表"}
+            </Text>
+          </View>
 
-        {/* White content area */}
-        <View style={styles.contentArea}>
-          {selectedBasilica ? (
+          {/* 白色內容卡 */}
+          <View style={styles.contentArea}>
+            {/* 篩選 tabs（展開時顯示，可點擊，不被 gestureOverlay 遮蓋） */}
+            {sheetOpen && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterContent}
+                style={styles.filterScroll}
+              >
+                {(["all", "major", "cathedral", "chapel"] as FilterType[]).map((type) => (
+                  <Pressable
+                    key={type}
+                    onPress={() => setFilterType(type)}
+                    style={[styles.filterBtn, filterType === type && styles.filterBtnActive]}
+                  >
+                    <Text style={[styles.filterText, filterType === type && styles.filterTextActive]}>
+                      {FILTER_LABELS[type]}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
+
+            {selectedBasilica ? (
             <ScrollView style={styles.panelScroll} showsVerticalScrollIndicator={false}>
               <View style={styles.detailHeader}>
                 <View style={{ flex: 1 }}>
@@ -299,6 +297,10 @@ export function BasilicaMap() {
                 </Pressable>
               ) : null}
 
+              <Pressable onPress={() => router.push("/pray" as any)} style={styles.recordBtn}>
+                <Text style={styles.recordBtnText}>🎙 錄音祈禱</Text>
+              </Pressable>
+
               <View style={{ height: 24 }} />
             </ScrollView>
           ) : (
@@ -331,7 +333,11 @@ export function BasilicaMap() {
               )}
             </ScrollView>
           )}
-        </View>
+          </View>
+        </GlassCard>
+
+        {/* 手勢捕捉層：蓋住 handle 區，讓 filter tabs 在下方可正常點擊 */}
+        <View style={styles.gestureOverlay} {...panResponder.panHandlers} />
       </Animated.View>
 
       {showPanorama && selectedBasilica?.panoramaId && (
@@ -378,24 +384,27 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 0, left: 0, right: 0,
     height: SHEET_H,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    overflow: "hidden",
+    zIndex: 400,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.18,
     shadowRadius: 8,
     elevation: 8,
   },
-  sheetGradient: {
+  // GlassCard 樣式 override：頂部圓角、填滿、零 padding（GlassCard 預設 padding:14 會被覆蓋）
+  sheetGlass: {
+    flex: 1,
+    borderRadius: 0,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
+    padding: 0,
   },
-  sheetBorder: {
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    borderWidth: 1,
-    borderBottomWidth: 0,
+  // 手勢捕捉層，蓋住 handle 高度，讓 content 區的 filter tabs 可點擊
+  gestureOverlay: {
+    position: "absolute",
+    top: 0, left: 0, right: 0,
+    height: HANDLE_H,
+    zIndex: 10,
   },
 
   // ── Handle ─────────────────────────────────────────────────────
@@ -421,15 +430,16 @@ const styles = StyleSheet.create({
   filterBtn: {
     paddingHorizontal: 14, paddingVertical: 5,
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.25)",
+    backgroundColor: "rgba(65,83,103,0.08)",
+    borderWidth: 1, borderColor: "rgba(65,83,103,0.18)",
   },
   filterBtnActive: {
-    backgroundColor: "rgba(255,255,255,0.35)",
-    borderColor: "rgba(255,255,255,0.70)",
+    backgroundColor: "rgba(102,126,234,0.18)",
+    borderColor: "rgba(102,126,234,0.55)",
   },
-  filterText: { color: "rgba(255,255,255,0.75)", fontSize: 12, fontFamily: "NotoSerifTC_400Regular" },
-  filterTextActive: { color: "#fff", fontWeight: "700" },
+  filterScroll: { paddingHorizontal: 10, paddingVertical: 8 },
+  filterText: { color: "rgba(65,83,103,0.80)", fontSize: 12, fontFamily: "NotoSerifTC_400Regular" },
+  filterTextActive: { color: "rgba(102,126,234,1)", fontWeight: "700" },
 
   // ── White content area ─────────────────────────────────────────
   contentArea: {
@@ -461,6 +471,12 @@ const styles = StyleSheet.create({
     borderRadius: 10, borderWidth: 1, borderColor: "rgba(65,83,103,0.25)", alignItems: "center",
   },
   panoramaBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(65,83,103,0.90)", fontFamily: "NotoSerifTC_400Regular" },
+  recordBtn: {
+    marginTop: 10, paddingVertical: 10, paddingHorizontal: 14,
+    backgroundColor: "rgba(102,126,234,0.10)",
+    borderRadius: 10, borderWidth: 1, borderColor: "rgba(102,126,234,0.30)", alignItems: "center",
+  },
+  recordBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(102,126,234,0.90)", fontFamily: "NotoSerifTC_400Regular" },
 
   // ── List ───────────────────────────────────────────────────────
   listItem: { paddingVertical: 12, paddingHorizontal: 2, borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.07)" },

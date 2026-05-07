@@ -1,7 +1,12 @@
 import { useAuth } from "../hooks/useAuth";
-import { ScrollView, Text, View, TouchableOpacity, StyleSheet } from "react-native";
+import { ScrollView, Text, View, TouchableOpacity, StyleSheet, LayoutAnimation, Platform, UIManager } from "react-native";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
+import { addMonths } from "../components/calendarUtils";
+
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 import { CalendarCard } from "../components/CalendarCard";
 import { VideoBackground } from "../components/VideoBackground";
@@ -26,7 +31,14 @@ export default function Home() {
   const [sheetDate, setSheetDate] = useState(todayStr);
   const [sheetCreateMode, setSheetCreateMode] = useState(false);
 
+  const [viewDate, setViewDate] = useState(() => new Date());
+  const [calExpanded, setCalExpanded] = useState(false);
   const [nudge, setNudge] = useState<NudgeData | null>(null);
+
+  const toggleCalendar = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setCalExpanded((v) => !v);
+  };
   const nudgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 停留 4 秒後查詢是否有待顯示的光點回顧
@@ -50,14 +62,23 @@ export default function Home() {
   return (
     <VideoBackground source={require("../assets/backgrounds/main.mp4")}>
       <View style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: 88 }}>
-          <View style={{ flex: 1, paddingHorizontal: 24, paddingBottom: 24 }}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: 88 }} showsVerticalScrollIndicator={false}>
+          <View style={{ flex: 1, paddingHorizontal: 30, paddingBottom: 24 }}>
             <View style={{ flexDirection: "row", gap: 12, marginBottom: 16 }}>
-              <DateDisplay date={today} />
+              <DateDisplay
+                viewDate={viewDate}
+                expanded={calExpanded}
+                onToggle={toggleCalendar}
+              />
               <LiturgicalInfo date={today} />
             </View>
 
             <CalendarCard
+              viewDate={viewDate}
+              expanded={calExpanded}
+              onToggleExpanded={toggleCalendar}
+              onPrev={() => setViewDate((d) => addMonths(d, -1))}
+              onNext={() => setViewDate((d) => addMonths(d, +1))}
               onDatePress={(date) => {
                 setSheetDate(date);
                 setSheetCreateMode(false);

@@ -9,6 +9,7 @@ import { db } from "../lib/firebase";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { useChurchPhoto } from "../hooks/useChurchPhoto";
 import { ChurchPanoramaViewer } from "./ChurchPanoramaViewer";
+import { useRouter } from "expo-router";
 
 function ChurchPhoto({ nameEn, nameCh }: { nameEn: string; nameCh?: string }) {
   const { photoUrl, loading, error } = useChurchPhoto(nameEn, nameCh);
@@ -74,6 +75,7 @@ export type Basilica = {
 type FilterType = "all" | "major" | "cathedral" | "chapel";
 
 export function BasilicaMap() {
+  const router = useRouter();
   const [basilicas, setBasilicas] = useState<Basilica[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -399,6 +401,20 @@ export function BasilicaMap() {
                 </ThemedText>
               </View>
             )}
+
+            <Pressable
+              onPress={() => router.push("/pray")}
+              style={({ pressed }) => [styles.recordBtn, pressed && styles.recordBtnPressed]}
+            >
+              <View style={styles.recordBtnInner}>
+                <Text style={styles.recordBtnIcon}>🎙</Text>
+                <View>
+                  <ThemedText style={styles.recordBtnLabel}>錄音祈禱</ThemedText>
+                  <ThemedText style={styles.recordBtnSub}>語音記錄靈修心聲</ThemedText>
+                </View>
+                <Text style={styles.recordBtnArrow}>›</Text>
+              </View>
+            </Pressable>
           </ScrollView>
         </GlassCard>
         </View>
@@ -888,6 +904,43 @@ const styles = StyleSheet.create({
   noPanoramaText: {
     fontSize: 11,
     color: "rgba(255,255,255,0.4)",
+  },
+  recordBtn: {
+    marginTop: 12,
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(102,126,234,0.6)",
+    backgroundColor: "rgba(102,126,234,0.18)",
+  },
+  recordBtnPressed: {
+    backgroundColor: "rgba(102,126,234,0.38)",
+    borderColor: "rgba(102,126,234,1)",
+  },
+  recordBtnInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  recordBtnIcon: {
+    fontSize: 28,
+  },
+  recordBtnLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.95)",
+  },
+  recordBtnSub: {
+    fontSize: 11,
+    color: "rgba(102,126,234,0.9)",
+    marginTop: 2,
+  },
+  recordBtnArrow: {
+    fontSize: 24,
+    color: "rgba(102,126,234,0.8)",
+    marginLeft: "auto",
   },
   panoramaBtn: {
     marginTop: 16,
