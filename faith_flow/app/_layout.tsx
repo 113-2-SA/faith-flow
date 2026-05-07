@@ -1,24 +1,22 @@
 import { Redirect, Stack, useSegments } from "expo-router";
-import { ActivityIndicator, Platform, View } from "react-native";
+import { ActivityIndicator, Platform, Text, View } from "react-native";
 import { useEffect } from "react";
-import { AuthProvider ,useAuth} from "./context/authcontext"
-// import { useAuth } from "../hooks/useAuth";
+import { useFonts } from "expo-font";
+import { NotoSerifTC_400Regular } from "@expo-google-fonts/noto-serif-tc";
+import { AuthProvider, useAuth } from "./context/authcontext";
 import { AppShellProvider } from "../components/AppShell";
 import { CopilotProvider } from "react-native-copilot";
+import { GlassThemeProvider } from "../context/GlassThemeContext";
 
-/** 注入全域 CSS，禁止瀏覽器選取畫面元素（僅 web） */
+/** 注入全域 CSS（web only） */
 function GlobalWebStyles() {
   useEffect(() => {
     if (Platform.OS !== "web") return;
     const style = document.createElement("style");
     style.textContent = `
-      * {
-        user-select: none !important;
-        -webkit-user-select: none !important;
-      }
+      * { user-select: none !important; -webkit-user-select: none !important; }
       input, textarea, [contenteditable="true"] {
-        user-select: text !important;
-        -webkit-user-select: text !important;
+        user-select: text !important; -webkit-user-select: text !important;
       }
     `;
     document.head.appendChild(style);
@@ -27,15 +25,9 @@ function GlobalWebStyles() {
   return null;
 }
 
-
-/**
- * ⭐ 內部路由保護元件
- * 這個元件在 AuthProvider 內部，所以可以使用 useAuth()
- */
 function RootLayoutNav() {
-  const { currentUser, loading } = useAuth();  // ⭐ 從 AuthContext 取得
+  const { currentUser, loading } = useAuth();
   const segments = useSegments();
-
   const inAuth = segments[0] === "auth";
 
   if (loading) {
@@ -46,17 +38,9 @@ function RootLayoutNav() {
     );
   }
 
-  // 未登入：只在「不在 auth 區」時才導去 login（避免 loop）
-  if (!currentUser && !inAuth) {
-    return <Redirect href="/auth/login" />;
-  }
+  if (!currentUser && !inAuth) return <Redirect href="/auth/login" />;
+  if (currentUser && inAuth)   return <Redirect href="/home" />;
 
-  // ✅ 關鍵：已登入且還在 auth 區，導去 /home（月曆頁）
-  if (currentUser && inAuth) {
-    return <Redirect href="/home" />;
-  }
-
-  // 已登入的情況，用共用 Layout 包裹（含側邊欄）
   if (currentUser) {
     return (
       <CopilotProvider
@@ -73,19 +57,31 @@ function RootLayoutNav() {
     );
   }
 
-  // 未登入但仍在 auth 區（登入頁）
   return <Stack screenOptions={{ headerShown: false }} />;
 }
 
-/**
- * ⭐ 根元件
- * 用 AuthProvider 包裹整個 App
- */
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({ NotoSerifTC_400Regular });
+
+  // 字體載完後同步設定，確保所有 Text 在首次渲染時就套用
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  // 在任何 Text 渲染前同步設定全域字體
+  if (!Text.defaultProps) Text.defaultProps = {};
+  (Text.defaultProps as any).style = { fontFamily: "NotoSerifTC_400Regular" };
+
   return (
-    <AuthProvider>
-      <GlobalWebStyles />
-      <RootLayoutNav />
-    </AuthProvider>
+    <GlassThemeProvider>
+      <AuthProvider>
+        <GlobalWebStyles />
+        <RootLayoutNav />
+      </AuthProvider>
+    </GlassThemeProvider>
   );
 }

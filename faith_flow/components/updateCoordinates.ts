@@ -54,8 +54,8 @@ export async function updateAllBasilicaCoordinates() {
       if (location) {
         const newCoordinates = [location.lat, location.lng];
 
-        // 2. 使用 Street View Metadata API 檢查該精準座標 50 公尺內是否有街景服務
-        const svMetadataUrl = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${location.lat},${location.lng}&radius=50&key=${GOOGLE_MAPS_API_KEY}`;
+        // 2. 使用 Street View Metadata API 檢查該精準座標 10 公尺內是否有街景服務
+        const svMetadataUrl = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${location.lat},${location.lng}&radius=10&key=${GOOGLE_MAPS_API_KEY}`;
         const svResponse = await fetch(svMetadataUrl);
         const svResult = await svResponse.json();
 

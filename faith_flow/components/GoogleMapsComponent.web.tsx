@@ -1,9 +1,9 @@
 import React, { useRef, useEffect, useState } from "react";
-import ReactDOM from "react-dom";
+import { createPortal } from "react-dom";
 import { StyleSheet } from "react-native";
 import {
   GoogleMap,
-  LoadScript,
+  useJsApiLoader,
   Marker,
   InfoWindow,
 } from "@react-google-maps/api";
@@ -64,6 +64,13 @@ function formatTime(iso: string): string {
     + `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
 }
 
+function makeChurchCrossSvg(): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="34" viewBox="0 0 26 34">`
+    + `<rect x="10.5" y="3" width="5" height="28" rx="2" fill="#1a73e8"/>`
+    + `<rect x="3" y="9" width="20" height="5" rx="2" fill="#1a73e8"/>`
+    + `</svg>`;
+}
+
 function makePrayerCrossSvg(isGps: boolean): string {
   const c = isGps ? GOLD_LIGHT : SILVER;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="34" viewBox="0 0 26 34">`
@@ -89,6 +96,12 @@ export default function GoogleMapsComponent({
   autoFitBounds,
   prayers,
 }: GoogleMapsComponentProps) {
+  const { isLoaded: jsApiLoaded } = useJsApiLoader({
+    googleMapsApiKey: MAP_CONFIG.apiKey,
+    language: "zh-TW",
+    region: "TW",
+  });
+  const isLoaded = jsApiLoaded || (typeof window !== "undefined" && !!window.google?.maps);
   const mapRef           = useRef<google.maps.Map | null>(null);
   const prayerMarkersRef = useRef<google.maps.Marker[]>([]);
   const [mapReady, setMapReady]           = useState(false);
@@ -242,7 +255,7 @@ export default function GoogleMapsComponent({
         </div>
       )}
 
-      <LoadScript googleMapsApiKey={MAP_CONFIG.apiKey}>
+      {isLoaded && (
         <GoogleMap
           mapContainerStyle={styles.mapContainer}
           center={MAP_CONFIG.defaultCenter}
@@ -251,16 +264,16 @@ export default function GoogleMapsComponent({
           options={{ styles: GLASS_RELIGIOUS_MAP_STYLE as any }}
         >
           {/* 教堂標記 */}
-          {markers.map((basilica) => (
+          {mapReady && markers.map((basilica) => (
             <React.Fragment key={basilica.id}>
               <Marker
                 position={{ lat: basilica.coordinates[0], lng: basilica.coordinates[1] }}
                 title={basilica.name}
                 onClick={() => onMarkerPress(basilica.id)}
                 icon={{
-                  path: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z",
-                  fillColor: "#666fee", fillOpacity: 0.9,
-                  strokeColor: "#fff", strokeWeight: 2, scale: 1.5,
+                  url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(makeChurchCrossSvg()),
+                  scaledSize: new google.maps.Size(26, 34),
+                  anchor: new google.maps.Point(13, 34),
                 }}
               />
               {selectedId === basilica.id && (
@@ -279,12 +292,12 @@ export default function GoogleMapsComponent({
             </React.Fragment>
           ))}
         </GoogleMap>
-      </LoadScript>
+      )}
 
     </div>
 
       {/* ── 完整祈禱紀錄 Modal（Portal 掛到 body，不受任何 stacking context 影響）── */}
-      {selectedPrayer && ReactDOM.createPortal(
+      {selectedPrayer && createPortal(
         <div
           onClick={() => setSelectedPrayer(null)}
           style={{
