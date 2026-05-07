@@ -50,6 +50,8 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
   return (
     <AppShellContext.Provider value={value}>
       <View style={styles.container}>
+        {children}
+
         {/* 漢堡按鈕：貼齊左緣，開抽屜時滑出隱藏 */}
         <Animated.View
           style={[styles.hamburgerArea, { transform: [{ translateX: menuX }] }]}

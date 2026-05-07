@@ -88,21 +88,10 @@ export function BasilicaMap() {
   const [detailY, setDetailY] = useState(0);
   const [displayCount, setDisplayCount] = useState(3);
   const [showPanorama, setShowPanorama] = useState(false);
-  const [showVideo, setShowVideo] = useState(false);
-  const [showImages, setShowImages] = useState(false);
-  const [prayers, setPrayers] = useState<PrayerRecord[]>([]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadPrayers().then(setPrayers);
-    }, [])
-  );
-
-  // 切換教堂時關閉全景、影片與圖片
+  // 切換教堂時關閉全景
   useEffect(() => {
     setShowPanorama(false);
-    setShowVideo(false);
-    setShowImages(false);
   }, [selectedId]);
 
   useEffect(() => {
@@ -291,21 +280,6 @@ export function BasilicaMap() {
               </View>
             </Marker>
           ))}
-          {prayers.map((p) => (
-            <Marker
-              key={`prayer-${p.id}`}
-              coordinate={{ latitude: p.latitude, longitude: p.longitude }}
-              tracksViewChanges={false}
-            >
-              <View style={[
-                styles.prayerMarker,
-                p.locationSource === "gps" ? styles.prayerMarkerGps : styles.prayerMarkerAnon,
-              ]}>
-                <View style={[styles.prayerCrossV, p.locationSource === "gps" ? styles.prayerCrossGold : styles.prayerCrossSilver]} />
-                <View style={[styles.prayerCrossH, p.locationSource === "gps" ? styles.prayerCrossGold : styles.prayerCrossSilver]} />
-              </View>
-            </Marker>
-          ))}
         </MapView>
       </View>
 
@@ -315,18 +289,6 @@ export function BasilicaMap() {
           <View style={[styles.legendDot, styles.legendDotChurch]} />
           <Text style={styles.legendLabel}>教堂</Text>
         </View>
-        {prayers.length > 0 && (
-          <>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, styles.legendDotGps]} />
-              <Text style={styles.legendLabel}>祈禱（定位）</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, styles.legendDotAnon]} />
-              <Text style={styles.legendLabel}>祈禱（匿名）</Text>
-            </View>
-          </>
-        )}
       </View>
 
       {/* Search */}
@@ -417,55 +379,6 @@ export function BasilicaMap() {
                 {selectedBasilica.description}
               </ThemedText>
             </View>
-
-            {/* Google 圖片搜尋按鈕 */}
-            <Pressable
-              onPress={() => setShowImages(true)}
-              style={({ pressed }) => [
-                styles.imageSearchBtn,
-                pressed && styles.imageSearchBtnPressed,
-              ]}
-            >
-              <View style={styles.imageSearchBtnInner}>
-                <Text style={styles.imageSearchBtnIcon}>🖼️</Text>
-                <View>
-                  <ThemedText style={styles.imageSearchBtnLabel}>
-                    查看圖片
-                  </ThemedText>
-                  <ThemedText style={styles.imageSearchBtnSub}>
-                    Google 圖片搜尋
-                  </ThemedText>
-                </View>
-                <Text style={styles.imageSearchBtnArrow}>›</Text>
-              </View>
-            </Pressable>
-
-            {/* 查看影片按鈕 */}
-            {selectedBasilica.videoUrl ? (
-              <Pressable
-                onPress={() => {
-                  setShowVideo(true);
-                  scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-                }}
-                style={({ pressed }) => [
-                  styles.videoBtn,
-                  pressed && styles.videoBtnPressed,
-                ]}
-              >
-                <View style={styles.videoBtnInner}>
-                  <Text style={styles.videoBtnIcon}>🎬</Text>
-                  <View>
-                    <ThemedText style={styles.videoBtnLabel}>
-                      查看影片
-                    </ThemedText>
-                    <ThemedText style={styles.videoBtnSub}>
-                      教堂介紹影片
-                    </ThemedText>
-                  </View>
-                  <Text style={styles.videoBtnArrow}>›</Text>
-                </View>
-              </Pressable>
-            ) : null}
 
             {/* 360° 全景按鈕 */}
             {selectedBasilica.panoramaId ? (
@@ -625,32 +538,9 @@ export function BasilicaMap() {
             <ThemedText style={styles.statValue}>{filtered.length}</ThemedText>
             <ThemedText style={styles.statLabel}>篩選結果</ThemedText>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <ThemedText style={styles.statValue}>{prayers.length}</ThemedText>
-            <ThemedText style={styles.statLabel}>次祈禱</ThemedText>
-          </View>
         </View>
       </GlassCard>
       </ScrollView>
-
-      {/* 圖片檢視器 */}
-      {showImages && selectedBasilica && (
-        <ChurchImageViewer
-          nameEn={selectedBasilica.nameEn}
-          basilicaName={selectedBasilica.name}
-          onClose={() => setShowImages(false)}
-        />
-      )}
-
-      {/* 影片檢視器放置於 ScrollView 外以防佈局干擾 */}
-      {showVideo && selectedBasilica?.videoUrl && (
-        <ChurchVideoViewer
-          videoUrl={selectedBasilica.videoUrl}
-          basilicaName={selectedBasilica.name}
-          onClose={() => setShowVideo(false)}
-        />
-      )}
 
       {/* 360° 全景檢視器改放置於 ScrollView 外以防佈局干擾 */}
       {showPanorama && selectedBasilica?.panoramaId && (
