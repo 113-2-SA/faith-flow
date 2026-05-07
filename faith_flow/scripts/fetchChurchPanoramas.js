@@ -34,9 +34,9 @@ if (!MAPS_API_KEY || MAPS_API_KEY === "your_google_maps_api_key_here") {
  * 呼叫 Street View Metadata API，優先室內再 fallback 室外。
  *
  * 策略：
- *  1. 小半徑（20m）+ source=default → 優先捕捉教堂入口/室內全景
- *  2. 若無結果，擴大至 80m + source=default → 仍包含室內
- *  3. 若仍無結果，fallback 100m + source=outdoor → 抓周邊街景
+ *  1. 小半徑（10m）+ source=default → 只捕捉教堂入口/室內全景
+ *  2. 若無結果，擴大至 40m + source=default → 仍包含室內
+ *  3. 若仍無結果，fallback 50m + source=outdoor → 抓周邊街景
  *
  * Metadata API 免費，不計費。
  */
@@ -46,19 +46,19 @@ async function fetchStreetViewMetadata(lat, lng) {
     `?location=${lat},${lng}&key=${MAPS_API_KEY}`;
 
   // 1. 室內優先：極小半徑
-  let res = await fetch(`${base}&radius=20&source=default`);
+  let res = await fetch(`${base}&radius=10&source=default`);
   let data = await res.json();
   if (data.status === "OK") return { ...data, panoramaSource: "indoor_near" };
 
   // 2. 稍大半徑，仍含室內
-  res = await fetch(`${base}&radius=80&source=default`);
+  res = await fetch(`${base}&radius=40&source=default`);
   data = await res.json();
-  if (data.status === "OK") return { ...data, panoramaSource: "default_80m" };
+  if (data.status === "OK") return { ...data, panoramaSource: "default_40m" };
 
   // 3. 最後 fallback：純室外街景
-  res = await fetch(`${base}&radius=100&source=outdoor`);
+  res = await fetch(`${base}&radius=50&source=outdoor`);
   data = await res.json();
-  return { ...data, panoramaSource: "outdoor_100m" };
+  return { ...data, panoramaSource: "outdoor_50m" };
 }
 
 /**
@@ -108,7 +108,7 @@ async function fetchChurchPanoramas() {
         };
         const sourceLabel =
           metadata.panoramaSource === "indoor_near" ? "🏛️  室內/入口" :
-          metadata.panoramaSource === "default_80m" ? "🏢 近距含室內" :
+          metadata.panoramaSource === "default_40m" ? "🏢 近距含室內" :
           "🌿 室外街景";
         console.log(`✅ ${name}  [${sourceLabel}]`);
         console.log(`   panoramaId: ${panoramaId}`);
