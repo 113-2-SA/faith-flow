@@ -1,11 +1,20 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CopilotStep, walkthroughable } from "react-native-copilot";
 
 import { SideDrawer } from "./SideDrawer";
 
-const WalkthroughablePressable = walkthroughable(Pressable);
+/** Safe-area 以下、內容區以上所預留的高度（背景不受影響） */
+export const HEADER_CONTENT_HEIGHT = 68;
 
 type AppShellContextValue = {
   openDrawer: () => void;
@@ -22,6 +31,17 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
   const closeDrawer = useCallback(() => setOpen(false), []);
   const toggleDrawer = useCallback(() => setOpen((prev) => !prev), []);
 
+  // 功能鍵滑出動畫：開啟時往左移出，關閉時移回
+  const menuX = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(menuX, {
+      toValue: open ? -90 : 0,
+      duration: open ? 200 : 220,
+      useNativeDriver: true,
+    }).start();
+  }, [open, menuX]);
+
   const value = useMemo(
     () => ({ openDrawer, closeDrawer, toggleDrawer }),
     [openDrawer, closeDrawer, toggleDrawer]
@@ -30,20 +50,27 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
   return (
     <AppShellContext.Provider value={value}>
       <View style={styles.container}>
-        {children}
-
-        {/* 固定在左上角的漢堡按鈕（所有頁面位置一致） */}
-        <SafeAreaView style={styles.hamburgerArea} edges={["top"]}>
-          <CopilotStep
-            text="這裡是功能選單！點開可找到週統整、日記管理等所有功能入口。"
-            order={1}
-            name="menu"
-          >
-            <WalkthroughablePressable onPress={openDrawer} style={styles.hamburgerButton}>
-              <Text style={styles.hamburgerText}>☰</Text>
-            </WalkthroughablePressable>
-          </CopilotStep>
-        </SafeAreaView>
+        {/* 漢堡按鈕：貼齊左緣，開抽屜時滑出隱藏 */}
+        <Animated.View
+          style={[styles.hamburgerArea, { transform: [{ translateX: menuX }] }]}
+          pointerEvents="box-none"
+        >
+          <SafeAreaView edges={["top"]} pointerEvents="box-none">
+            <Pressable onPress={openDrawer} style={styles.hamburgerButton} hitSlop={8}>
+              {Platform.OS === "web" ? (
+                <Text style={styles.menuIcon} selectable={false}>menu</Text>
+              ) : (
+                <>
+                  <View style={styles.bar} />
+                  <View style={styles.barSpacer} />
+                  <View style={styles.bar} />
+                  <View style={styles.barSpacer} />
+                  <View style={styles.bar} />
+                </>
+              )}
+            </Pressable>
+          </SafeAreaView>
+        </Animated.View>
 
         <SideDrawer open={open} onClose={closeDrawer} />
       </View>
@@ -59,23 +86,40 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     left: 0,
-    right: 0,
     zIndex: 1001,
-    paddingHorizontal: 16,
     paddingTop: 10,
   },
   hamburgerButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 62,
+    height: 48,
+    borderTopRightRadius: 24,
+    borderBottomRightRadius: 24,
+    borderTopLeftRadius: 0,
+    borderBottomLeftRadius: 0,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.22)",
+    backgroundColor: "rgba(255,255,255,0.92)",
+    paddingLeft: 14,
+    paddingRight: 17,
+    shadowColor: "#000",
+    shadowOffset: { width: 1, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  hamburgerText: {
-    color: "white",
-    fontSize: 24,
-    lineHeight: 24,
+  menuIcon: {
+    fontFamily: "Material Symbols Outlined",
+    fontSize: 32,
+    color: "rgba(0,0,0,0.65)",
+    lineHeight: 32,
+  },
+  bar: {
+    width: 22,
+    height: 2,
+    backgroundColor: "rgba(0,0,0,0.65)",
+  },
+  barSpacer: {
+    height: 6,
   },
 });
 

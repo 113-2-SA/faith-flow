@@ -7,23 +7,19 @@ import { useGlassTheme } from "../context/GlassThemeContext";
 type Props = {
   children?: React.ReactNode;
   style?: ViewStyle;
-  intensity?: number;   // overrides theme if provided
+  intensity?: number;
   transparent?: boolean;
-  glassColor?: string;  // overrides gradient with a solid colour if provided
+  glassColor?: string;
 };
 
-// Convert angle (degrees) to expo-linear-gradient start/end points
-function angleToPoints(deg: number): {
-  start: [number, number];
-  end: [number, number];
-} {
+// angle (degrees) → expo-linear-gradient start/end
+function angleToPoints(deg: number) {
   const rad = (deg * Math.PI) / 180;
   const x = Math.cos(rad);
   const y = Math.sin(rad);
-  // Map from [-1,1] to [0,1]
   return {
-    start: [(1 - x) / 2, (1 + y) / 2],
-    end:   [(1 + x) / 2, (1 - y) / 2],
+    start: { x: (1 - x) / 2, y: (1 + y) / 2 } as { x: number; y: number },
+    end:   { x: (1 + x) / 2, y: (1 - y) / 2 } as { x: number; y: number },
   };
 }
 
@@ -32,12 +28,13 @@ export function GlassCard({ children, style, intensity, transparent = false, gla
 
   const effectiveBlur = intensity ?? theme.blur;
   const isTransparent = transparent || glassColor === "transparent";
-  const borderColor = `rgba(255,255,255,${theme.borderOpacity})`;
+  const borderColor = `rgba(${theme.borderR ?? 194},${theme.borderG ?? 212},${theme.borderB ?? 255},${theme.borderOpacity})`;
   const showBlur = effectiveBlur > 0;
 
-  const color1 = `rgba(${theme.r ?? 255},${theme.g ?? 255},${theme.b ?? 255},${theme.opacity ?? 0.01})`;
-  const color2 = `rgba(${theme.r2 ?? 200},${theme.g2 ?? 200},${theme.b2 ?? 255},${theme.opacity2 ?? 0.08})`;
-  const { start, end } = angleToPoints(theme.angle ?? 135);
+  const color1 = `rgba(${theme.r},${theme.g},${theme.b},${theme.opacity})`;
+  const color2 = `rgba(${theme.r2},${theme.g2},${theme.b2},${theme.opacity2})`;
+  const color3 = `rgba(${theme.r3 ?? 65},${theme.g3 ?? 83},${theme.b3 ?? 103},${theme.opacity3 ?? 1})`;
+  const { start, end } = angleToPoints(theme.angle ?? 225);
 
   return (
     <View style={[styles.wrap, isTransparent ? styles.wrapTransparent : null, style]}>
@@ -45,17 +42,15 @@ export function GlassCard({ children, style, intensity, transparent = false, gla
         <BlurView intensity={effectiveBlur} tint="light" style={StyleSheet.absoluteFill} />
       )}
 
-      {/* 漸層背景 */}
       {!isTransparent && !glassColor && (
         <LinearGradient
-          colors={[color1, color2]}
+          colors={[color1, color2, color3]}
           start={start}
           end={end}
           style={StyleSheet.absoluteFill}
         />
       )}
 
-      {/* 單色覆蓋（明確傳入 glassColor 時） */}
       {!isTransparent && glassColor && (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: glassColor }]} />
       )}
@@ -71,6 +66,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: "hidden",
     backgroundColor: "transparent",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
   },
   wrapTransparent: {
     backgroundColor: "transparent",

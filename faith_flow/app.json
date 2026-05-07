@@ -19,9 +19,16 @@
             "CFBundleURLSchemes": [
               "com.googleusercontent.apps.213812049105-1gi6t7i7o5ns23m4kocahtn3cdk8bgcs"
             ]
+          },
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.213812049105-1gi6t7i7o5ns23m4kocahtn3cdk8bgcs"
+            ]
           }
-        ]
-      }
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.fjuim43.ff"
     },
     "android": {
       "adaptiveIcon": {
@@ -37,7 +44,11 @@
         "googleMaps": {
           "apiKey": "$EXPO_PUBLIC_GOOGLE_MAPS_API_KEY"
         }
-      }
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "output": "static",
@@ -70,10 +81,13 @@
       "reactCompiler": true
     },
     "extra": {
-      "router": {},
+      "router": {
+        "origin": false
+      },
       "eas": {
-        "projectId": "af9adfca-c582-404c-a20d-96bb9f71011f"
+        "projectId": "505a5439-f5e2-42b8-8e54-4429f15a6cd8"
       }
-    }
+    },
+    "owner": "starxinxin"
   }
 }

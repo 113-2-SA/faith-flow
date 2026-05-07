@@ -1,36 +1,129 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
-import { useRouter } from "expo-router";  // ⭐ 新增
-import { buildMonthGrid, addMonths, monthNameEn } from "./calendarUtils";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Easing, View, Text, StyleSheet, Pressable, Platform, UIManager } from "react-native";
+import { buildMonthGrid } from "./calendarUtils";
 import { GlassCard } from "./GlassCard";
 import { useAuth } from "../hooks/useAuth";
 import { API_BASE_URL } from "../lib/api";
 import { useFonts } from "expo-font";
-import { PlaywriteNO_400Regular } from "@expo-google-fonts/playwrite-no";
 import { CrimsonText_400Regular, CrimsonText_600SemiBold } from "@expo-google-fonts/crimson-text";
 
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 const WEEK = ["Sun", "Mon", "Tue", "WED", "THU", "FRI", "SAT"];
+const ANIM_MS = 300;
 
 type Props = {
+  viewDate: Date;
+  expanded: boolean;
+  onToggleExpanded: () => void;
+  onPrev: () => void;
+  onNext: () => void;
   onDatePress?: (date: string) => void;
 };
 
-export function CalendarCard({ onDatePress }: Props) {
-  const [fontsLoaded] = useFonts({
-    PlaywriteNO_400Regular,
-    CrimsonText_400Regular,
-    CrimsonText_600SemiBold,
-  });
-  const router = useRouter();
+export function CalendarCard({ viewDate, expanded, onToggleExpanded, onPrev, onNext, onDatePress }: Props) {
+  const [fontsLoaded] = useFonts({ CrimsonText_400Regular, CrimsonText_600SemiBold });
   const { user } = useAuth();
-  const [viewDate, setViewDate] = useState(() => new Date());
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [diaryDates, setDiaryDates] = useState<Set<string>>(new Set());
 
-  const year = viewDate.getFullYear();
-  const monthTitle = monthNameEn(viewDate);
+  // 「顯示用」expanded 狀態：收合時等動畫完成才切換，避免 cells 提早消失
+  const [displayExpanded, setDisplayExpanded] = useState(expanded);
 
-  // 每次月份切換時撈該月有日記的日期
+  // 量測實際高度後再決定動畫目標值
+  const [collapsedH, setCollapsedH] = useState(0);
+  const [expandedH, setExpandedH] = useState(0);
+  const gridH = useRef(new Animated.Value(0)).current;
+  const gridMT = useRef(new Animated.Value(0)).current; // marginTop 負值往上偏移，顯示今日所在行
+
+  const year = viewDate.getFullYear();
+
+  // ─── 量測 ────────────────────────────────────────────────────────────────
+  // 永遠 render 完整月曆（42 cells），用 height + marginTop 控制顯示範圍
+  const cells = useMemo(() => buildMonthGrid(viewDate), [viewDate]);
+
+  // 今天在月曆的第幾行（0-based）
+  const todayRowIdx = useMemo(() => {
+    const today = new Date();
+    const ts = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const idx = cells.findIndex((c) => {
+      const y = c.date.getFullYear();
+      const m = String(c.date.getMonth() + 1).padStart(2, "0");
+      const d = String(c.date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}` === ts;
+    });
+    return idx >= 0 ? Math.floor(idx / 7) : 0;
+  }, [cells]);
+
+  // grid 量測回調：當 displayExpanded 變換後取得實際高度
+  const onGridLayout = (e: any) => {
+    const h = e.nativeEvent.layout.height;
+    if (h <= 0) return;
+    if (displayExpanded) {
+      setExpandedH(h);
+    } else {
+      // 單行高度 = 整體高度 / 6
+      setCollapsedH(Math.round(h / 6));
+    }
+  };
+
+  // ─── 動畫 ────────────────────────────────────────────────────────────────
+  // 有了量測值才做動畫
+  useEffect(() => {
+    if (collapsedH === 0 || expandedH === 0) return;
+
+    if (expanded) {
+      // 展開：先切換 cells，然後 animate height 0 → full
+      setDisplayExpanded(true);
+      Animated.parallel([
+        Animated.timing(gridH, {
+          toValue: expandedH,
+          duration: ANIM_MS,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }),
+        Animated.timing(gridMT, {
+          toValue: 0,
+          duration: ANIM_MS,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }),
+      ]).start();
+    } else {
+      // 收合：先 animate，動畫結束後才切換 cells
+      Animated.parallel([
+        Animated.timing(gridH, {
+          toValue: collapsedH,
+          duration: ANIM_MS,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }),
+        Animated.timing(gridMT, {
+          toValue: -todayRowIdx * collapsedH,
+          duration: ANIM_MS,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }),
+      ]).start(() => setDisplayExpanded(false));
+    }
+  }, [expanded, collapsedH, expandedH, todayRowIdx]);
+
+  // ─── 初始狀態設定（量測完成後 set 初始值）─────────────────────────────────
+  useEffect(() => {
+    if (collapsedH === 0 || expandedH === 0) return;
+    if (!expanded) {
+      gridH.setValue(collapsedH);
+      gridMT.setValue(-todayRowIdx * collapsedH);
+    } else {
+      gridH.setValue(expandedH);
+      gridMT.setValue(0);
+    }
+    // 只在首次量測完成時設定
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collapsedH === 0 || expandedH === 0]);
+
+  // ─── API ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
     const month = viewDate.getMonth() + 1;
@@ -43,12 +136,10 @@ export function CalendarCard({ onDatePress }: Props) {
           if (data.ok) {
             const dates = new Set<string>(
               data.data.items.map((d: { diary_date: string }) => {
-                // pg 可能把 DATE 序列化成 UTC 時間戳（如 2025-03-14T16:00:00.000Z）
-                // 直接取本地時間的年月日，確保與月曆格子的 dateString 一致
                 const dt = new Date(d.diary_date);
                 const y = dt.getFullYear();
-                const m = String(dt.getMonth() + 1).padStart(2, '0');
-                const day = String(dt.getDate()).padStart(2, '0');
+                const m = String(dt.getMonth() + 1).padStart(2, "0");
+                const day = String(dt.getDate()).padStart(2, "0");
                 return `${y}-${m}-${day}`;
               })
             );
@@ -58,152 +149,84 @@ export function CalendarCard({ onDatePress }: Props) {
         .catch(() => {});
     });
   }, [year, viewDate.getMonth(), user]);
-  const cells = useMemo(() => buildMonthGrid(viewDate), [viewDate]);
 
-  // ⭐ 處理日期點擊
   const handleDateClick = (date: Date, inMonth: boolean) => {
-    // 只處理本月的日期
     if (!inMonth) return;
-
-    // 格式化日期為 YYYY-MM-DD
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const dateString = `${year}-${month}-${day}`;
-    
-    console.log('📅 點擊日期:', dateString);
-    setSelectedDate(dateString);
-    
-    // ⭐ 導航到日記列表頁面
-    router.push({
-      pathname: '../diary/list',
-      params: { date: dateString }
-    });
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    onDatePress?.(`${y}-${m}-${d}`);
   };
 
+  // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <GlassCard style={styles.card}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => setViewDate((d) => addMonths(d, -1))}
-          hitSlop={12}
-          style={styles.arrowBtn}
-        >
-          <Text style={styles.arrow}>‹</Text>
-        </Pressable>
-
-        <View style={styles.headerCenter}>
-          <Text style={styles.year} selectable={false}>{year}</Text>
-          <Text
-            style={[styles.month, fontsLoaded && { fontFamily: "PlaywriteNO_400Regular" }]}
-            selectable={false}
-          >{monthTitle}</Text>
+    <View style={styles.wrapper}>
+      <GlassCard style={styles.card}>
+        {/* Week labels */}
+        <View style={styles.weekRow}>
+          {WEEK.map((w) => (
+            <Text key={w} selectable={false}
+              style={[styles.weekText, fontsLoaded && { fontFamily: "CrimsonText_600SemiBold" }]}>
+              {w}
+            </Text>
+          ))}
         </View>
 
-        <Pressable
-          onPress={() => setViewDate((d) => addMonths(d, +1))}
-          hitSlop={12}
-          style={styles.arrowBtn}
-        >
-          <Text style={styles.arrow}>›</Text>
-        </Pressable>
-      </View>
+        <View style={styles.divider} />
 
-      {/* Week row */}
-      <View style={styles.weekRow}>
-        {WEEK.map((w) => (
-          <Text key={w} style={[styles.weekText, fontsLoaded && { fontFamily: "CrimsonText_600SemiBold" }]} selectable={false}>
-            {w}
-          </Text>
-        ))}
-      </View>
+        {/* 動畫容器：height 控制可見高度，overflow hidden 裁切 */}
+        <Animated.View style={{ height: gridH > 0 ? gridH : undefined, overflow: "hidden" }}>
+          {/* grid 偏移：讓今日所在行對齊可見窗口 */}
+          <Animated.View style={[styles.grid, { marginTop: gridMT }]} onLayout={onGridLayout}>
+            {cells.map((c, idx) => {
+              const day = c.date.getDate();
+              const dateString = `${c.date.getFullYear()}-${String(c.date.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+              const hasDiary = c.inMonth && diaryDates.has(dateString);
 
-      {/* Divider */}
-      <View style={styles.divider} />
+              return (
+                <Pressable
+                  key={`${c.date.toISOString()}-${idx}`}
+                  disabled={!c.inMonth}
+                  onPress={() => handleDateClick(c.date, c.inMonth)}
+                  style={[styles.cell, c.isToday && styles.cellToday]}
+                >
+                  <Text selectable={false}
+                    style={[
+                      styles.cellText,
+                      fontsLoaded && { fontFamily: "CrimsonText_400Regular" },
+                      !c.inMonth && styles.cellTextDim,
+                      c.isToday && styles.cellTextToday,
+                    ]}>
+                    {day}
+                  </Text>
+                  {hasDiary && <View style={styles.dot} />}
+                </Pressable>
+              );
+            })}
+          </Animated.View>
+        </Animated.View>
+      </GlassCard>
 
-      {/* Grid */}
-      <View style={styles.grid}>
-        {cells.map((c, idx) => {
-          const day = c.date.getDate();
-          
-          // ⭐ 檢查是否為選中的日期
-          const dateString = `${c.date.getFullYear()}-${String(c.date.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          const isSelected = selectedDate === dateString;
-          
-          const hasDiary = c.inMonth && diaryDates.has(dateString);
-
-          return (
-            <Pressable
-              key={`${c.date.toISOString()}-${idx}`}
-              disabled={!c.inMonth}  // ⭐ 改為只禁用非本月的日期
-              onPress={() => handleDateClick(c.date, c.inMonth)}  // ⭐ 加上點擊事件
-              style={[
-                styles.cell,
-                c.isToday && styles.cellToday,
-                isSelected && styles.cellSelected,  // ⭐ 選中的樣式
-              ]}
-            >
-              <Text
-                style={[
-                  styles.cellText,
-                  fontsLoaded && { fontFamily: "CrimsonText_400Regular" },
-                  !c.inMonth && styles.cellTextDim,
-                  c.isToday && styles.cellTextToday,
-                  isSelected && styles.cellTextSelected,  // ⭐ 選中的文字樣式
-                ]}
-              >
-                {day}
-              </Text>
-              {hasDiary && <View style={styles.dot} />}
+      {/* 浮動月份切換按鈕（展開時才顯示） */}
+      {expanded && (
+        <>
+          <View style={[styles.floatWrapper, styles.floatWrapperLeft]}>
+            <Pressable onPress={onPrev} style={styles.floatBtn} hitSlop={10}>
+              <Text selectable={false} style={styles.floatArrow}>‹</Text>
             </Pressable>
-          );
-        })}
-      </View>
-
-      {/* ⭐ 底部提示（選中日期時顯示）*/}
-      {selectedDate && (
-        <View style={styles.footer}>
-          <Text style={styles.footerDate}>{selectedDate}</Text>
-          <Text style={styles.footerText}>向上拉動瀏覽今日日記</Text>
-        </View>
+          </View>
+          <View style={[styles.floatWrapper, styles.floatWrapperRight]}>
+            <Pressable onPress={onNext} style={styles.floatBtn} hitSlop={10}>
+              <Text selectable={false} style={styles.floatArrow}>›</Text>
+            </Pressable>
+          </View>
+        </>
       )}
-    </GlassCard>
+    </View>
   );
-}
-
-const styles = StyleSheet.create({
-  card: {},
-
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 6,
-    paddingTop: 6,
-  },
-  arrowBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  arrow: {
-    color: "rgba(255,255,255,0.92)",
-    fontSize: 28,
-    lineHeight: 28,
-  },
-  headerCenter: { alignItems: "center" },
-  year: { color: "rgba(255,255,255,0.82)", fontSize: 14, letterSpacing: 3 },
-  month: {
-    color: "rgba(255,255,255,0.95)",
-    fontSize: 40,
-    marginTop: 2,
-  },
 
   weekRow: {
-    marginTop: 14,
+    marginTop: 10,
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: 6,
@@ -214,12 +237,11 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.60)",
     fontSize: 12,
   },
-
   divider: {
     height: 1,
     backgroundColor: "rgba(255,255,255,0.22)",
-    marginTop: 10,
-    marginBottom: 10,
+    marginTop: 8,
+    marginBottom: 8,
   },
 
   grid: {
@@ -233,17 +255,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 14,
-    marginBottom: 6,
-    paddingBottom: 2,
+    marginBottom: 4,
   },
   cellText: {
     color: "rgba(255,255,255,0.85)",
     fontSize: 14,
   },
-  cellTextDim: {
-    color: "rgba(255,255,255,0.30)",
-  },
-
+  cellTextDim: { color: "rgba(255,255,255,0.30)" },
   cellToday: {
     backgroundColor: "rgba(255,255,255,0.14)",
     borderWidth: 1,
@@ -253,42 +271,42 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.95)",
     fontWeight: "700",
   },
-
-  // ⭐ 新增：選中日期的樣式
-  cellSelected: {
-    backgroundColor: "rgba(91, 168, 250, 0.28)",  // 藍色半透明背景
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.8)",
-  },
-  cellTextSelected: {
-    color: "rgba(255,255,255,1)",
-    fontWeight: "700",
-  },
-
   dot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "rgba(135, 206, 250, 0.9)",
-    marginTop: 2,
+    position: "absolute",
+    bottom: 7,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.85)",
   },
 
-  // ⭐ 新增：底部提示區域
-  footer: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.22)",
+  floatWrapper: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 40,
     alignItems: "center",
+    justifyContent: "center",
   },
-  footerDate: {
-    color: "rgba(255,255,255,0.95)",
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 4,
+  floatWrapperLeft: { left: -20 },
+  floatWrapperRight: { right: -20 },
+  floatBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.75)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  footerText: {
-    color: "rgba(255,255,255,0.72)",
-    fontSize: 12,
+  floatArrow: {
+    color: "#111111",
+    fontSize: 22,
+    lineHeight: 26,
+    textAlign: "center",
   },
 });

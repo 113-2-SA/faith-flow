@@ -3,6 +3,7 @@ import { StyleSheet, View } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { HEADER_CONTENT_HEIGHT } from "./AppShell";
 
 type Props = {
   source: any;
@@ -36,7 +37,9 @@ export function VideoBackground({ source, children }: Props) {
       />
 
       <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-        {children}
+        <View style={{ flex: 1, paddingTop: HEADER_CONTENT_HEIGHT }}>
+          {children}
+        </View>
       </SafeAreaView>
     </View>
   );

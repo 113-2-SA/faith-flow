@@ -9,10 +9,7 @@ import { db } from "../lib/firebase";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { useChurchPhoto } from "../hooks/useChurchPhoto";
 import { ChurchPanoramaViewer } from "./ChurchPanoramaViewer";
-import { ChurchVideoViewer } from "./ChurchVideoViewer";
-import { ChurchImageViewer } from "./ChurchImageViewer";
-import { useFocusEffect } from "expo-router";
-import { loadPrayers, PrayerRecord } from "../lib/prayerStore";
+import { useRouter } from "expo-router";
 
 function ChurchPhoto({ nameEn, nameCh }: { nameEn: string; nameCh?: string }) {
   const { photoUrl, loading, error } = useChurchPhoto(nameEn, nameCh);
@@ -79,6 +76,7 @@ export type Basilica = {
 type FilterType = "all" | "major" | "cathedral" | "chapel";
 
 export function BasilicaMap() {
+  const router = useRouter();
   const [basilicas, setBasilicas] = useState<Basilica[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -263,6 +261,12 @@ export function BasilicaMap() {
           ref={mapRef}
           provider={PROVIDER_GOOGLE}
           style={styles.map}
+          mapType="hybrid"
+          showsCompass={false}
+          rotateEnabled={false}
+          toolbarEnabled={false}
+          showsScale={false}
+          zoomControlEnabled={false}
           initialRegion={{
             latitude: MAP_CONFIG.defaultCenter.lat,
             longitude: MAP_CONFIG.defaultCenter.lng,
@@ -495,6 +499,20 @@ export function BasilicaMap() {
                 </ThemedText>
               </View>
             )}
+
+            <Pressable
+              onPress={() => router.push("/pray")}
+              style={({ pressed }) => [styles.recordBtn, pressed && styles.recordBtnPressed]}
+            >
+              <View style={styles.recordBtnInner}>
+                <Text style={styles.recordBtnIcon}>🎙</Text>
+                <View>
+                  <ThemedText style={styles.recordBtnLabel}>錄音祈禱</ThemedText>
+                  <ThemedText style={styles.recordBtnSub}>語音記錄靈修心聲</ThemedText>
+                </View>
+                <Text style={styles.recordBtnArrow}>›</Text>
+              </View>
+            </Pressable>
           </ScrollView>
         </GlassCard>
         </View>
@@ -1001,78 +1019,41 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "rgba(255,255,255,0.4)",
   },
-  imageSearchBtn: {
-    marginTop: 16,
+  recordBtn: {
+    marginTop: 12,
     borderRadius: 14,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(52,168,83,0.6)",
-    backgroundColor: "rgba(52,168,83,0.18)",
+    borderColor: "rgba(102,126,234,0.6)",
+    backgroundColor: "rgba(102,126,234,0.18)",
   },
-  imageSearchBtnPressed: {
-    backgroundColor: "rgba(52,168,83,0.38)",
-    borderColor: "rgba(52,168,83,1)",
+  recordBtnPressed: {
+    backgroundColor: "rgba(102,126,234,0.38)",
+    borderColor: "rgba(102,126,234,1)",
   },
-  imageSearchBtnInner: {
+  recordBtnInner: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 14,
     gap: 12,
   },
-  imageSearchBtnIcon: {
+  recordBtnIcon: {
     fontSize: 28,
   },
-  imageSearchBtnLabel: {
+  recordBtnLabel: {
     fontSize: 14,
     fontWeight: "700",
     color: "rgba(255,255,255,0.95)",
   },
-  imageSearchBtnSub: {
+  recordBtnSub: {
     fontSize: 11,
-    color: "rgba(52,168,83,0.9)",
+    color: "rgba(102,126,234,0.9)",
     marginTop: 2,
   },
-  imageSearchBtnArrow: {
+  recordBtnArrow: {
     fontSize: 24,
-    color: "rgba(52,168,83,0.8)",
-    marginLeft: "auto",
-  },
-  videoBtn: {
-    marginTop: 16,
-    borderRadius: 14,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(220,80,60,0.6)",
-    backgroundColor: "rgba(220,80,60,0.18)",
-  },
-  videoBtnPressed: {
-    backgroundColor: "rgba(220,80,60,0.38)",
-    borderColor: "rgba(220,80,60,1)",
-  },
-  videoBtnInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  videoBtnIcon: {
-    fontSize: 28,
-  },
-  videoBtnLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "rgba(255,255,255,0.95)",
-  },
-  videoBtnSub: {
-    fontSize: 11,
-    color: "rgba(220,80,60,0.9)",
-    marginTop: 2,
-  },
-  videoBtnArrow: {
-    fontSize: 24,
-    color: "rgba(220,80,60,0.8)",
+    color: "rgba(102,126,234,0.8)",
     marginLeft: "auto",
   },
   panoramaBtn: {
