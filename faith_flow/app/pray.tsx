@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { getAuth } from 'firebase/auth';
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import { savePrayer } from "./prayerStore";
+import { savePrayer } from "../lib/prayerStore";
 
 // ─────────────────────────────────────────────────────────────────
 // 型別

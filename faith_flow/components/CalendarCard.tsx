@@ -21,6 +21,7 @@ export function CalendarCard({ onDatePress }: Props) {
     CrimsonText_400Regular,
     CrimsonText_600SemiBold,
   });
+  const router = useRouter();
   const { user } = useAuth();
   const [viewDate, setViewDate] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);

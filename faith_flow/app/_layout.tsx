@@ -73,8 +73,9 @@ export default function RootLayout() {
   }
 
   // 在任何 Text 渲染前同步設定全域字體
-  if (!Text.defaultProps) Text.defaultProps = {};
-  (Text.defaultProps as any).style = { fontFamily: "NotoSerifTC_400Regular" };
+  // 注意：在新版 React Native 中，Text.defaultProps 已被移除
+  // 字體設置通過 useFonts 和個別組件的 fontFamily 屬性處理
+  // Text.defaultProps = { style: { fontFamily: "NotoSerifTC_400Regular" } };
 
   return (
     <GlassThemeProvider>
