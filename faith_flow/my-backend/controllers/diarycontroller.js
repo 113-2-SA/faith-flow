@@ -22,8 +22,7 @@ exports.createDiary = async (req, res) => {
       diary_title,
       diary_content,
       bible_quote,
-      tags,
-      collectId
+      tags
     } = req.body;
 
     const diaryTitle = diary_title || req.body.diaryTitle;
@@ -45,7 +44,6 @@ exports.createDiary = async (req, res) => {
       diaryContent: diaryContent,
       bibleQuote: bible_quote || req.body.bibleQuote,
       tags: tags,
-      collectId: collectId || req.body.collect_id || 0
     });
 
     console.log('✅ 日記建立成功:', diary);
@@ -91,7 +89,6 @@ exports.getDiaries = async (req, res) => {
       date,           // 特定日期 (YYYY-MM-DD)
       startDate,      // 開始日期 (YYYY-MM-DD)
       endDate,        // 結束日期 (YYYY-MM-DD)
-      collectId,      // 日記本 ID
       year,           // 年份 (YYYY)
       month,          // 月份 (1-12)
       keyword,        // 搜尋關鍵字
@@ -103,7 +100,6 @@ exports.getDiaries = async (req, res) => {
       date,
       startDate,
       endDate,
-      collectId,
       year,
       month,
       keyword,
@@ -118,7 +114,6 @@ exports.getDiaries = async (req, res) => {
       date,
       startDate,
       endDate,
-      collectId: collectId ? parseInt(collectId) : undefined,
       year: year ? parseInt(year) : undefined,
       month: month ? parseInt(month) : undefined,
       keyword,
@@ -148,7 +143,6 @@ exports.getDiaries = async (req, res) => {
           date,
           startDate,
           endDate,
-          collectId: collectId ? parseInt(collectId) : null,
           year: year ? parseInt(year) : null,
           month: month ? parseInt(month) : null,
           keyword
@@ -423,7 +417,7 @@ exports.createFromPrayer = async (req, res) => {
     console.log('🙏 [createFromPrayer] 收到祈禱轉日記請求');
     
     const userId = req.userId;
-    const { transcript, collectId, latitude, longitude } = req.body;
+    const { transcript, latitude, longitude } = req.body;
 
     console.log('👤 使用者 ID:', userId);
     console.log('📝 祈禱文字長度:', transcript?.length);
@@ -440,8 +434,7 @@ exports.createFromPrayer = async (req, res) => {
     // 1. 轉換語音為日記（AI 生成標題/標籤/聖經金句）
     const diary = await prayerService.convertPrayerToDiary(
       userId,
-      transcript.trim(),
-      collectId
+      transcript.trim()
     );
 
     // 2. 若有座標，將位置寫入 prayer_locations（關聯到剛建立的日記）

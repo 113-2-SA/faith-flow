@@ -4,7 +4,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CopilotProvider, CopilotStep, walkthroughable, useCopilot } from 'react-native-copilot';
 
-import { BasilicaMap } from "@/components/BasilicaMap";
+import { PilgrimageMap } from "@/components/PilgrimageMap";
 import { GlassCard } from "../components/GlassCard";
 import { VideoBackground } from "../components/VideoBackground";
 
@@ -103,7 +103,7 @@ function PilgrimageContent() {
       {/* 主要內容 */}
       <View style={styles.content}>
         <GlassCard style={styles.mapCard}>
-          <BasilicaMap />
+          <PilgrimageMap />
         </GlassCard>
       </View>
 
