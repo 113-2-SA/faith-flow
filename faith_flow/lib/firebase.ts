@@ -1,14 +1,7 @@
-<<<<<<< HEAD
+// lib/firebase.ts
 import { getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-=======
-// lib/firebase.ts
-import { initializeApp, getApps } from "firebase/app";
-import { initializeAuth, getAuth } from "firebase/auth";
->>>>>>> origin/main
 import { getFirestore } from "firebase/firestore";
-import { Platform } from "react-native";
-import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "AIzaSyC93pS3h4kkd7rd8qjVOdmSIRXNX3R2hGQ",
@@ -20,10 +13,6 @@ const firebaseConfig = {
 };
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-<<<<<<< HEAD
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-=======
 
 function createAuth() {
   // Web 與 Expo Native 都使用 Firebase 預設 Auth 實例
@@ -33,4 +22,3 @@ function createAuth() {
 export const auth = createAuth();
 
 export const db = getFirestore(app);
->>>>>>> origin/main

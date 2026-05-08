@@ -117,11 +117,6 @@ const weeklySummaryRoutes = require('./routes/weeklysummary');
 const searchRoutes = require('./routes/search');
 const liturgicalRoutes = require('./routes/liturgical');
 const nudgeRoutes = require('./routes/nudge');
-<<<<<<< HEAD
- // 新增使用者個人資料相關的路由
- // 新增日記相關的路由
-=======
->>>>>>> origin/main
 const chatRoutes = require("./routes/chat");
 
 console.log("[DEBUG] ✅ 所有路由已 require");
