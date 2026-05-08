@@ -1,43 +1,22 @@
 // app/drawcard/letter.tsx
-// 活水泉源 - 信箋完成頁面（5.4）
-
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef } from "react";
-import {
-  Image,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../context/authcontext";
 
-// ⚠️ 改用環境變數，手機版才能正常連線
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
 
 export default function LetterScreen() {
   const router = useRouter();
   const { currentUser } = useAuth();
-
-  // 接收從 summary.tsx 帶過來的參數（新增 weekly_card_id）
   const params = useLocalSearchParams<{
-    weekly_card_id: string; // ⭐ 新增：用來標記完成
-    question: string;
-    theme: string;
-    summary: string;
-    quote: string;
-    quote_source: string;
-    image_prompt: string;
-    image_base64: string;
-    conversation: string;
+    weekly_card_id: string; question: string; theme: string; summary: string;
+    quote: string; quote_source: string; image_prompt: string; image_url: string; conversation: string;
   }>();
 
-  // 用 ref 避免重複呼叫
+  const [letterId, setLetterId] = useState<number | null>(null);
   const hasCompletedRef = useRef(false);
 
-  // ⭐ 進入頁面時自動標記「已完成」
   useEffect(() => {
     if (hasCompletedRef.current) return;
     hasCompletedRef.current = true;
@@ -46,32 +25,19 @@ export default function LetterScreen() {
 
   const completeDraw = async () => {
     if (!params.weekly_card_id || !currentUser) return;
-
     try {
       const token = await currentUser.getIdToken(true);
-
-      // 先取得 user_draws_id
       const drawsRes = await fetch(`${API_BASE}/api/livingwater/my-draws`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const drawsData = await drawsRes.json();
-
       if (!drawsData.success) return;
-
-      // 找到對應這張卡的 user_draws 記錄
-      const myDraw = drawsData.data.find(
-        (d: any) => String(d.weekly_card_id) === String(params.weekly_card_id)
-      );
-
+      const myDraw = drawsData.data.find((d: any) => String(d.weekly_card_id) === String(params.weekly_card_id));
       if (!myDraw) return;
 
-      // 呼叫 complete-draw API 標記完成
-      await fetch(`${API_BASE}/api/livingwater/complete-draw`, {
+      const completeRes = await fetch(`${API_BASE}/api/livingwater/complete-draw`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           user_draws_id: myDraw.user_draws_id,
           summary: params.summary || null,
@@ -79,131 +45,77 @@ export default function LetterScreen() {
           letter_quote_source: params.quote_source || null,
         }),
       });
-
-      console.log("[Letter] ✅ 抽卡完成已標記");
-    } catch (err) {
-      // 失敗不影響使用者體驗，只記錄 log
-      console.warn("[Letter] complete-draw 失敗:", err);
-    }
+      const completeData = await completeRes.json();
+      if (completeData.success && completeData.data?.letter_id) {
+        setLetterId(completeData.data.letter_id);
+      }
+    } catch (err) { console.warn("[Letter] complete-draw 失敗:", err); }
   };
 
-  // 把 base64 字串組成可以直接給 Image 用的 dataUrl
-  const imageDataUrl = params.image_base64
-    ? `data:image/jpeg;base64,${params.image_base64}`
-    : "";
-
-  // 按「收下卡片及信箋」→ 跳到 collection.tsx
   const handleCollect = () => {
     router.push({
       pathname: "/drawcard/collection",
       params: {
-        question: params.question,
-        theme: params.theme,
-        summary: params.summary,
-        quote: params.quote,
-        quote_source: params.quote_source,
-        image_base64: params.image_base64 || "",
+        question: params.question, theme: params.theme, summary: params.summary,
+        quote: params.quote, quote_source: params.quote_source,
+        image_url: params.image_url || '',
         conversation: params.conversation || "",
+        letter_id: letterId ? String(letterId) : '',
       },
     });
   };
 
+  const today = new Date().toLocaleDateString("zh-TW", { year: "numeric", month: "numeric", day: "numeric" });
+
   return (
     <View style={styles.bg}>
       <SafeAreaView style={styles.safe}>
-
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>✉️ 你的信箋</Text>
-        </View>
-
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-
-          {/* 意境圖片區塊 */}
-          <View style={styles.imageCard}>
-            {imageDataUrl !== "" ? (
-              <Image
-                source={{ uri: imageDataUrl }}
-                style={styles.image}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.imagePlaceholder}>
-                <Text style={styles.imageErrorText}>圖片暫時無法顯示</Text>
+          <View style={styles.letterCard}>
+            <View style={styles.imageCol}>
+              {params.image_url ? (
+                <Image source={{ uri: params.image_url }} style={styles.image} resizeMode="cover" />
+              ) : (
+                <View style={styles.imagePlaceholder}><Text style={styles.imagePlaceholderText}>🖼️</Text></View>
+              )}
+            </View>
+            <View style={styles.textCol}>
+              <Text style={styles.questionText}>{params.question}</Text>
+              {params.summary ? <Text style={styles.summaryText}>{params.summary}</Text> : null}
+              <View style={styles.quoteBlock}>
+                <Text style={styles.quoteText}>「{params.quote}」</Text>
+                <Text style={styles.quoteSource}>——{params.quote_source}</Text>
               </View>
-            )}
+            </View>
           </View>
-
-          {/* 金句區塊 */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>📖 今日金句</Text>
-            <Text style={styles.quoteText}>「{params.quote}」</Text>
-            <Text style={styles.quoteSource}>—— {params.quote_source}</Text>
-          </View>
-
-          {/* 摘要區塊 */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>✨ 對話摘要</Text>
-            <Text style={styles.summaryText}>{params.summary}</Text>
-          </View>
-
+          <Text style={styles.dateText}>{today} 的信箋</Text>
         </ScrollView>
-
-        {/* 底部按鈕 */}
         <View style={styles.footer}>
           <Pressable style={styles.collectBtn} onPress={handleCollect}>
             <Text style={styles.collectBtnText}>收下卡片及信箋</Text>
           </Pressable>
         </View>
-
       </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  bg: { flex: 1, backgroundColor: "#2d5a3d" },
-  safe: { flex: 1 },
-  header: {
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    alignItems: "center",
-  },
-  headerTitle: { color: "#fff", fontSize: 20, fontWeight: "bold" },
-  scroll: { flex: 1 },
-  scrollContent: { padding: 20, gap: 16 },
-  imageCard: {
-    borderRadius: 20,
-    overflow: "hidden",
-    backgroundColor: "rgba(0,0,0,0.3)",
-    minHeight: 280,
-  },
-  imagePlaceholder: {
-    height: 280,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  imageErrorText: { color: "#ffaaaa", fontSize: 13 },
-  image: { width: "100%", height: 280 },
-  section: {
-    backgroundColor: "rgba(255,255,255,0.1)",
-    borderRadius: 16,
-    padding: 16,
-  },
-  sectionTitle: { color: "#fff", fontSize: 15, fontWeight: "bold", marginBottom: 12 },
-  quoteText: {
-    color: "#fff", fontSize: 15, lineHeight: 24,
-    fontStyle: "italic", marginBottom: 8,
-  },
-  quoteSource: { color: "rgba(255,255,255,0.6)", fontSize: 12, textAlign: "right" },
-  summaryText: { color: "#fff", fontSize: 14, lineHeight: 24 },
-  footer: { padding: 20, paddingBottom: 32 },
-  collectBtn: {
-    backgroundColor: "rgba(255,255,255,0.25)",
-    borderRadius: 30,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  collectBtnText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+  bg:{flex:1,backgroundColor:"#f0ede6"}, safe:{flex:1},
+  scroll:{flex:1}, scrollContent:{padding:20,alignItems:"center",gap:12},
+  letterCard:{width:"100%",flexDirection:"row",backgroundColor:"#fff",borderRadius:16,overflow:"hidden",shadowColor:"#000",shadowOffset:{width:0,height:4},shadowOpacity:0.12,shadowRadius:12,elevation:6,minHeight:320},
+  imageCol:{width:"38%"},
+  image:{width:"100%",height:"100%"},
+  imagePlaceholder:{flex:1,backgroundColor:"#ddd",alignItems:"center",justifyContent:"center"},
+  imagePlaceholderText:{fontSize:32},
+  textCol:{flex:1,padding:16,gap:10,justifyContent:"center"},
+  questionText:{fontSize:13,fontWeight:"600",color:"#333",lineHeight:20},
+  summaryText:{fontSize:12,color:"#555",lineHeight:19},
+  quoteBlock:{borderLeftWidth:3,borderLeftColor:"#8B6914",paddingLeft:8,marginTop:4},
+  quoteText:{fontSize:12,color:"#444",fontStyle:"italic",lineHeight:18},
+  quoteSource:{fontSize:11,color:"#888",textAlign:"right",marginTop:4},
+  dateText:{color:"#999",fontSize:12,textAlign:"center"},
+  footer:{padding:20,paddingBottom:32},
+  collectBtn:{backgroundColor:"#2d5a3d",borderRadius:30,paddingVertical:16,alignItems:"center"},
+  collectBtnText:{color:"#fff",fontSize:16,fontWeight:"bold"},
 });
