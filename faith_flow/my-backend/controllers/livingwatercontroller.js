@@ -5,7 +5,9 @@
 
 const { generateLetter, generateImage } = require('../services/livingwaterservice');
 const pool = require('../config/database');
-
+// ✨ chatController 需要的依賴
+const mcp = require('../services/magisteriumMcp');
+const { findRelevantDiaries } = require('../services/embeddingService');
 // ============================================================
 // 工具函式：計算本週的開始日期（週一）
 // ============================================================
@@ -244,7 +246,7 @@ const completeDrawController = async (req, res) => {
       return res.status(400).json({ success: false, message: '缺少 user_draws_id' });
     }
 
-    // 更新 is_completed = true 並儲存信箋內容
+    // 更新 user_draws
     const result = await pool.query(
       `UPDATE user_draws 
        SET is_completed = true, 
@@ -254,14 +256,45 @@ const completeDrawController = async (req, res) => {
            conversation_id = $4
        WHERE user_draws_id = $5 AND user_id = $6
        RETURNING *`,
-      [summary || null, letter_quote || null, letter_quote_source || null, conversation_id || null, user_draws_id, userId]
+      [summary || null, letter_quote || null, letter_quote_source || null,
+       conversation_id || null, user_draws_id, userId]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: '找不到抽卡記錄' });
     }
 
-    return res.status(200).json({ success: true, data: result.rows[0] });
+    const draw = result.rows[0];
+
+    // ✨ 寫入 letters 表並回傳 letter_id
+    let letter_id = null;
+    try {
+      // 取得 card_style_id（從 weekly_cards 取）
+      const cardRes = await pool.query(
+        `SELECT wc.card_style_id FROM weekly_cards wc
+         JOIN user_draws ud ON ud.weekly_card_id = wc.weekly_cards_id
+         WHERE ud.user_draws_id = $1`,
+        [user_draws_id]
+      );
+      const card_style_id = cardRes.rows[0]?.card_style_id || 1;
+
+      // 寫入 letters
+      const letterRes = await pool.query(
+        `INSERT INTO letters (conversation_id, card_style_id, summary_text, created_at)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT DO NOTHING
+         RETURNING letter_id`,
+        [conversation_id || null, card_style_id, summary || null]
+      );
+      letter_id = letterRes.rows[0]?.letter_id || null;
+    } catch (e) {
+      console.warn('[活水泉源] 寫入 letters 失敗（不影響主流程）:', e.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: { ...draw, letter_id },
+    });
 
   } catch (error) {
     console.error('[活水泉源] completeDraw 錯誤：', error.message);
@@ -280,21 +313,42 @@ const getMyDrawsController = async (req, res) => {
 
     const weekStartDate = getWeekStartDate();
 
-    // 查詢本週已抽的卡片
     const result = await pool.query(
       `SELECT ud.user_draws_id, ud.weekly_card_id, ud.is_completed, ud.drawdate,
-              wc.day_no
+              ud.summary, ud.letter_quote, ud.letter_quote_source, ud.conversation_id,
+              wc.day_no, wc.card_style_id,
+              l.letter_id
        FROM user_draws ud
        JOIN weekly_cards wc ON ud.weekly_card_id = wc.weekly_cards_id
+       LEFT JOIN letters l ON l.conversation_id = ud.conversation_id
        WHERE ud.user_id = $1 AND wc.weekly_start_date = $2`,
       [userId, weekStartDate]
     );
 
-    // 回傳已抽的 weekly_card_id 列表（前端用來判斷哪些卡已抽）
+    // ✨ 對有 summary 但沒有 letter_id 的資料，即時補建 letter
+    const rows = await Promise.all(result.rows.map(async (row) => {
+      if (row.summary && !row.letter_id) {
+        try {
+          const card_style_id = row.card_style_id || 1;
+          const letterRes = await pool.query(
+            `INSERT INTO letters (conversation_id, card_style_id, summary_text, created_at)
+             VALUES ($1, $2, $3, NOW())
+             RETURNING letter_id`,
+            [row.conversation_id || null, card_style_id, row.summary]
+          );
+          row.letter_id = letterRes.rows[0]?.letter_id || null;
+          console.log(`[活水泉源] 補建 letter_id=${row.letter_id} for user_draws_id=${row.user_draws_id}`);
+        } catch (e) {
+          console.warn('[活水泉源] 補建 letter 失敗:', e.message);
+        }
+      }
+      return row;
+    }));
+
     return res.status(200).json({
       success: true,
-      data: result.rows,
-      drawn_card_ids: result.rows.map(r => r.weekly_card_id),
+      data: rows,
+      drawn_card_ids: rows.map(r => r.weekly_card_id),
     });
 
   } catch (error) {
@@ -362,13 +416,290 @@ const generateImageController = async (req, res) => {
   }
 };
 
+const getLetterController = async (req, res) => {
+  try {
+    const { letter_id } = req.params;
+
+    // 先取得 letter 基本資料
+    const letterResult = await pool.query(
+      `SELECT letter_id, card_style_id, summary_text, created_at
+       FROM letters WHERE letter_id = $1`,
+      [letter_id]
+    );
+
+    if (letterResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: '找不到此信箋' });
+    }
+
+    const letter = letterResult.rows[0];
+
+    // ✨ 用 summary_text 比對 user_draws → weekly_cards → ai_questions
+    // 這是目前唯一可靠的串接方式（因為 conversation_id 都是 null）
+    const cardResult = await pool.query(
+      `SELECT 
+         aq.question_text AS question,
+         aq.quote,
+         aq.quote_source,
+         aq.theme,
+         aq.image_url,
+         ud.letter_quote,
+         ud.letter_quote_source
+       FROM user_draws ud
+       JOIN weekly_cards wc ON wc.weekly_cards_id = ud.weekly_card_id
+       JOIN ai_questions aq ON aq.ai_question_id = wc.ai_question_id
+       WHERE ud.summary = $1
+       LIMIT 1`,
+      [letter.summary_text]
+    );
+
+    if (cardResult.rows.length === 0) {
+      // fallback：用 card_style_id 找（舊路徑）
+      const fallback = await pool.query(
+        `SELECT aq.question_text AS question, aq.quote, aq.quote_source, aq.image_url
+         FROM ai_questions aq WHERE aq.ai_question_id = $1`,
+        [letter.card_style_id]
+      );
+      const fb = fallback.rows[0] || {};
+      return res.status(200).json({
+        success: true,
+        data: {
+          letter_id: letter.letter_id,
+          summary_text: letter.summary_text,
+          question: fb.question || null,
+          quote: fb.quote || null,
+          quote_source: fb.quote_source || null,
+          image_url: fb.image_url || null,
+        }
+      });
+    }
+
+    const card = cardResult.rows[0];
+    return res.status(200).json({
+      success: true,
+      data: {
+        letter_id: letter.letter_id,
+        summary_text: letter.summary_text,
+        question: card.question,
+        // ✨ 優先用 user_draws 的 letter_quote（更精確）
+        quote: card.letter_quote || card.quote,
+        quote_source: card.letter_quote_source || card.quote_source,
+        image_url: card.image_url,
+      }
+    });
+
+  } catch (error) {
+    console.error('[活水泉源] getLetter 錯誤：', error.message);
+    return res.status(500).json({ success: false, message: '取得信箋失敗', error: error.message });
+  }
+};
+
+const chatController = async (req, res) => {
+  const { message, question, theme, conversationId } = req.body;
+  const userId = req.userId;
+
+  if (!message || !message.trim()) {
+    return res.status(400).json({ success: false, message: 'message 不得為空' });
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const send = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
+  const query = message.trim();
+
+  try {
+    let convId = conversationId;
+    if (convId) {
+      const existing = await pool.query(
+        `SELECT conversation_id FROM conversations
+         WHERE conversation_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+        [convId, userId]
+      );
+      if (existing.rows.length === 0) convId = null;
+      else {
+        await pool.query(
+          `UPDATE conversations SET updated_at = NOW() WHERE conversation_id = $1`,
+          [convId]
+        );
+      }
+    }
+    if (!convId) {
+      const result = await pool.query(
+        `INSERT INTO conversations (user_id, title, status, con_from, created_at, updated_at)
+         VALUES ($1, $2, 'active', 'quanyuan', NOW(), NOW())
+         RETURNING conversation_id`,
+        [userId, question ? question.slice(0, 20) : '活水泉源對話']
+      );
+      convId = result.rows[0].conversation_id;
+    }
+    send({ type: 'start', conversationId: convId });
+
+    await pool.query(
+      `INSERT INTO messages (conversation_id, ms_role, ms_content, created_at)
+       VALUES ($1, 'user', $2, NOW())`,
+      [convId, query]
+    );
+
+    // 取得對話歷史（最近8則）
+    const historyResult = await pool.query(
+      `SELECT ms_role, ms_content FROM messages
+       WHERE conversation_id = $1 AND deleted_at IS NULL
+       ORDER BY created_at ASC LIMIT 8`,
+      [convId]
+    );
+    const history = historyResult.rows.slice(0, -1);
+
+    // 日記 RAG
+    let diaryContext = '';
+    try {
+      if (userId) {
+        const diaries = await findRelevantDiaries(userId, query, pool, 3);
+        if (diaries.length > 0) {
+          const snippets = diaries.map((d, i) =>
+            `[日記${i + 1}] ${d.diary_date} - ${d.diary_title}：${d.diary_content.slice(0, 200)}`
+          ).join('\n\n');
+          diaryContext = `\n\n[使用者相關日記（請參考以個人化回答）]：\n${snippets}`;
+        }
+      }
+    } catch (e) {
+      console.warn('[LivingWater Chat] 日記RAG失敗:', e.message);
+    }
+
+    // Magisterium（加 5 秒 timeout，超時用 Groq 自身知識）
+    let magisterium = { answer: '', citations: [] };
+    try {
+      magisterium = await Promise.race([
+        (async () => {
+          const chatResult = await mcp.chat(query);
+          return {
+            answer: chatResult?.answer || '',
+            citations: chatResult?.citations || [],
+          };
+        })(),
+        new Promise((resolve) =>
+          setTimeout(() => {
+            console.warn('[LivingWater Chat] Magisterium timeout，使用 Groq 自身知識回覆');
+            resolve({ answer: '', citations: [] });
+          }, 5000)
+        ),
+      ]);
+    } catch (err) {
+      console.warn('[LivingWater Chat] Magisterium failed:', err.message);
+    }
+
+    // System Prompt（要求引導反思）
+    const systemPrompt = `你是「活水泉源」靈修助理，一個溫暖的天主教靈修陪伴者。
+你的任務是陪伴使用者深入反思以下靈修問題。
+
+本次靈修問題：${question || query}
+靈修主題：${theme || '靈修反思'}
+
+${magisterium.answer ? `【天主教教義參考（Magisterium）】：\n${magisterium.answer}\n\n請結合以上教義內容來回答。` : '請根據天主教傳統靈修知識來回答。'}
+
+【重要回覆原則】：
+1. 語氣溫暖、具同理心，像一位耐心的靈修導師
+2. 針對使用者的回應給予個人化的回覆，不要重複已說過的內容
+3. 每次回覆結尾必須提出一個具體的引導問題，邀請使用者繼續深入反思
+4. 不要急著總結或下結論，幫助使用者挖掘更深的感受
+5. 使用繁體中文，不得使用簡體字
+6. 回覆長度：100-200字（簡潔有力，留空間讓使用者思考）`;
+
+    // 組合訊息（含對話歷史）
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...history.map(h => ({
+        role: h.ms_role === 'user' ? 'user' : 'assistant',
+        content: h.ms_content,
+      })),
+      {
+        role: 'user',
+        content: diaryContext ? `${query}${diaryContext}` : query,
+      },
+    ];
+
+    // 串流輸出
+    const groqApiKey = process.env.GROQ_API_KEY;
+    const groqModel = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+    let aiReply = '';
+
+    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${groqApiKey}`,
+      },
+      body: JSON.stringify({
+        model: groqModel,
+        messages,
+        temperature: 0.75,
+        max_tokens: 400,
+        stream: true,
+      }),
+    });
+
+    if (groqRes.ok) {
+      const reader = groqRes.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const chunk = line.slice(6).trim();
+          if (chunk === '[DONE]') continue;
+          try {
+            const parsed = JSON.parse(chunk);
+            const text = parsed.choices?.[0]?.delta?.content || '';
+            if (text) {
+              aiReply += text;
+              send({ type: 'chunk', text });
+            }
+          } catch { /* skip */ }
+        }
+      }
+    }
+
+    const citations = magisterium.citations.map(c => ({
+      title: c.document_title || '',
+      author: c.document_author || '',
+      cited_text: c.cited_text || '',
+      url: c.source_url || '',
+    }));
+
+    await pool.query(
+      `INSERT INTO messages (conversation_id, ms_role, ms_content, metadata, created_at)
+       VALUES ($1, 'assistant', $2, $3, NOW())`,
+      [convId, aiReply, JSON.stringify({ citations })]
+    );
+
+    send({ type: 'citations', data: citations });
+    send({ type: 'done', conversationId: convId, reply: aiReply });
+    res.end();
+
+  } catch (err) {
+    console.error('[LivingWater Chat] 錯誤：', err.message);
+    send({ type: 'error', message: '活水泉源暫時無法回應，請稍後再試' });
+    res.end();
+  }
+};
+
 // 匯出給 Route 使用
 module.exports = {
   generateLetterController,
   generateImageController,
+  getLetterController,
   getDailyCardController,
   getWeeklyCardsController,
   recordDrawController,
   completeDrawController,
   getMyDrawsController,
+  chatController,
 };

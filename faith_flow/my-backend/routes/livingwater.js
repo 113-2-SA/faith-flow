@@ -11,6 +11,8 @@ const {
   recordDrawController,
   completeDrawController,
   getMyDrawsController,
+  getLetterController,
+  chatController,
 } = require('../controllers/livingwatercontroller');
 
 // 不需要登入
@@ -23,5 +25,8 @@ router.post('/record-draw', verifyToken, attachUserId, recordDrawController);
 router.post('/complete-draw', verifyToken, attachUserId, completeDrawController);
 router.post('/generate-letter', generateLetterController);
 router.post('/generate-image', generateImageController);
+router.get('/letter/:letter_id', verifyToken, attachUserId, getLetterController);
+router.post('/chat', verifyToken, attachUserId, chatController);
+
 
 module.exports = router;
