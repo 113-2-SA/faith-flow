@@ -180,10 +180,10 @@ async function answererAgent(query, quotedContent, quotedType, options = {}) {
 
 規則：
 1. 只能根據提供的資料回答，不可自行添加未經引用的內容
-2. 保留所有引用來源，格式為【文件名稱】
-3. 使用條列式或分段方式讓回答更易讀
+2. 不需要在回覆中標註引用來源，來源已另外顯示
+3. 【重要】回覆總字數限制在100字以內，簡潔扼要
 4. 語氣要溫和、尊重，適合信仰探討
-5. 如果資料不足以回答問題，誠實說明`;
+5. 如果資料不足以回答問題，誠實用一句話說明`;
 
   const knowledgeUserMessage = `使用者的問題：${query}${quoteContext}
 
@@ -191,15 +191,16 @@ Magisterium AI 的回答（請整理成繁體中文）：
 ${rawAnswer}`;
 
   const companionSystemPrompt = `你是「有答大師」的陪伴模式，一個溫暖的天主教信仰陪伴者。
-你的任務是針對使用者的問題，提供一段簡短、溫暖、具同理心的回應。
+你的任務是針對使用者的問題，提供簡短、溫暖、具同理心的回應。
 
 規則：
 1. 不可冒充神父或提供靈修指導
 2. 不可給出神學判斷或道德裁決
 3. 只能提供情感支持和引導式提問
 4. 語氣要像一個關心的朋友
-5. 結尾可以提供一個引導式問題，邀請使用者繼續探索
-6. 【重要】請只使用繁體中文，絕對不得使用簡體字`;
+5. 結尾提供一個引導式問題，邀請使用者繼續探索
+6. 【重要】回覆總字數限制在100字以內，簡潔有力
+7. 【重要】請只使用繁體中文，絕對不得使用簡體字`;
 
   const companionUserMessage = `使用者的問題：${query}${quoteContext}
 
@@ -218,7 +219,27 @@ ${rawAnswer}`;
     console.warn("[Answerer] companion failed, skipping:", err.message);
   }
 
-  const citations = magisteriumCitations.map((c) => ({
+  // ✨ 只取前5個最重要的引用來源
+// const citations = magisteriumCitations.slice(0, 5).map((c) => ({
+//     tier: SOURCE_TIER.MAGISTERIUM,
+//     title: c.document_title || "",
+//     author: c.document_author || "",
+//     year: c.document_year || "",
+//     reference: c.document_reference || "",
+//     cited_text: c.cited_text || "",
+//     url: c.source_url || "",
+// }));
+// ✨ 去除重複標題後，只取前5個
+const seenTitles = new Set();
+const citations = magisteriumCitations
+  .filter((c) => {
+    const title = c.document_title || '';
+    if (seenTitles.has(title)) return false;
+    seenTitles.add(title);
+    return true;
+  })
+  .slice(0, 5)
+  .map((c) => ({
     tier: SOURCE_TIER.MAGISTERIUM,
     title: c.document_title || "",
     author: c.document_author || "",
@@ -235,26 +256,22 @@ ${rawAnswer}`;
 async function analyzeEmotion(query) {
   try {
     const emotionSystemPrompt = `你是一個情緒分析助理。
-請分析使用者的問題，判斷這個問題偏向「感性（情感需求）」還是「理性（知識探索）」。
-
-請只回傳一個 0 到 100 的整數，不要有任何其他文字：
-- 0 = 完全感性（例如：我很難過、我需要幫助、我感到迷茫）
-- 50 = 中性（例如：請解釋聖經某段經文）
-- 100 = 完全理性（例如：天主教的神學定義是什麼）
-
-只回傳數字，不要解釋。`;
+請分析以下問題的情緒程度，回傳一個 0 到 100 的數字：
+- 0 = 純感性（充滿情緒、個人感受、心理困擾）
+- 50 = 中等（情緒與理性並重）
+- 100 = 純理性（純粹知識性、神學教義問題）
+只回傳數字，不要其他文字。`;
 
     const emotionResult = await callLLM(
       emotionSystemPrompt,
-      `使用者的問題：${query}`,
+      `請分析這個問題的情緒程度：${query}`,  // ✨ 修正模板字串
       { temperature: 0.1, max_tokens: 10 }
     );
-
     const parsed = parseInt(emotionResult.trim(), 10);
     if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
       return parsed;
     }
-    return 50; // 解析失敗用預設值
+    return 50;
   } catch (err) {
     console.warn("[analyzeEmotion] failed:", err.message);
     return 50;
@@ -262,13 +279,17 @@ async function analyzeEmotion(query) {
 }
 
 // ⭐ 根據情緒分數決定回覆比重
+// 情緒分數：0 = 純感性，100 = 純理性
 function getTokenConfig(emotionScore) {
   if (emotionScore <= 30) {
-    return { companionMaxTokens: 400, knowledgeMaxTokens: 1200, companionTone: 'HIGH_EMOTION' };
+    // 高感性 → 陪伴為主
+    return { companionMaxTokens: 150, knowledgeMaxTokens: 200, companionTone: 'HIGH_EMOTION' };
   } else if (emotionScore <= 60) {
-    return { companionMaxTokens: 250, knowledgeMaxTokens: 2000, companionTone: 'BALANCED' };
+    // 中等
+    return { companionMaxTokens: 150, knowledgeMaxTokens: 200, companionTone: 'BALANCED' };
   } else {
-    return { companionMaxTokens: 120, knowledgeMaxTokens: 3000, companionTone: 'LOW_EMOTION' };
+    // 高理性 → 知識為主
+    return { companionMaxTokens: 100, knowledgeMaxTokens: 200, companionTone: 'LOW_EMOTION' };
   }
 }
 
@@ -490,14 +511,14 @@ router.post("/stream", verifyToken, attachUserId, async (req, res) => {
       : "";
 
     const knowledgeSystemPrompt = `你是「有答大師」，一個天主教信仰助理。
-你的任務是將 Magisterium AI 提供的英文神學回答，整理成清晰、易懂的繁體中文。
+你的任務是將 Magisterium AI 提供的英文神學回答，整理成簡潔、易懂的繁體中文。
 
 規則：
 1. 只能根據提供的資料回答，不可自行添加未經引用的內容
-2. 保留所有引用來源，格式為【文件名稱】
-3. 使用條列式或分段方式讓回答更易讀
+2. 不需要在回覆中標註引用來源，來源已另外顯示
+3. 【重要】回覆總字數限制在100字以內，簡潔扼要
 4. 語氣要溫和、尊重，適合信仰探討
-5. 如果資料不足以回答問題，誠實說明
+5. 如果資料不足以回答問題，誠實用一句話說明
 6. 【重要】請只使用繁體中文，絕對不得使用簡體字`;
 
     const knowledgeUserMessage = `使用者的問題：${query}${quoteContext}${diaryContext}
@@ -548,16 +569,17 @@ ${rawAnswer}`;
       : '使用者主要想探索知識，陪伴回應請簡短，1-2句話即可。';
 
     const companionSystemPrompt = `你是「有答大師」的陪伴模式，一個溫暖的天主教信仰陪伴者。
-你的任務是針對使用者的問題，提供溫暖、具同理心的回應。
+你的任務是針對使用者的問題，提供簡短、溫暖、具同理心的回應。
 
 規則：
 1. 不可冒充神父或提供靈修指導
 2. 不可給出神學判斷或道德裁決
 3. 只能提供情感支持和引導式提問
 4. 語氣要像一個關心的朋友
-5. 結尾可以提供一個引導式問題，邀請使用者繼續探索
-6. 【重要】請只使用繁體中文，絕對不得使用簡體字
-7. ${toneInstruction}`;
+5. 結尾提供一個引導式問題，邀請使用者繼續探索
+6. 【重要】回覆總字數限制在100字以內，簡潔有力
+7. 【重要】請只使用繁體中文，絕對不得使用簡體字
+8. ${toneInstruction}`;
 
     const companionUserMessage = `使用者的問題：${query}${quoteContext}
 
@@ -570,15 +592,35 @@ ${rawAnswer}`;
       console.warn("[Stream] companion failed:", err.message);
     }
 
-    const citations = magisteriumCitations.map((c) => ({
-      tier: SOURCE_TIER.MAGISTERIUM,
-      title: c.document_title || "",
-      author: c.document_author || "",
-      year: c.document_year || "",
-      reference: c.document_reference || "",
-      cited_text: c.cited_text || "",
-      url: c.source_url || "",
-    }));
+    // ✨ 只取前5個最重要的引用來源
+// const citations = magisteriumCitations.slice(0, 5).map((c) => ({
+//     tier: SOURCE_TIER.MAGISTERIUM,
+//     title: c.document_title || "",
+//     author: c.document_author || "",
+//     year: c.document_year || "",
+//     reference: c.document_reference || "",
+//     cited_text: c.cited_text || "",
+//     url: c.source_url || "",
+// }));
+// ✨ 去除重複標題後，只取前5個
+const seenTitles = new Set();
+const citations = magisteriumCitations
+  .filter((c) => {
+    const title = c.document_title || '';
+    if (seenTitles.has(title)) return false;
+    seenTitles.add(title);
+    return true;
+  })
+  .slice(0, 5)
+  .map((c) => ({
+    tier: SOURCE_TIER.MAGISTERIUM,
+    title: c.document_title || "",
+    author: c.document_author || "",
+    year: c.document_year || "",
+    reference: c.document_reference || "",
+    cited_text: c.cited_text || "",
+    url: c.source_url || "",
+  }));
 
     // Step 6：存 AI 回答
     await saveMessage({
