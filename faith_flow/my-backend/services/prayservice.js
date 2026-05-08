@@ -102,7 +102,7 @@ ${prayerText}
    * ⭐ 將祈禱轉換為日記（直接寫入資料庫）
    * 這個方法獨立於 diaryService，專門處理祈禱轉日記的邏輯
    */
-  async convertPrayerToDiary(userId, prayerText, collectId = null) {
+  async convertPrayerToDiary(userId, prayerText) {
     console.log('🔄 [prayerService] 開始轉換祈禱為日記...');
     console.log(`👤 使用者 ID: ${userId}`);
     console.log(`📝 祈禱內容長度: ${prayerText.length} 字`);
@@ -124,24 +124,22 @@ ${prayerText}
       // 2. 插入資料庫
       const query = `
         INSERT INTO diary (
-          user_id, 
-          collect_id, 
-          diary_title, 
-          diary_content, 
-          tags, 
+          user_id,
+          diary_title,
+          diary_content,
+          tags,
           bible_quote,
           diary_date,
           created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE, NOW())
+        ) VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, NOW())
         RETURNING *
       `;
 
       const values = [
         userId,
-        collectId || null,
         title,
         prayerText,
-        JSON.stringify(tags), // PostgreSQL jsonb 類型
+        JSON.stringify(tags),
         bibleQuote
       ];
 

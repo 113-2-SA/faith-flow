@@ -337,7 +337,7 @@ console.log('🎙️ WebSocket 轉錄服務初始化中...');
 // ⭐ 處理 WebSocket 連線
 wss.on('connection', (ws, req) => {
   console.log('🙏 [WebSocket] 新的轉錄連線');
-  transcriptionService.handleConnection(ws);
+  transcriptionService.handleConnection(ws, req);
 });
 
 wss.on('error', (error) => {

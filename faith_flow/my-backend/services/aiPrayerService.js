@@ -1,12 +1,13 @@
 // ==================== services/aiPrayerService.js ====================
-// AI 禱告歷程追蹤服務（整合於 Node.js，使用 Mistral AI + pgvector）
+// AI 禱告歷程追蹤服務（整合於 Node.js，使用 Jina embedding + Mistral AI + pgvector）
 //
 // 流程：
-//   Step 1: processDiary  → 生成 embedding + 情緒分析（並行），更新 diary 表，回傳 embedding 向量
+//   Step 1: processDiary  → 生成 embedding（Jina）+ 情緒分析（Mistral，並行），更新 diary 表，回傳 embedding 向量
 //   Step 2: findSimilar   → 用 pgvector 找相似日記（cosine similarity > 0.75）
 //   Step 3: analyzeTheme  → 深度主題分析，寫入 prayer_clusters 表
 
 const { Mistral } = require('@mistralai/mistralai');
+const axios = require('axios');
 const pool = require('../config/database');
 const { parseJsonFromLLM } = require('../utils/parseJsonFromLLM');
 
@@ -21,21 +22,25 @@ async function processDiary(diaryId, content, userId, title = '', tags = []) {
   const embeddingInput = [title, tagStr, content].filter(Boolean).join('\n');
 
   const [embedRes, emotionRes] = await Promise.all([
-    mistral.embeddings.create({ model: 'mistral-embed', inputs: [embeddingInput] }),
+    axios.post(
+      'https://api.jina.ai/v1/embeddings',
+      { model: 'jina-embeddings-v3', input: [embeddingInput], task: 'text-matching' },
+      { headers: { Authorization: `Bearer ${process.env.JINA_API_KEY}`, 'Content-Type': 'application/json' } }
+    ),
     mistral.chat.complete({
       model: 'mistral-small-latest',
       maxTokens: 200,
       messages: [{
         role: 'user',
         content: `分析以下祈禱日記的情緒狀態，只回傳 JSON，不要其他文字：
-{"emotion_score": 0到1之間的數字（0=非常悲傷/焦慮，1=非常喜悅/平安）, "emotion_label": "一個中文情緒標籤（感恩、平安、焦慮、哀愁、喜悅、渴望、信靠等）"}
+{"emotion_score": 0到1之間的數字（0=非常悲傷/焦慮，1=非常喜悅/平靜）, "emotion_label": "一個中文情緒標籤（感恩、平靜、焦慮、難過、開心、期待、放鬆、擔心等日常用語）"}
 
 日記內容：${content}`
       }]
     })
   ]);
 
-  const embedding = embedRes.data[0].embedding;
+  const embedding = embedRes.data.data[0].embedding;
 
   let emotion_score = 0.5;
   let emotion_label = '平靜';
@@ -133,12 +138,12 @@ async function analyzeTheme(diaryIds, userId) {
     maxTokens: 800,
     messages: [{
       role: 'user',
-      content: `以下是同一位天主教信友在不同時間寫的數篇祈禱日記，它們有相似的主題。
-請進行深度靈修分析，只回傳 JSON，不要其他文字：
+      content: `以下是同一位用戶在不同時間寫的數篇祈禱日記，它們有相似的主題。
+請分析這些日記，只回傳 JSON，不要其他文字：
 {
   "theme": "這些日記的核心主題（10字以內）",
-  "emotion_trend": "描述情緒變化的趨勢（例如：從焦慮逐漸走向平安）",
-  "ai_insight": "給這位信友的靈修洞察與鼓勵（100字以內，溫暖而有深度）",
+  "emotion_trend": "描述情緒變化的趨勢（例如：從焦慮慢慢變得平靜）",
+  "ai_insight": "給這位用戶的洞察與鼓勵（100字以內，語氣自然像朋友說話，不要用文言文或宗教術語，直接講重點）",
   "should_ask_question": true 或 false,
   "question": "反思問題（should_ask_question 為 false 則填 null）"
 }

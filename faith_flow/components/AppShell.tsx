@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { CopilotStep, walkthroughable } from "react-native-copilot";
 
 import { SideDrawer } from "./SideDrawer";
 

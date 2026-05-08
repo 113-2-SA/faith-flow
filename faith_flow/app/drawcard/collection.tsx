@@ -19,6 +19,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../context/authcontext";
+import { toLocaleDateCST } from "../../utils/dateUtils";
 
 const API_BASE = "http://localhost:3000";
 const { height: SCREEN_H } = Dimensions.get("window");
@@ -90,7 +91,7 @@ if (isToday && params.summary) {
     summary: params.summary,
     quote: params.quote || card.quote,
     quote_source: params.quote_source || card.quote_source,
-    letter_date: new Date().toLocaleDateString("zh-TW"),
+    letter_date: toLocaleDateCST(new Date()),
     conversation: params.conversation || "", // 補上對話記錄
   };
 }

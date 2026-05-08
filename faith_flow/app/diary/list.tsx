@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../context/authcontext';
 import { VideoBackground } from '../../components/VideoBackground';
 import { GlassCard } from '../../components/GlassCard';
+import { toDateOnlyCST } from '../../utils/dateUtils';
 
 interface Diary {
   diary_id: number;
@@ -117,7 +118,7 @@ export default function DiaryListScreen() {
       onPress={() => router.push({ pathname: '/diary/[id]', params: { id: item.diary_id } })}
     >
       <GlassCard style={styles.diaryCard}>
-        <Text style={styles.diaryDate}>{item.diary_date}</Text>
+        <Text style={styles.diaryDate}>{toDateOnlyCST(item.diary_date)}</Text>
         <Text style={styles.diaryTitle}>{item.diary_title}</Text>
         <Text style={styles.diaryContent} numberOfLines={2}>
           {item.diary_content}
@@ -167,6 +168,23 @@ export default function DiaryListScreen() {
               <Text style={styles.filterCount}>{totalCount} 篇</Text>
             </View>
           )}
+
+          {/* 週統整入口 */}
+          <TouchableOpacity
+            style={styles.weeklyBtn}
+            onPress={() => router.push('/diary/weeklysummary')}
+          >
+            <GlassCard style={styles.weeklyCard}>
+              <View style={styles.weeklyRow}>
+                <Text style={styles.weeklyIcon}>✨</Text>
+                <View style={styles.weeklyText}>
+                  <Text style={styles.weeklyTitle}>週統整</Text>
+                  <Text style={styles.weeklySub}>查看 AI 自動生成的每週祈禱回顧</Text>
+                </View>
+                <Text style={styles.weeklyArrow}>›</Text>
+              </View>
+            </GlassCard>
+          </TouchableOpacity>
 
           {/* 搜尋欄 */}
           <GlassCard style={styles.searchCard}>
@@ -312,6 +330,40 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: 'rgba(255,255,255,0.95)',
+  },
+  weeklyBtn: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
+  weeklyCard: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  weeklyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  weeklyIcon: {
+    fontSize: 22,
+  },
+  weeklyText: {
+    flex: 1,
+  },
+  weeklyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
+  },
+  weeklySub: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 2,
+  },
+  weeklyArrow: {
+    fontSize: 22,
+    color: 'rgba(255,255,255,0.5)',
+    fontWeight: '300',
   },
   searchCard: {
     marginHorizontal: 16,

@@ -15,11 +15,17 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../context/authcontext';
 import { API_BASE_URL } from '../../lib/api';
 import { VideoBackground } from '../../components/VideoBackground';
 import { GlassCard } from '../../components/GlassCard';
+import { timeAgo } from '../../utils/dateUtils';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CopilotStep, walkthroughable, useCopilot } from 'react-native-copilot';
+
+const WalkthroughableView = walkthroughable(View);
+const COMMUNITY_TOUR_KEY = 'faith_flow_community_tour_v1';
 
 
 
@@ -80,21 +86,10 @@ const POST_TYPE_LABELS: Record<string, string> = {
   shared: '轉發',
 };
 
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return '剛剛';
-  if (minutes < 60) return `${minutes}分鐘前`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}小時前`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}天前`;
-  return new Date(dateStr).toLocaleDateString('zh-TW');
-}
-
 export default function CommunityFeedScreen() {
   const router = useRouter();
   const { currentUser } = useAuth();
+  const { start } = useCopilot();
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,10 +97,12 @@ export default function CommunityFeedScreen() {
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [selectedPostType, setSelectedPostType] = useState<string | null>(null);
   const [shareTarget, setShareTarget] = useState<Post | null>(null);
   const [shareCaption, setShareCaption] = useState('');
   const [sharing, setSharing] = useState(false);
   const [diaryModalCard, setDiaryModalCard] = useState<DiaryCard | null>(null);
+  const [summaryModalCard, setSummaryModalCard] = useState<SummaryCard | null>(null);
   const LIMIT = 20;
 
   // 搜尋相關狀態
@@ -114,16 +111,40 @@ export default function CommunityFeedScreen() {
   const [searchResults, setSearchResults] = useState<Post[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [sortBy, setSortBy] = useState<'newest' | 'popular'>('newest');
+  const [reportMenuPostId, setReportMenuPostId] = useState<number | null>(null);
+  const [reportModalPostId, setReportModalPostId] = useState<number | null>(null);
+  const [reportReason, setReportReason] = useState('');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
 
-  const fetchPosts = useCallback(async (reset = false, tag?: string | null) => {
+  // 首次進入自動啟動導覽
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      AsyncStorage.getItem(COMMUNITY_TOUR_KEY).then((done) => {
+        if (!done && !cancelled) {
+          setTimeout(() => {
+            if (!cancelled) {
+              start('community_topbar');
+              AsyncStorage.setItem(COMMUNITY_TOUR_KEY, 'true');
+            }
+          }, 1200);
+        }
+      });
+      return () => { cancelled = true; };
+    }, [start])
+  );
+
+  const fetchPosts = useCallback(async (reset = false, tag?: string | null, postType?: string | null) => {
     if (!currentUser) return;
     try {
       const token = await currentUser.getIdToken();
       const currentOffset = reset ? 0 : offset;
       const activeTag = tag !== undefined ? tag : selectedTag;
+      const activePostType = postType !== undefined ? postType : selectedPostType;
       const tagParam = activeTag ? `&tag=${encodeURIComponent(activeTag)}` : '';
+      const typeParam = activePostType ? `&post_type=${encodeURIComponent(activePostType)}` : '';
       const res = await fetch(
-        `${API_BASE_URL}/api/post?visibility=public&limit=${LIMIT}&offset=${currentOffset}${tagParam}`,
+        `${API_BASE_URL}/api/post?visibility=public&limit=${LIMIT}&offset=${currentOffset}${tagParam}${typeParam}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const data = await res.json();
@@ -150,14 +171,21 @@ export default function CommunityFeedScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     setOffset(0);
-    fetchPosts(true, selectedTag);
+    fetchPosts(true, selectedTag, selectedPostType);
   };
 
   const onTagPress = (tag: string) => {
     const next = selectedTag === tag ? null : tag;
     setSelectedTag(next);
     setOffset(0);
-    fetchPosts(true, next);
+    fetchPosts(true, next, selectedPostType);
+  };
+
+  const onPostTypePress = (postType: string) => {
+    const next = selectedPostType === postType ? null : postType;
+    setSelectedPostType(next);
+    setOffset(0);
+    fetchPosts(true, selectedTag, next);
   };
 
   const onLoadMore = () => {
@@ -231,6 +259,31 @@ export default function CommunityFeedScreen() {
         },
       },
     ]);
+  };
+
+  const submitReport = async () => {
+    if (!reportModalPostId || !reportReason || !currentUser) return;
+    setReportSubmitting(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${API_BASE_URL}/api/post/${reportModalPostId}/report`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reportReason }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setReportModalPostId(null);
+        setReportReason('');
+        Alert.alert('已送出', '感謝您的檢舉，我們將盡快審查。');
+      } else {
+        Alert.alert('錯誤', data.error ?? '檢舉失敗');
+      }
+    } catch {
+      Alert.alert('錯誤', '網路連線失敗');
+    } finally {
+      setReportSubmitting(false);
+    }
   };
 
   const submitShare = async () => {
@@ -331,22 +384,29 @@ export default function CommunityFeedScreen() {
               <TouchableOpacity onPress={(e) => { e.stopPropagation(); router.push(`/user/${item.author_user_id}` as never); }}>
                 <Text style={styles.authorName}>{item.username ?? '匿名'}</Text>
               </TouchableOpacity>
-              {item.is_owner && (
-                <TouchableOpacity
-                  onPress={() => Alert.alert('操作', '', [
-                    { text: '編輯', onPress: () => router.push(`/community/edit/${item.community_post_id}` as never) },
-                    { text: '刪除', style: 'destructive', onPress: () => deletePost(item.community_post_id) },
-                    { text: '取消', style: 'cancel' },
-                  ])}
+              <TouchableOpacity
+                  onPress={() => {
+                    if (item.is_owner) {
+                      Alert.alert('操作', '', [
+                        { text: '編輯', onPress: () => router.push(`/community/edit/${item.community_post_id}` as never) },
+                        { text: '刪除', style: 'destructive', onPress: () => deletePost(item.community_post_id) },
+                        { text: '取消', style: 'cancel' },
+                      ]);
+                    } else {
+                      setReportMenuPostId(item.community_post_id);
+                    }
+                  }}
                   style={styles.postMenuBtn}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <Text style={styles.postMenuIcon}>⋯</Text>
                 </TouchableOpacity>
-              )}
-              {item.post_type !== 'original' && (
-                <Text style={styles.categoryLabel}>
-                  {' > '}{POST_TYPE_LABELS[item.post_type]}
-                </Text>
+              {item.post_type !== 'original' && POST_TYPE_LABELS[item.post_type] && (
+                <TouchableOpacity onPress={() => onPostTypePress(item.post_type)}>
+                  <Text style={[styles.categoryLabel, selectedPostType === item.post_type && styles.categoryLabelActive]}>
+                    {' > '}{POST_TYPE_LABELS[item.post_type]}
+                  </Text>
+                </TouchableOpacity>
               )}
               {/* Tags inline after username */}
               {item.tags && item.tags.length > 0 && (
@@ -401,7 +461,11 @@ export default function CommunityFeedScreen() {
 
         {/* Summary card attachment */}
         {item.summary_card && (
-          <View style={styles.summaryCard}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={(e) => { e.stopPropagation(); setSummaryModalCard(item.summary_card!); }}
+            style={styles.summaryCard}
+          >
             <View style={styles.diaryCardHeader}>
               <Text style={styles.diaryCardIcon}>✨</Text>
               <View style={{ flex: 1 }}>
@@ -422,7 +486,7 @@ export default function CommunityFeedScreen() {
                 📖 {item.summary_card.bible_quote}
               </Text>
             ) : null}
-          </View>
+          </TouchableOpacity>
         )}
 
         {/* Embedded original post */}
@@ -515,12 +579,26 @@ export default function CommunityFeedScreen() {
     <VideoBackground source={require('../../assets/backgrounds/main.mp4')}>
       <View style={styles.container}>
         {/* Top bar */}
-        <GlassCard style={styles.topBar}>
-          <Text style={styles.topBarTitle}>心靈營火</Text>
-        </GlassCard>
+        <CopilotStep
+          text="心靈營火：這是信仰分享的社群空間，你可以在這裡閱讀他人的祈禱日記與週回顧，互相鼓勵。"
+          order={10}
+          name="community_topbar"
+        >
+          <WalkthroughableView collapsable={false}>
+            <GlassCard style={styles.topBar}>
+              <Text style={styles.topBarTitle}>心靈營火</Text>
+            </GlassCard>
+          </WalkthroughableView>
+        </CopilotStep>
 
         {/* Search bar */}
-        <View style={styles.searchBar}>
+        <CopilotStep
+          text="搜尋貼文：輸入關鍵字可搜尋社群內容，點貼文上的 # 標籤可快速篩選同主題分享。"
+          order={11}
+          name="community_search"
+        >
+          <WalkthroughableView collapsable={false}>
+            <View style={styles.searchBar}>
           <TextInput
             style={styles.searchInput}
             placeholder="搜尋貼文..."
@@ -539,7 +617,9 @@ export default function CommunityFeedScreen() {
               <Text style={styles.searchBtnText}>🔍</Text>
             </TouchableOpacity>
           )}
-        </View>
+            </View>
+          </WalkthroughableView>
+        </CopilotStep>
 
         {/* Sort tabs (only in search mode) */}
         {searchMode && (
@@ -561,6 +641,17 @@ export default function CommunityFeedScreen() {
           </View>
         )}
 
+        {/* Active post type filter */}
+        {!searchMode && selectedPostType && (
+          <TouchableOpacity
+            style={[styles.filterBar, styles.filterBarType]}
+            onPress={() => onPostTypePress(selectedPostType)}
+          >
+            <Text style={[styles.filterBarText, styles.filterBarTypeText]}>{POST_TYPE_LABELS[selectedPostType]}</Text>
+            <Text style={[styles.filterBarClose, styles.filterBarTypeText]}>✕</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Active tag filter */}
         {!searchMode && selectedTag && (
           <TouchableOpacity
@@ -571,6 +662,15 @@ export default function CommunityFeedScreen() {
             <Text style={styles.filterBarClose}>✕</Text>
           </TouchableOpacity>
         )}
+
+        {/* 步驟 12：貼文互動提示 */}
+        <CopilotStep
+          text="貼文互動：🙏 為貼文祈禱按讚、💬 留言回應、🔄 轉發分享，點貼文標題可閱讀完整內容。"
+          order={12}
+          name="community_actions"
+        >
+          <View />
+        </CopilotStep>
 
         {(loading && !refreshing) || searchLoading ? (
           <View style={styles.loadingContainer}>
@@ -611,12 +711,37 @@ export default function CommunityFeedScreen() {
           />
         )}
 
-        {/* FAB */}
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => router.push('/community/create')}
+        {/* 步驟 13：發文按鈕 */}
+        <CopilotStep
+          text="發表貼文：點此分享你的祈禱日記、週回顧或信仰心得，讓火苗溫暖更多人。"
+          order={13}
+          name="community_fab"
         >
-          <Text style={styles.fabText}>+</Text>
+          <WalkthroughableView collapsable={false} style={styles.fabWrapper}>
+            <TouchableOpacity
+              style={styles.fab}
+              onPress={() => router.push('./community/create')}
+            >
+              <Text style={styles.fabText}>+</Text>
+            </TouchableOpacity>
+          </WalkthroughableView>
+        </CopilotStep>
+
+        {/* 步驟 14：分享卡片說明 */}
+        <CopilotStep
+          text="點擊分享文字或卡片可閱讀完整內容，與原作者互動。"
+          order={14}
+          name="community_share"
+        >
+          <WalkthroughableView collapsable={false} style={{ height: 0 }} />
+        </CopilotStep>
+
+        {/* 重新啟動導覽 */}
+        <TouchableOpacity
+          style={styles.helpButton}
+          onPress={() => start('community_topbar')}
+        >
+          <Text style={styles.helpButtonText}>?</Text>
         </TouchableOpacity>
       </View>
 
@@ -653,6 +778,44 @@ export default function CommunityFeedScreen() {
         </TouchableOpacity>
       </Modal>
 
+      {/* Summary Full Content Modal */}
+      <Modal
+        visible={!!summaryModalCard}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSummaryModalCard(null)}
+      >
+        <TouchableOpacity
+          style={styles.diaryOverlay}
+          activeOpacity={1}
+          onPress={() => setSummaryModalCard(null)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.diaryFloatCard} onPress={() => {}}>
+            <View style={styles.diaryFloatHeader}>
+              <Text style={styles.diaryFloatIcon}>✨</Text>
+              <Text style={styles.diaryFloatTitle} numberOfLines={2}>
+                {summaryModalCard?.summary_title}
+              </Text>
+              <TouchableOpacity onPress={() => setSummaryModalCard(null)} style={styles.diaryFloatClose}>
+                <Text style={styles.diaryFloatCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.diaryFloatDate}>
+              {summaryModalCard?.year} 年 第 {summaryModalCard?.week_number} 週
+            </Text>
+            <View style={styles.diaryFloatDivider} />
+            <ScrollView style={styles.diaryFloatScroll} showsVerticalScrollIndicator={false}>
+              <Text style={styles.diaryFloatContent}>{summaryModalCard?.summary_content}</Text>
+              {summaryModalCard?.bible_quote && (
+                <Text style={styles.summaryFloatBible}>📖 {summaryModalCard.bible_quote}</Text>
+              )}
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    
+    
+    
       {/* Share Modal */}
       <Modal
         visible={!!shareTarget}
@@ -717,7 +880,6 @@ export default function CommunityFeedScreen() {
                 )}
               </View>
             )}
-
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={styles.modalCancelBtn}
@@ -737,7 +899,80 @@ export default function CommunityFeedScreen() {
               </TouchableOpacity>
             </View>
           </View>
+          
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* 檢舉選單 Modal */}
+      <Modal
+        visible={reportMenuPostId !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setReportMenuPostId(null)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setReportMenuPostId(null)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.reportMenuCard}>
+            <View style={styles.reportMenuHandle} />
+            <TouchableOpacity
+              style={styles.reportMenuOption}
+              onPress={() => {
+                setReportModalPostId(reportMenuPostId);
+                setReportMenuPostId(null);
+              }}
+            >
+              <Text style={styles.reportMenuOptionRed}>檢舉</Text>
+              <Text style={styles.reportMenuOptionIcon}>⚠️</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* 檢舉原因 Modal */}
+      <Modal
+        visible={reportModalPostId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setReportModalPostId(null); setReportReason(''); }}
+      >
+        <View style={styles.diaryOverlay}>
+          <View style={styles.reportReasonCard}>
+            <Text style={styles.reportReasonTitle}>請選擇檢舉原因</Text>
+            {['我不喜歡', '騷擾', '不符合天主教教義', '不符現實', '其他'].map((r) => (
+              <TouchableOpacity
+                key={r}
+                style={[styles.reportReasonOption, reportReason === r && styles.reportReasonOptionSelected]}
+                onPress={() => setReportReason(r)}
+              >
+                <Text style={[styles.reportReasonOptionText, reportReason === r && styles.reportReasonOptionTextSelected]}>
+                  {r}
+                </Text>
+                {reportReason === r && <Text style={styles.reportReasonCheck}>✓</Text>}
+              </TouchableOpacity>
+            ))}
+            <View style={[styles.modalButtons, { marginTop: 12 }]}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => { setReportModalPostId(null); setReportReason(''); }}
+              >
+                <Text style={styles.modalCancelText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalSubmitBtn, (!reportReason || reportSubmitting) && { opacity: 0.5 }]}
+                onPress={submitReport}
+                disabled={!reportReason || reportSubmitting}
+              >
+                {reportSubmitting
+                  ? <ActivityIndicator size="small" color="white" />
+                  : <Text style={styles.modalSubmitText}>送出檢舉</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </VideoBackground>
   );
@@ -819,6 +1054,10 @@ const styles = StyleSheet.create({
     color: 'rgba(135,206,250,0.9)',
     fontWeight: '500',
   },
+  categoryLabelActive: {
+    color: 'rgba(255,215,0,0.95)',
+    fontWeight: '700',
+  },
   inlineTag: {
     fontSize: 14,
     color: 'rgba(173,216,230,0.9)',
@@ -895,10 +1134,46 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.8)',
     textAlign: 'center',
   },
-  fab: {
+  tourActionHint: {
+    marginHorizontal: 16,
+    marginBottom: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  tourActionText: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.6)',
+    textAlign: 'center',
+    letterSpacing: 2,
+  },
+  fabWrapper: {
     position: 'absolute',
     right: 24,
     bottom: 24,
+  },
+  helpButton: {
+    position: 'absolute',
+    right: 24,
+    bottom: 92,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helpButtonText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  fab: {
+    right: 0,
+    bottom: 0,
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -988,6 +1263,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,215,0,0.4)',
   },
+  filterBarType: {
+    backgroundColor: 'rgba(135,206,250,0.15)',
+    borderColor: 'rgba(135,206,250,0.4)',
+  },
+  filterBarTypeText: {
+    color: 'rgba(135,206,250,0.95)',
+  },
   filterBarText: {
     fontSize: 14,
     color: 'rgba(255,215,0,0.95)',
@@ -1021,6 +1303,13 @@ const styles = StyleSheet.create({
     color: 'rgba(200,170,255,0.85)',
     fontStyle: 'italic',
     marginTop: 4,
+  },
+  summaryFloatBible: {
+    fontSize: 14,
+    color: 'rgba(200,170,255,0.9)',
+    fontStyle: 'italic',
+    marginTop: 16,
+    lineHeight: 22,
   },
 
   // Diary card attachment
@@ -1229,5 +1518,83 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: 'white',
+  },
+
+  // 檢舉相關
+  reportMenuCard: {
+    backgroundColor: 'rgba(30,30,50,0.97)',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 12,
+    paddingBottom: 40,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  reportMenuHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  reportMenuOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+  },
+  reportMenuOptionRed: {
+    fontSize: 16,
+    color: '#FF3B30',
+    fontWeight: '500',
+  },
+  reportMenuOptionIcon: { fontSize: 20 },
+  reportReasonCard: {
+    width: '100%',
+    backgroundColor: 'rgba(18,18,38,0.97)',
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  reportReasonTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  reportReasonOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 6,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  reportReasonOptionSelected: {
+    backgroundColor: 'rgba(255,59,48,0.15)',
+    borderColor: 'rgba(255,59,48,0.4)',
+  },
+  reportReasonOptionText: {
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.85)',
+  },
+  reportReasonOptionTextSelected: {
+    color: '#FF3B30',
+    fontWeight: '600',
+  },
+  reportReasonCheck: {
+    fontSize: 16,
+    color: '#FF3B30',
+    fontWeight: '700',
   },
 });

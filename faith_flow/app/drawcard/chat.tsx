@@ -331,4 +331,65 @@ loadingText: {
       alignItems: "center",
       justifyContent: "center",
     },
+    sendIcon: {
+      fontSize: 18,
+      color: "#fff",
+    },
+    reviewOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    reviewPanel: {
+      width: "90%",
+      maxHeight: "80%",
+      backgroundColor: "#fff",
+      borderRadius: 12,
+      padding: 16,
+    },
+    closeBtn: {
+      alignSelf: "flex-end",
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: "rgba(0,0,0,0.1)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    closeText: {
+      fontSize: 16,
+      color: "#333",
+    },
+    reviewTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: "#333",
+      textAlign: "center",
+      marginBottom: 8,
+    },
+    reviewHint: {
+      fontSize: 14,
+      color: "#666",
+      textAlign: "center",
+      marginBottom: 16,
+    },
+    reviewMsg: {
+      padding: 12,
+      borderRadius: 8,
+      marginBottom: 8,
+    },
+    reviewUser: {
+      backgroundColor: "rgba(45, 90, 61, 0.1)",
+      alignSelf: "flex-end",
+    },
+    reviewAI: {
+      backgroundColor: "rgba(0,0,0,0.05)",
+      alignSelf: "flex-start",
+    },
+    reviewMsgText: {
+      fontSize: 14,
+      color: "#333",
+      lineHeight: 20,
+    },
   });

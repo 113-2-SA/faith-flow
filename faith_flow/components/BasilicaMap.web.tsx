@@ -13,6 +13,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ChurchPanoramaViewer } from "./ChurchPanoramaViewer";
+import { ChurchImageViewer } from "./ChurchImageViewer";
+import { ChurchVideoViewer } from "./ChurchVideoViewer";
 import { GlassCard } from "./GlassCard";
 import { db } from "../lib/firebase";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
@@ -34,6 +36,7 @@ export type Basilica = {
   viewerUrl: string;
   panoramaId?: string | null;
   panoramaHeading?: number;
+  videoUrl?: string | null;
 };
 
 type FilterType = "all" | "major" | "cathedral" | "chapel";
@@ -63,6 +66,8 @@ export function BasilicaMap() {
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [displayCount, setDisplayCount] = useState(10);
   const [showPanorama, setShowPanorama] = useState(false);
+  const [showImages, setShowImages] = useState(false);
+  const [showVideo, setShowVideo] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const searchWidth = useRef(new Animated.Value(0)).current;
@@ -121,7 +126,7 @@ export function BasilicaMap() {
   };
 
   // ── Data ─────────────────────────────────────────────────────────
-  useEffect(() => { setShowPanorama(false); }, [selectedId]);
+  useEffect(() => { setShowPanorama(false); setShowImages(false); setShowVideo(false); }, [selectedId]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -137,6 +142,7 @@ export function BasilicaMap() {
             dedication: d.dedication, style: d.style, significance: d.significance,
             description: d.description, viewerUrl: d.viewerUrl,
             panoramaId: d.panoramaId || null, panoramaHeading: d.panoramaHeading ?? undefined,
+            videoUrl: d.videoUrl || null,
           });
         });
         setBasilicas(data);
@@ -291,6 +297,16 @@ export function BasilicaMap() {
                 </>
               ) : null}
 
+              <Pressable onPress={() => setShowImages(true)} style={styles.imageBtn}>
+                <Text style={styles.imageBtnText}>🖼️ 查看圖片</Text>
+              </Pressable>
+
+              {selectedBasilica.videoUrl ? (
+                <Pressable onPress={() => setShowVideo(true)} style={styles.videoBtn}>
+                  <Text style={styles.videoBtnText}>🎬 查看影片</Text>
+                </Pressable>
+              ) : null}
+
               {selectedBasilica.panoramaId ? (
                 <Pressable onPress={() => setShowPanorama(true)} style={styles.panoramaBtn}>
                   <Text style={styles.panoramaBtnText}>🌐 進入 360° 全景</Text>
@@ -339,6 +355,22 @@ export function BasilicaMap() {
         {/* 手勢捕捉層：蓋住 handle 區，讓 filter tabs 在下方可正常點擊 */}
         <View style={styles.gestureOverlay} {...panResponder.panHandlers} />
       </Animated.View>
+
+      {showImages && selectedBasilica && (
+        <ChurchImageViewer
+          nameEn={selectedBasilica.nameEn}
+          basilicaName={selectedBasilica.name}
+          onClose={() => setShowImages(false)}
+        />
+      )}
+
+      {showVideo && selectedBasilica?.videoUrl && (
+        <ChurchVideoViewer
+          videoUrl={selectedBasilica.videoUrl}
+          basilicaName={selectedBasilica.name}
+          onClose={() => setShowVideo(false)}
+        />
+      )}
 
       {showPanorama && selectedBasilica?.panoramaId && (
         <ChurchPanoramaViewer
@@ -465,8 +497,20 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSerifTC_400Regular", letterSpacing: 0.5,
   },
   bodyText: { fontSize: 12, color: "rgba(0,0,0,0.60)", lineHeight: 18, fontFamily: "NotoSerifTC_400Regular" },
-  panoramaBtn: {
+  imageBtn: {
     marginTop: 12, paddingVertical: 10, paddingHorizontal: 14,
+    backgroundColor: "rgba(52,168,83,0.10)",
+    borderRadius: 10, borderWidth: 1, borderColor: "rgba(52,168,83,0.30)", alignItems: "center",
+  },
+  imageBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(52,168,83,0.90)", fontFamily: "NotoSerifTC_400Regular" },
+  videoBtn: {
+    marginTop: 8, paddingVertical: 10, paddingHorizontal: 14,
+    backgroundColor: "rgba(220,80,60,0.10)",
+    borderRadius: 10, borderWidth: 1, borderColor: "rgba(220,80,60,0.30)", alignItems: "center",
+  },
+  videoBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(220,80,60,0.90)", fontFamily: "NotoSerifTC_400Regular" },
+  panoramaBtn: {
+    marginTop: 8, paddingVertical: 10, paddingHorizontal: 14,
     backgroundColor: "rgba(65,83,103,0.10)",
     borderRadius: 10, borderWidth: 1, borderColor: "rgba(65,83,103,0.25)", alignItems: "center",
   },

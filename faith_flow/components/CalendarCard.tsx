@@ -175,7 +175,7 @@ export function CalendarCard({ viewDate, expanded, onToggleExpanded, onPrev, onN
         <View style={styles.divider} />
 
         {/* 動畫容器：height 控制可見高度，overflow hidden 裁切 */}
-        <Animated.View style={{ height: gridH > 0 ? gridH : undefined, overflow: "hidden" }}>
+        <Animated.View style={{ height: (collapsedH > 0 && expandedH > 0) ? gridH : undefined, overflow: "hidden" }}>
           {/* grid 偏移：讓今日所在行對齊可見窗口 */}
           <Animated.View style={[styles.grid, { marginTop: gridMT }]} onLayout={onGridLayout}>
             {cells.map((c, idx) => {
@@ -227,9 +227,12 @@ export function CalendarCard({ viewDate, expanded, onToggleExpanded, onPrev, onN
 }
 
 const styles = StyleSheet.create({
-  wrapper: { position: "relative" },
-  card: {},
-
+  wrapper: {
+    position: "relative",
+  },
+  card: {
+    overflow: "hidden",
+  },
   weekRow: {
     marginTop: 10,
     flexDirection: "row",

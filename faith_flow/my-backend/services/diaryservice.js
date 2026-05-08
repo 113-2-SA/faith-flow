@@ -27,7 +27,6 @@ async function createDiary(diaryData) {
     diaryContent,
     bibleQuote,
     tags,
-    collectId,
   } = diaryData;
 
   // 支援 snake_case
@@ -37,13 +36,6 @@ async function createDiary(diaryData) {
   const finalDiaryTitle = diaryTitle || diaryData.diary_title;
   const finalDiaryContent = diaryContent || diaryData.diary_content;
   const finalBibleQuote = bibleQuote || diaryData.bible_quote;
-  const finalCollectId = collectId ?? diaryData.collect_id ?? null;
-
-  const rawCollectId = collectId ?? diaryData.collect_id ?? null;
-  const collectIdOrNull =
-    rawCollectId === undefined || rawCollectId === null || Number(rawCollectId) <= 0
-      ? null
-      : Number(rawCollectId);
 
   console.log("處理後的資料:", {
     // firebaseUid,
@@ -65,21 +57,19 @@ async function createDiary(diaryData) {
     INSERT INTO diary (
       "user_id",
       diary_date,
-      collect_id,
       diary_title,
       diary_content,
       bible_quote,
       tags,
       created_at
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+    VALUES ($1, $2, $3, $4, $5, $6, NOW())
     RETURNING *
   `;
 
   const params = [
   dbUserID,
   finalDiaryDate,
-  collectIdOrNull,
   finalDiaryTitle,
   finalDiaryContent,
   finalBibleQuote || null,
@@ -125,7 +115,6 @@ async function getUserDiaries(userId, options = {}) {
     startDate,      // 開始日期 (YYYY-MM-DD) //開始與結束用於提供資訊給LLM整理時篩選
     endDate,        // 結束日期 (YYYY-MM-DD)
     date,           // 特定日期 (YYYY-MM-DD) - 優先級最高
-    collectId,      // 日記本 ID
     year,           // 年份 (YYYY)
     month,          // 月份 (1-12)
     keyword,        // 搜尋關鍵字
@@ -134,14 +123,13 @@ async function getUserDiaries(userId, options = {}) {
   } = options;
 
   let sql = `
-    SELECT 
+    SELECT
       diary_id,
       diary_date,
       diary_title,
       diary_content,
       bible_quote,
       tags,
-      collect_id,
       created_at
     FROM diary
     WHERE user_id = $1
@@ -190,15 +178,7 @@ async function getUserDiaries(userId, options = {}) {
     console.log(`[篩選] 月份: ${year}-${month}`);
   }
 
-  // ⭐ 篩選 5: 日記本
-  if (collectId !== undefined && collectId !== null) {
-    paramCount++;
-    sql += ` AND collect_id = $${paramCount}`;
-    params.push(collectId);
-    console.log(`[篩選] 日記本 ID: ${collectId}`);
-  }
-
-  // ⭐ 篩選 6: 關鍵字搜尋（標題、內容、經文、標籤）
+  // ⭐ 篩選 5: 關鍵字搜尋（標題、內容、經文、標籤）
   if (keyword) {
     paramCount++;
     sql += ` AND (

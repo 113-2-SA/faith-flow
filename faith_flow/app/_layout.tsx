@@ -9,6 +9,7 @@ import { useFonts } from "expo-font";
 import { NotoSerifTC_400Regular } from "@expo-google-fonts/noto-serif-tc";
 import { AuthProvider, useAuth } from "./context/authcontext";
 import { AppShellProvider } from "../components/AppShell";
+import { CopilotProvider } from "react-native-copilot";
 import { GlassThemeProvider } from "../context/GlassThemeContext";
 
 /** 注入全域 CSS 與 Material Symbols 字體（web only） */
@@ -59,9 +60,17 @@ function RootLayoutNav() {
 
   if (currentUser) {
     return (
-      <AppShellProvider>
-        <Stack screenOptions={{ headerShown: false }} />
-      </AppShellProvider>
+      <CopilotProvider
+        animated
+        overlay="view"
+        stopOnOutsideClick
+        backdropColor="transparent"
+        labels={{ skip: "略過", previous: "上一步", next: "下一步", finish: "完成" }}
+      >
+        <AppShellProvider>
+          <Stack screenOptions={{ headerShown: false }} />
+        </AppShellProvider>
+      </CopilotProvider>
     );
   }
 
@@ -81,8 +90,9 @@ export default function RootLayout() {
   }
 
   // 在任何 Text 渲染前同步設定全域字體
-  if (!Text.defaultProps) Text.defaultProps = {};
-  (Text.defaultProps as any).style = { fontFamily: "NotoSerifTC_400Regular" };
+  // 注意：在新版 React Native 中，Text.defaultProps 已被移除
+  // 字體設置通過 useFonts 和個別組件的 fontFamily 屬性處理
+  // Text.defaultProps = { style: { fontFamily: "NotoSerifTC_400Regular" } };
 
   return (
     <GlassThemeProvider>
