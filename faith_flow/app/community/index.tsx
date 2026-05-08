@@ -1,28 +1,28 @@
-import { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  Image,
-  FlatList,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  ActivityIndicator,
-  RefreshControl,
-  Alert,
-} from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { useAuth } from '../context/authcontext';
-import { API_BASE_URL } from '../../lib/api';
-import { VideoBackground } from '../../components/VideoBackground';
-import { GlassCard } from '../../components/GlassCard';
-import { timeAgo } from '../../utils/dateUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CopilotStep, walkthroughable, useCopilot } from 'react-native-copilot';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { CopilotStep, useCopilot, walkthroughable } from 'react-native-copilot';
+import { GlassCard } from '../../components/GlassCard';
+import { VideoBackground } from '../../components/VideoBackground';
+import { API_BASE_URL } from '../../lib/api';
+import { timeAgo } from '../../utils/dateUtils';
+import { useAuth } from '../context/authcontext';
 
 const WalkthroughableView = walkthroughable(View);
 const COMMUNITY_TOUR_KEY = 'faith_flow_community_tour_v1';
@@ -45,6 +45,15 @@ interface SummaryCard {
   week_number: number;
   start_date?: string;
   end_date?: string;
+}
+
+// ✨ 新增LetterCard 型別
+interface LetterCard {
+  summary_text: string;
+  question: string | null;
+  image_url: string | null;
+  quote: string | null;
+  quote_source: string | null;
 }
 
 interface OriginalPost {
@@ -76,6 +85,7 @@ interface Post {
   original_post?: OriginalPost;
   diary_card?: DiaryCard;
   summary_card?: SummaryCard;
+  letter_card?: LetterCard;  // ✨ 新增
 }
 
 const POST_TYPE_LABELS: Record<string, string> = {
@@ -488,6 +498,41 @@ export default function CommunityFeedScreen() {
             ) : null}
           </TouchableOpacity>
         )}
+
+        {/* ✨ Letter card attachment */}
+{item.letter_card && (
+  <View style={styles.letterCard}>
+    <View style={styles.letterCardRow}>
+      {item.letter_card.image_url ? (
+        <Image
+          source={{ uri: item.letter_card.image_url }}
+          style={styles.letterCardImage}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={styles.letterCardImagePlaceholder}>
+          <Text style={{ fontSize: 20 }}>🖼️</Text>
+        </View>
+      )}
+      <View style={styles.letterCardText}>
+        {item.letter_card.question ? (
+          <Text style={styles.letterCardQuestion} numberOfLines={2}>
+            {item.letter_card.question}
+          </Text>
+        ) : null}
+        <Text style={styles.letterCardPreview} numberOfLines={3}>
+          {item.letter_card.summary_text?.slice(0, 80)}
+          {(item.letter_card.summary_text?.length ?? 0) > 80 ? '...' : ''}
+        </Text>
+        {item.letter_card.quote ? (
+          <Text style={styles.letterCardQuote} numberOfLines={2}>
+            「{item.letter_card.quote}」
+          </Text>
+        ) : null}
+      </View>
+    </View>
+  </View>
+)}
 
         {/* Embedded original post */}
         {item.post_type === 'shared' && item.original_post && (
@@ -1596,5 +1641,56 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#FF3B30',
     fontWeight: '700',
+  },
+
+  // ✨ Letter card
+  letterCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(80,180,120,0.4)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+    backgroundColor: 'rgba(0,60,30,0.25)',
+  },
+  letterCardRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'flex-start',
+  },
+  letterCardImage: {
+    width: 70,
+    height: 100,
+    borderRadius: 8,
+    flexShrink: 0,
+  },
+  letterCardImagePlaceholder: {
+    width: 70,
+    height: 100,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  letterCardText: {
+    flex: 1,
+    gap: 5,
+  },
+  letterCardQuestion: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
+    lineHeight: 18,
+  },
+  letterCardPreview: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.65)',
+    lineHeight: 17,
+  },
+  letterCardQuote: {
+    fontSize: 12,
+    color: 'rgba(180,230,180,0.85)',
+    fontStyle: 'italic',
+    lineHeight: 17,
   },
 });

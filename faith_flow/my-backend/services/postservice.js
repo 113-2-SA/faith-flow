@@ -82,29 +82,38 @@ class PostService {
 
     // ⭐ 獲取單一貼文（含標籤、作者資訊、點讚和轉發狀態、圖片、日記卡片）
     async getPostById(postId, userId = null) {
-        const query = `
-            SELECT
-                p.*,
-                u."user_name" as username,
-                u."user_pic" as avatar_url,
-                d.diary_id      as diary_card_id,
-                d.diary_title   as diary_card_title,
-                d.diary_content as diary_card_content,
-                d.diary_date    as diary_card_date,
-                ws."summary_id"      as summary_card_id,
-                ws."summary_title"   as summary_card_title,
-                ws."summary_content" as summary_card_content,
-                ws."bible_quote"     as summary_card_bible_quote,
-                ws."year"            as summary_card_year,
-                ws."week_number"     as summary_card_week_number,
-                ws."start_date"      as summary_card_start_date,
-                ws."end_date"        as summary_card_end_date
-            FROM community_posts p
-            LEFT JOIN "user" u ON p.author_user_id = u."userID"
-            LEFT JOIN diary d ON p.post_type = 'diary' AND p.diary_id = d.diary_id
-            LEFT JOIN "weekly_summary" ws ON p.post_type = 'summary' AND p.summary_id = ws."summary_id"
-            WHERE p.community_post_id = $1 AND p.deleted_at IS NULL
-        `;
+    const query = `
+        SELECT
+            p.*,
+            u."user_name" as username,
+            u."user_pic" as avatar_url,
+            d.diary_id      as diary_card_id,
+            d.diary_title   as diary_card_title,
+            d.diary_content as diary_card_content,
+            d.diary_date    as diary_card_date,
+            ws."summary_id"      as summary_card_id,
+            ws."summary_title"   as summary_card_title,
+            ws."summary_content" as summary_card_content,
+            ws."bible_quote"     as summary_card_bible_quote,
+            ws."year"            as summary_card_year,
+            ws."week_number"     as summary_card_week_number,
+            ws."start_date"      as summary_card_start_date,
+            ws."end_date"        as summary_card_end_date,
+            l.summary_text  as letter_card_summary,
+            aq.question_text as letter_card_question,
+            aq.image_url    as letter_card_image_url,
+            ud.letter_quote as letter_card_quote,
+            ud.letter_quote_source as letter_card_quote_source
+        FROM community_posts p
+        LEFT JOIN "user" u ON p.author_user_id = u."userID"
+        LEFT JOIN diary d ON p.post_type = 'diary' AND p.diary_id = d.diary_id
+        LEFT JOIN "weekly_summary" ws ON p.post_type = 'summary' AND p.summary_id = ws."summary_id"
+        LEFT JOIN letters l ON p.post_type = 'letter' AND p.letter_id = l.letter_id
+        LEFT JOIN user_draws ud ON ud.summary = l.summary_text AND ud.is_completed = true
+        LEFT JOIN weekly_cards wc ON wc.weekly_cards_id = ud.weekly_card_id
+        LEFT JOIN ai_questions aq ON aq.ai_question_id = wc.ai_question_id
+        WHERE p.community_post_id = $1 AND p.deleted_at IS NULL
+    `;
 
         const result = await pool.query(query, [postId]);
 
@@ -149,6 +158,22 @@ class PostService {
         delete post.summary_card_week_number;
         delete post.summary_card_start_date;
         delete post.summary_card_end_date;
+
+        // ✨ 整理信箋卡片
+        if (post.letter_card_summary) {
+            post.letter_card = {
+                summary_text: post.letter_card_summary,
+                question:     post.letter_card_question,
+                image_url:    post.letter_card_image_url,
+                quote:        post.letter_card_quote,
+                quote_source: post.letter_card_quote_source,
+            };
+        }
+        delete post.letter_card_summary;
+        delete post.letter_card_question;
+        delete post.letter_card_image_url;
+        delete post.letter_card_quote;
+        delete post.letter_card_quote_source;
 
         // ⭐ 如果提供了 userId，檢查點讚和轉發狀態
         if (userId) {
@@ -302,6 +327,11 @@ class PostService {
                 , ws."week_number"     as summary_card_week_number
                 , ws."start_date"      as summary_card_start_date
                 , ws."end_date"        as summary_card_end_date
+                , ltr.summary_text     as letter_card_summary
+                , laq.question_text    as letter_card_question
+                , laq.image_url        as letter_card_image_url
+                , ud_ltr.letter_quote  as letter_card_quote
+                , ud_ltr.letter_quote_source as letter_card_quote_source
                 , op.community_post_id   as orig_post_id
                 , op.post_text           as orig_post_text
                 , op.post_type           as orig_post_type
@@ -323,6 +353,10 @@ class PostService {
             LEFT JOIN "user" u ON p.author_user_id = u."userID"
             LEFT JOIN diary d ON p.post_type = 'diary' AND p.diary_id = d.diary_id
             LEFT JOIN "weekly_summary" ws ON p.post_type = 'summary' AND p.summary_id = ws."summary_id"
+            LEFT JOIN letters ltr ON p.post_type = 'letter' AND p.letter_id = ltr.letter_id
+            LEFT JOIN user_draws ud_ltr ON ud_ltr.summary = ltr.summary_text AND ud_ltr.is_completed = true
+            LEFT JOIN weekly_cards lwc ON lwc.weekly_cards_id = ud_ltr.weekly_card_id
+            LEFT JOIN ai_questions laq ON laq.ai_question_id = lwc.ai_question_id
             LEFT JOIN community_post_shares ps
                 ON ps.shared_post_id = p.community_post_id
             LEFT JOIN community_posts op
@@ -374,6 +408,22 @@ class PostService {
             delete post.summary_card_week_number;
             delete post.summary_card_start_date;
             delete post.summary_card_end_date;
+
+            // ✨ 整理信箋卡片
+            if (row.letter_card_summary) {
+                post.letter_card = {
+                    summary_text: row.letter_card_summary,
+                    question:     row.letter_card_question,
+                    image_url:    row.letter_card_image_url,
+                    quote:        row.letter_card_quote,
+                    quote_source: row.letter_card_quote_source,
+                };
+            }
+            delete post.letter_card_summary;
+            delete post.letter_card_question;
+            delete post.letter_card_image_url;
+            delete post.letter_card_quote;
+            delete post.letter_card_quote_source;
 
             // 整理轉發來源貼文
             if (row.post_type === 'shared' && row.orig_post_id) {
