@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   View,
   Text,
@@ -21,84 +22,20 @@ import { useAuth } from '../../context/authcontext';
 import { API_BASE_URL } from '../../../lib/api';
 import { VideoBackground } from '../../../components/VideoBackground';
 import { GlassCard } from '../../../components/GlassCard';
-import { timeAgo } from '../../../utils/dateUtils';
+import { PostCard, CommentCard, PostData, CommentData, PostDiaryCard, PostSummaryCard } from '../../../components/PostCard';
+import { HEADER_CONTENT_HEIGHT } from '../../../components/AppShell';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface Tag {
-  tag_name: string;
-}
+interface Tag { tag_name: string; }
 
-interface DiaryCard {
-  diary_id: number;
-  diary_title: string;
-  diary_content: string;
-  diary_date: string;
-}
-
-interface SummaryCard {
-  summary_id: number;
-  summary_title: string;
-  summary_content: string;
-  bible_quote: string | null;
-  year: number;
-  week_number: number;
-  start_date?: string;
-  end_date?: string;
-}
-
-interface OriginalPost {
-  community_post_id: number;
-  post_text: string;
-  post_type?: string;
-  created_at: string;
-  original_author_name: string | null;
-  original_author_avatar: string | null;
-  diary_card?: DiaryCard;
-  summary_card?: SummaryCard;
-}
-
-interface Post {
-  community_post_id: number;
-  author_user_id: number;
-  post_text: string;
-  post_type: string;
-  visibility: string;
-  username: string | null;
-  avatar_url: string | null;
+// Local Post type retains Tag[] for the raw API response; converted to string[]
+// when passed to PostCard which expects PostData (tags: string[]).
+interface Post extends Omit<PostData, 'tags'> {
   tags: Tag[];
-  created_at: string;
-  post_pic?: string | null;
-  like_count?: number;
-  comment_count?: number;
-  is_liked?: boolean;
-  is_owner?: boolean;
-  original_post?: OriginalPost;
-  diary_card?: DiaryCard;
-  summary_card?: SummaryCard;
 }
 
-interface Comment {
-  comment_id: number;
-  post_id: number;
-  user_id: number;
-  parent_comment_id: number | null;
-  comment_content: string;
-  username: string | null;
-  created_at: string;
-  like_count?: number;
-  is_liked?: boolean;
-  reply_count?: number;
-  replies?: Comment[];
-}
-
-const POST_TYPE_LABELS: Record<string, string> = {
-  normal: '原創分享',
-  diary: '日記分享',
-  summary: '周回顧分享',
-  letter: '信箋',
-  shared: '轉發',
-};
+type Comment = CommentData;
 
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -116,13 +53,16 @@ export default function PostDetailScreen() {
   const [replyTo, setReplyTo] = useState<{ id: number; username: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [imageModalUri, setImageModalUri] = useState<string | null>(null);
-  const [diaryModalCard, setDiaryModalCard] = useState<DiaryCard | null>(null);
-  const [summaryModalCard, setSummaryModalCard] = useState<SummaryCard | null>(null);
+  const [diaryModalCard, setDiaryModalCard] = useState<PostDiaryCard | null>(null);
+  const [summaryModalCard, setSummaryModalCard] = useState<PostSummaryCard | null>(null);
   const inputRef = useRef<TextInput>(null);
   const [reportMenuVisible, setReportMenuVisible] = useState(false);
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [shareCaption, setShareCaption] = useState('');
+  const [sharing, setSharing] = useState(false);
 
   const postId = parseInt(id ?? '0');
 
@@ -274,41 +214,59 @@ export default function PostDetailScreen() {
     }
   }
 
+  async function submitShare() {
+    if (!post || !currentUser) return;
+    setSharing(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${API_BASE_URL}/api/share/${postId}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ share_caption: shareCaption.trim(), visibility: 'public' }),
+      });
+      const data = await res.json();
+      if (data.ok ?? data.success) {
+        setShareModalVisible(false);
+        setShareCaption('');
+        Alert.alert('成功', '已轉發貼文');
+      } else {
+        Alert.alert('錯誤', data.error ?? '轉發失敗');
+      }
+    } catch {
+      Alert.alert('錯誤', '網路連線失敗');
+    } finally {
+      setSharing(false);
+    }
+  }
+
   function startReply(comment: Comment) {
     setReplyTo({ id: comment.comment_id, username: comment.username ?? '匿名' });
     inputRef.current?.focus();
   }
 
-  // ─── Render ───────────────────────────────────────────────────────────────
-
-  function renderComment(comment: Comment, isReply = false) {
-    return (
-      <View key={comment.comment_id} style={isReply ? styles.replyItem : styles.commentItem}>
-        <View style={[styles.commentAvatar, isReply && styles.replyAvatar]}>
-          <Text style={styles.commentAvatarText}>
-            {comment.username ? comment.username[0] : '?'}
-          </Text>
-        </View>
-        <View style={styles.commentBody}>
-          <View style={styles.commentHeader}>
-            <Text style={styles.commentUsername}>{comment.username ?? '匿名'}</Text>
-            <Text style={styles.commentTime}>{timeAgo(comment.created_at)}</Text>
-          </View>
-          <Text style={styles.commentContent}>{comment.comment_content}</Text>
-          {!isReply && (
-            <TouchableOpacity onPress={() => startReply(comment)} style={styles.replyBtn}>
-              <Text style={styles.replyBtnText}>回覆</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-    );
+  async function toggleCommentLike(commentId: number, isLiked: boolean) {
+    if (!currentUser) return;
+    const update = (c: Comment) =>
+      c.comment_id === commentId
+        ? { ...c, is_liked: !isLiked, like_count: (c.like_count ?? 0) + (isLiked ? -1 : 1) }
+        : { ...c, replies: c.replies?.map(r => r.comment_id === commentId ? { ...r, is_liked: !isLiked, like_count: (r.like_count ?? 0) + (isLiked ? -1 : 1) } : r) };
+    setComments(prev => prev.map(update));
+    try {
+      const token = await currentUser.getIdToken();
+      await fetch(`${API_BASE_URL}/api/clike/${commentId}/toggle`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      const revert = (c: Comment) =>
+        c.comment_id === commentId
+          ? { ...c, is_liked: isLiked, like_count: (c.like_count ?? 0) + (isLiked ? 1 : -1) }
+          : { ...c, replies: c.replies?.map(r => r.comment_id === commentId ? { ...r, is_liked: isLiked, like_count: (r.like_count ?? 0) + (isLiked ? 1 : -1) } : r) };
+      setComments(prev => prev.map(revert));
+    }
   }
 
-  const listData = comments.flatMap((c) => [
-    { ...c, _type: 'comment' as const },
-    ...(c.replies ?? []).map((r) => ({ ...r, _type: 'reply' as const })),
-  ]);
+  const listData = comments;
 
   if (loading) {
     return (
@@ -327,217 +285,39 @@ export default function PostDetailScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
       >
-        {/* Header */}
-        <GlassCard style={styles.header}>
-          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/community' as never)} style={styles.backBtn}>
-            <Text style={styles.backIcon}>‹</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>貼文</Text>
-          {post ? (
-            <TouchableOpacity
-              style={styles.backBtn}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              onPress={() => {
-                if (post.is_owner) {
-                  Alert.alert('操作', '', [
-                    { text: '編輯', onPress: () => router.push(`/community/edit/${postId}` as never) },
-                    { text: '刪除', style: 'destructive', onPress: () => { setTimeout(() => deletePost(), 300); } },
-                    { text: '取消', style: 'cancel' },
-                  ]);
-                } else {
-                  setReportMenuVisible(true);
-                }
-              }}
-            >
-              {/* <Text style={styles.menuIcon}>⋯</Text> */}
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.backBtn} />
-          )}
-        </GlassCard>
+        {/* 浮動返回按鈕（漢堡區塊，右側） */}
+        <View style={styles.backFloatRow}>
+          <Pressable
+            style={styles.backFloatBtn}
+            onPress={() => router.canGoBack() ? router.back() : router.replace('/community' as never)}
+            hitSlop={12}
+          >
+            <MaterialCommunityIcons name="arrow-left" size={26} color="rgba(255,255,255,0.95)" />
+          </Pressable>
+        </View>
 
         <FlatList
           data={listData}
-          keyExtractor={(item) => `${item._type}-${item.comment_id}`}
+          keyExtractor={(item) => `comment-${item.comment_id}`}
           contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             post ? (
-              <GlassCard style={styles.postCard}>
-                {/* Author row */}
-                <View style={styles.postHeader}>
-                  <TouchableOpacity onPress={() => router.push(`/user/${post.author_user_id}` as never)}>
-                    {post.avatar_url ? (
-                      <Image source={{ uri: post.avatar_url }} style={styles.avatarImage} />
-                    ) : (
-                      <View style={styles.avatar}>
-                        <Text style={styles.avatarText}>
-                          {post.username ? post.username[0] : '?'}
-                        </Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.authorRow}>
-                      <TouchableOpacity onPress={() => router.push(`/user/${post.author_user_id}` as never)}>
-                        <Text style={styles.authorName}>{post.username ?? '匿名'}</Text>
-                      </TouchableOpacity>
-                      {post.post_type !== 'original' && (
-                        <Text style={styles.categoryLabel}>
-                          {' › '}{POST_TYPE_LABELS[post.post_type] ?? post.post_type}
-                        </Text>
-                      )}
-                    </View>
-                    <Text style={styles.timeText}>{timeAgo(post.created_at)}</Text>
-                  </View>
-                </View>
-
-                {/* Tags */}
-                {post.tags && post.tags.length > 0 && (
-                  <View style={styles.tagsRow}>
-                    {post.tags.map((t, i) => (
-                      <View key={i} style={styles.tag}>
-                        <Text style={styles.tagText}>{t.tag_name}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {/* Content */}
-                {post.post_text ? <Text style={styles.postText}>{post.post_text}</Text> : null}
-
-                {/* Post image — 點擊可全螢幕預覽 */}
-                {post.post_pic ? (
-                  <TouchableOpacity activeOpacity={0.9} onPress={() => setImageModalUri(post.post_pic!)}>
-                    <Image source={{ uri: post.post_pic }} style={styles.postImage} resizeMode="contain" />
-                  </TouchableOpacity>
-                ) : null}
-
-                {/* Diary card attachment */}
-                {post.diary_card && (
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={() => setDiaryModalCard(post.diary_card!)}
-                    style={styles.diaryCard}
-                  >
-                    <View style={styles.diaryCardHeader}>
-                      <Text style={styles.diaryCardIcon}>📖</Text>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.diaryCardDate}>{post.diary_card.diary_date}</Text>
-                        <Text style={styles.diaryCardTitle} numberOfLines={1}>
-                          {post.diary_card.diary_title}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={styles.diaryCardPreview} numberOfLines={2}>
-                      {post.diary_card.diary_content.slice(0, 30)}
-                      {post.diary_card.diary_content.length > 30 ? '...' : ''}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-
-                {/* Summary card attachment */}
-                {post.summary_card && (
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={() => setSummaryModalCard(post.summary_card!)}
-                    style={styles.summaryCard}
-                  >
-                    <View style={styles.diaryCardHeader}>
-                      <Text style={styles.diaryCardIcon}>✨</Text>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.diaryCardDate}>
-                          {post.summary_card.year} 年 第 {post.summary_card.week_number} 週回顧
-                        </Text>
-                        <Text style={styles.diaryCardTitle} numberOfLines={1}>
-                          {post.summary_card.summary_title}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={styles.diaryCardPreview} numberOfLines={2}>
-                      {post.summary_card.summary_content.slice(0, 60)}
-                      {post.summary_card.summary_content.length > 60 ? '...' : ''}
-                    </Text>
-                    {post.summary_card.bible_quote && (
-                      <Text style={styles.summaryCardBible} numberOfLines={1}>
-                        📖 {post.summary_card.bible_quote}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                )}
-
-                {/* Embedded original post for shared type */}
-                {post.post_type === 'shared' && post.original_post && (
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={() => router.push(`/community/post/${post.original_post!.community_post_id}` as never)}
-                    style={styles.quotedCard}
-                  >
-                    <View style={styles.quotedHeader}>
-                      {post.original_post.original_author_avatar ? (
-                        <Image source={{ uri: post.original_post.original_author_avatar }} style={styles.quotedAvatar} />
-                      ) : (
-                        <View style={styles.quotedAvatarPlaceholder}>
-                          <Text style={styles.quotedAvatarText}>
-                            {post.original_post.original_author_name?.[0] ?? '?'}
-                          </Text>
-                        </View>
-                      )}
-                      <Text style={styles.quotedAuthor}>
-                        {post.original_post.original_author_name ?? '匿名'}
-                      </Text>
-                      <Text style={styles.quotedTime}> · {timeAgo(post.original_post.created_at)}</Text>
-                    </View>
-                    {post.original_post.post_text ? (
-                      <Text style={styles.quotedText} numberOfLines={3}>
-                        {post.original_post.post_text}
-                      </Text>
-                    ) : null}
-                    {post.original_post.diary_card && (
-                      <View style={[styles.diaryCard, { marginBottom: 0, marginTop: 6 }]}>
-                        <View style={styles.diaryCardHeader}>
-                          <Text style={styles.diaryCardIcon}>📖</Text>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.diaryCardTitle} numberOfLines={1}>
-                              {post.original_post.diary_card.diary_title}
-                            </Text>
-                            <Text style={styles.diaryCardPreview} numberOfLines={1}>
-                              {post.original_post.diary_card.diary_content.slice(0, 30)}
-                              {post.original_post.diary_card.diary_content.length > 30 ? '...' : ''}
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                )}
-
-                {/* Actions */}
-                <View style={styles.actions}>
-                  <TouchableOpacity style={styles.actionBtn} onPress={toggleLike}>
-                    <Text style={styles.actionIcon}>{post.is_liked ? '🙏' : '🤍'}</Text>
-                    <Text style={styles.actionText}>{post.like_count ?? 0}</Text>
-                  </TouchableOpacity>
-                  <View style={styles.actionBtn}>
-                    <Text style={styles.actionIcon}>💬</Text>
-                    <Text style={styles.actionText}>{post.comment_count ?? 0}</Text>
-                  </View>
-                  {post.is_owner && (
-                    <>
-                      <TouchableOpacity
-                        style={styles.actionBtn}
-                        onPress={() => router.push(`/community/edit/${postId}` as never)}
-                      >
-                        <Text style={styles.actionIcon}>✏️</Text>
-                        <Text style={styles.actionText}>編輯</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.actionBtn} onPress={deletePost}>
-                        <Text style={[styles.actionIcon, { color: 'rgba(255,80,80,0.9)' }]}>🗑️</Text>
-                        <Text style={[styles.actionText, { color: 'rgba(255,80,80,0.9)' }]}>刪除</Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
-                </View>
-              </GlassCard>
+              <PostCard
+                post={{ ...post, tags: post.tags?.map(t => t.tag_name) ?? [] }}
+                onLike={toggleLike}
+                onComment={() => inputRef.current?.focus()}
+                onShare={() => setShareModalVisible(true)}
+                onEdit={() => router.push(`/community/edit/${postId}` as never)}
+                onDelete={deletePost}
+                onReport={!post.is_owner ? () => setReportMenuVisible(true) : undefined}
+                onAvatarPress={() => router.push(`/user/${post.author_user_id}` as never)}
+                onDiaryCardPress={setDiaryModalCard}
+                onSummaryCardPress={setSummaryModalCard}
+                onImagePress={setImageModalUri}
+                onOriginalPostPress={(id) => router.push(`/community/post/${id}` as never)}
+                style={{ marginBottom: 8 }}
+              />
             ) : null
           }
           ListEmptyComponent={
@@ -548,7 +328,21 @@ export default function PostDetailScreen() {
             </GlassCard>
           }
           renderItem={({ item }) => (
-            <>{renderComment(item, item._type === 'reply')}</>
+            <>
+              <CommentCard
+                comment={item}
+                onLike={() => toggleCommentLike(item.comment_id, item.is_liked ?? false)}
+                onReply={() => startReply(item)}
+              />
+              {(item.replies ?? []).map(r => (
+                <CommentCard
+                  key={r.comment_id}
+                  comment={r}
+                  isReply
+                  onLike={() => toggleCommentLike(r.comment_id, r.is_liked ?? false)}
+                />
+              ))}
+            </>
           )}
         />
 
@@ -674,6 +468,51 @@ export default function PostDetailScreen() {
         </Pressable>
       </Modal>
 
+      {/* 轉發 Modal */}
+      <Modal
+        visible={shareModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShareModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.shareModalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.shareModalCard}>
+            <Text style={styles.shareModalTitle}>轉發貼文</Text>
+            <TextInput
+              style={styles.shareModalInput}
+              placeholder="加入你的想法（可留空）"
+              placeholderTextColor="rgba(255,255,255,0.35)"
+              value={shareCaption}
+              onChangeText={setShareCaption}
+              multiline
+              maxLength={500}
+              {...Platform.select({ web: { style: [styles.shareModalInput, { outlineStyle: 'none' } as any] } })}
+            />
+            <View style={styles.shareModalButtons}>
+              <TouchableOpacity
+                style={styles.shareCancelBtn}
+                onPress={() => { setShareModalVisible(false); setShareCaption(''); }}
+              >
+                <Text style={styles.shareCancelText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.shareSubmitBtn}
+                onPress={submitShare}
+                disabled={sharing}
+              >
+                {sharing
+                  ? <ActivityIndicator size="small" color="white" />
+                  : <Text style={styles.shareSubmitText}>轉發</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* 檢舉選單 Modal */}
       <Modal
         visible={reportMenuVisible}
@@ -755,229 +594,39 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    margin: 12,
-    marginBottom: 0,
-    paddingVertical: 10,
+  backFloatRow: {
+    position: 'absolute',
+    top: -(HEADER_CONTENT_HEIGHT - 10),
+    right: 16,
+    zIndex: 500,
   },
-  backBtn: { width: 40, alignItems: 'center' },
-  backIcon: { fontSize: 28, color: 'rgba(255,255,255,0.9)', lineHeight: 32 },
-  menuIcon: { fontSize: 22, color: 'rgba(255,255,255,0.9)', lineHeight: 32 },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.95)',
+  backFloatBtn: {
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: 'transparent',
+    alignItems: 'center', justifyContent: 'center',
   },
 
   listContent: { padding: 12, paddingBottom: 16 },
 
-  postCard: { marginBottom: 16 },
-  postHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  avatarImage: {
-    width: 40, height: 40, borderRadius: 20,
-    marginRight: 10,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)',
-  },
-  avatar: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    justifyContent: 'center', alignItems: 'center',
-    marginRight: 10,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)',
-  },
-  avatarText: { fontSize: 16, fontWeight: '700', color: 'rgba(255,255,255,0.95)' },
-  authorRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginBottom: 2 },
-  authorName: { fontSize: 15, fontWeight: '600', color: 'rgba(255,255,255,0.95)' },
-  categoryLabel: { fontSize: 13, color: 'rgba(135,206,250,0.9)', marginLeft: 4 },
-  timeText: { fontSize: 12, color: 'rgba(255,255,255,0.55)' },
-  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8, gap: 6 },
-  tag: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 10,
-    paddingVertical: 3, paddingHorizontal: 8,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
-  },
-  tagText: { fontSize: 11, color: 'rgba(255,255,255,0.85)' },
-  postText: {
-    fontSize: 15, color: 'rgba(255,255,255,0.9)', lineHeight: 23, marginBottom: 14,
-  },
-  postImage: {
-    width: '100%',
-    aspectRatio: 1 / 1,
-    borderRadius: 10,
-    marginBottom: 14,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-  },
   imageModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.93)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  imageModalImg: {
-    width: '100%',
-    height: '100%',
-  },
-  imageModalClose: {
-    position: 'absolute',
-    top: 48,
-    right: 20,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 20,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  imageModalCloseText: {
-    fontSize: 18,
-    color: 'rgba(255,255,255,0.9)',
-    fontWeight: '600',
-  },
-  actions: {
-    flexDirection: 'row',
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.15)',
-    paddingTop: 10, gap: 8,
-  },
-  actionBtn: {
-    flex: 1, flexDirection: 'row', justifyContent: 'center',
-    alignItems: 'center', gap: 5, paddingVertical: 4,
-  },
-  actionIcon: { fontSize: 18 },
-  actionText: { fontSize: 13, color: 'rgba(255,255,255,0.8)' },
-
-  // Comments
-  commentItem: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  replyItem: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 8,
-    padding: 8,
-    marginBottom: 6,
-    marginLeft: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  commentAvatar: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.93)',
     justifyContent: 'center', alignItems: 'center',
-    marginRight: 8,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
   },
-  replyAvatar: { width: 26, height: 26, borderRadius: 13 },
-  commentAvatarText: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.9)' },
-  commentBody: { flex: 1 },
-  commentHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 3 },
-  commentUsername: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.9)', marginRight: 6 },
-  commentTime: { fontSize: 11, color: 'rgba(255,255,255,0.5)' },
-  commentContent: { fontSize: 14, color: 'rgba(255,255,255,0.85)', lineHeight: 20 },
-  replyBtn: { marginTop: 4 },
-  replyBtnText: { fontSize: 12, color: 'rgba(135,206,250,0.8)' },
+  imageModalImg: { width: '100%', height: '100%' },
+  imageModalClose: {
+    position: 'absolute', top: 48, right: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 20, width: 40, height: 40,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  imageModalCloseText: { fontSize: 18, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
 
   emptyCard: { alignItems: 'center', paddingVertical: 24 },
   emptyText: { fontSize: 14, color: 'rgba(255,255,255,0.6)' },
 
-  // Summary card attachment
-  summaryCard: {
-    borderWidth: 1,
-    borderColor: 'rgba(180,140,255,0.35)',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 14,
-    backgroundColor: 'rgba(80,0,180,0.12)',
-  },
-  summaryCardBible: {
-    fontSize: 12,
-    color: 'rgba(200,170,255,0.85)',
-    fontStyle: 'italic',
-    marginTop: 4,
-  },
   summaryModalBible: {
-    fontSize: 14,
-    color: 'rgba(200,170,255,0.9)',
-    fontStyle: 'italic',
-    marginTop: 16,
-    lineHeight: 22,
-  },
-
-  // Diary card attachment
-  diaryCard: {
-    borderWidth: 1,
-    borderColor: 'rgba(100,180,255,0.35)',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 14,
-    backgroundColor: 'rgba(0,80,180,0.12)',
-  },
-  diaryCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginBottom: 4,
-  },
-  diaryCardIcon: { fontSize: 16 },
-  diaryCardDate: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.5)',
-    marginBottom: 2,
-  },
-  diaryCardTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.9)',
-  },
-  diaryCardPreview: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.65)',
-    lineHeight: 18,
-  },
-
-  // Quoted / embedded original post
-  quotedCard: {
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 14,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-  },
-  quotedHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  quotedAvatar: {
-    width: 20, height: 20, borderRadius: 10, marginRight: 6,
-  },
-  quotedAvatarPlaceholder: {
-    width: 20, height: 20, borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    justifyContent: 'center', alignItems: 'center',
-    marginRight: 6,
-  },
-  quotedAvatarText: {
-    fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.9)',
-  },
-  quotedAuthor: {
-    fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.85)',
-  },
-  quotedTime: {
-    fontSize: 12, color: 'rgba(255,255,255,0.45)',
-  },
-  quotedText: {
-    fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 20,
+    fontSize: 14, color: 'rgba(200,170,255,0.9)',
+    fontStyle: 'italic', marginTop: 16, lineHeight: 22,
   },
 
   // Diary Modal — 置中懸浮視窗
@@ -1041,6 +690,61 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.85)',
     lineHeight: 25,
   },
+
+  // Share modal
+  shareModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  shareModalCard: {
+    backgroundColor: 'rgba(30,30,50,0.97)',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 16,
+    paddingBottom: 32,
+    borderTopWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  shareModalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  shareModalInput: {
+    minHeight: 70,
+    maxHeight: 140,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    color: 'rgba(255,255,255,0.95)',
+    fontSize: 15,
+    padding: 10,
+    marginBottom: 12,
+    textAlignVertical: 'top',
+  },
+  shareModalButtons: { flexDirection: 'row', gap: 10 },
+  shareCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  shareCancelText: { fontSize: 15, color: 'rgba(255,255,255,0.7)' },
+  shareSubmitBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,122,255,0.8)',
+    alignItems: 'center',
+  },
+  shareSubmitText: { fontSize: 15, fontWeight: '700', color: 'white' },
 
   // 檢舉相關
   reportMenuOverlay: {
@@ -1157,6 +861,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 18,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+    ...Platform.select({ web: { outlineStyle: 'none' as any } }),
   },
   sendBtn: {
     width: 36, height: 36, borderRadius: 18,

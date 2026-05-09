@@ -94,7 +94,7 @@ class SearchService {
 
     let query = `
       SELECT p.*,
-             u."user_name" as username, u."user_pic" as avatar,
+             u."user_name" as username, u."user_pic" as avatar_url,
              COUNT(DISTINCT pl.user_id) as like_count,
              COUNT(DISTINCT pc.comment_id) as comment_count,
              COUNT(DISTINCT ps.shared_by_user_id) as share_count,

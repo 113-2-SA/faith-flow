@@ -7,7 +7,8 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Pressable, StyleSheet, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CopilotStep, walkthroughable } from "react-native-copilot";
 
@@ -59,17 +60,7 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
         >
           <SafeAreaView edges={["top"]} pointerEvents="box-none">
             <Pressable onPress={openDrawer} style={styles.hamburgerButton} hitSlop={8}>
-              {Platform.OS === "web" ? (
-                <Text style={styles.menuIcon} selectable={false}>menu</Text>
-              ) : (
-                <>
-                  <View style={styles.bar} />
-                  <View style={styles.barSpacer} />
-                  <View style={styles.bar} />
-                  <View style={styles.barSpacer} />
-                  <View style={styles.bar} />
-                </>
-              )}
+              <MaterialCommunityIcons name="menu" size={28} color="rgba(0,0,0,0.65)" />
             </Pressable>
           </SafeAreaView>
         </Animated.View>
@@ -108,12 +99,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.10,
     shadowRadius: 4,
     elevation: 3,
-  },
-  menuIcon: {
-    fontFamily: "Material Symbols Outlined",
-    fontSize: 32,
-    color: "rgba(0,0,0,0.65)",
-    lineHeight: 32,
   },
   bar: {
     width: 22,

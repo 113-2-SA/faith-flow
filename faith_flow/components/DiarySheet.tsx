@@ -317,6 +317,8 @@ export function DiaryHandle({ open, date, openInCreateMode, onDragOpen, onClose 
   );
 }
 
+const webOutline = Platform.OS === 'web' ? { outlineStyle: 'none' as any } : {};
+
 const styles = StyleSheet.create({
   panel: {
     position: "absolute",
@@ -437,10 +439,10 @@ const styles = StyleSheet.create({
   // 新增表單
   backRow: { paddingVertical: 8, marginBottom: 4 },
   backText: { fontSize: 15, color: "rgba(0,0,0,0.45)", fontWeight: "500", fontFamily: "NotoSerifTC_400Regular" },
-  titleInput: { fontSize: 26, fontWeight: "700", color: "rgba(0,0,0,0.85)", paddingVertical: 8, fontFamily: "NotoSerifTC_400Regular" },
+  titleInput: { fontSize: 26, fontWeight: "700", color: "rgba(0,0,0,0.85)", paddingVertical: 8, fontFamily: "NotoSerifTC_400Regular", ...webOutline },
   divider: { height: 1, backgroundColor: "rgba(0,0,0,0.08)", marginVertical: 10 },
   contentScroll: { flex: 1 },
-  contentInput: { fontSize: 16, color: "rgba(0,0,0,0.78)", lineHeight: 26, minHeight: 200, fontFamily: "NotoSerifTC_400Regular" },
+  contentInput: { fontSize: 16, color: "rgba(0,0,0,0.78)", lineHeight: 26, minHeight: 200, fontFamily: "NotoSerifTC_400Regular", ...webOutline },
   submitRow: { alignItems: "flex-end", paddingTop: 12 },
   submitBtn: {
     width: 52,
