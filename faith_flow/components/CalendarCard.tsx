@@ -28,14 +28,12 @@ export function CalendarCard({ viewDate, expanded, onToggleExpanded, onPrev, onN
   const { user } = useAuth();
   const [diaryDates, setDiaryDates] = useState<Set<string>>(new Set());
 
-  // 「顯示用」expanded 狀態：收合時等動畫完成才切換，避免 cells 提早消失
-  const [displayExpanded, setDisplayExpanded] = useState(expanded);
-
   // 量測實際高度後再決定動畫目標值
   const [collapsedH, setCollapsedH] = useState(0);
   const [expandedH, setExpandedH] = useState(0);
   const gridH = useRef(new Animated.Value(0)).current;
   const gridMT = useRef(new Animated.Value(0)).current; // marginTop 負值往上偏移，顯示今日所在行
+  const initializedRef = useRef(false);
 
   const year = viewDate.getFullYear();
 
@@ -56,26 +54,32 @@ export function CalendarCard({ viewDate, expanded, onToggleExpanded, onPrev, onN
     return idx >= 0 ? Math.floor(idx / 7) : 0;
   }, [cells]);
 
-  // grid 量測回調：當 displayExpanded 變換後取得實際高度
+  // grid 永遠 render 42 cells（6 行），一次量測就能得到兩個高度
   const onGridLayout = (e: any) => {
     const h = e.nativeEvent.layout.height;
     if (h <= 0) return;
-    if (displayExpanded) {
-      setExpandedH(h);
-    } else {
-      // 單行高度 = 整體高度 / 6
-      setCollapsedH(Math.round(h / 6));
-    }
+    setExpandedH(h);
+    setCollapsedH(Math.round(h / 6));
   };
 
   // ─── 動畫 ────────────────────────────────────────────────────────────────
-  // 有了量測值才做動畫
   useEffect(() => {
     if (collapsedH === 0 || expandedH === 0) return;
 
+    // 首次量測完成：直接設定初始值，不做動畫
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      if (!expanded) {
+        gridH.setValue(collapsedH);
+        gridMT.setValue(-todayRowIdx * collapsedH);
+      } else {
+        gridH.setValue(expandedH);
+        gridMT.setValue(0);
+      }
+      return;
+    }
+
     if (expanded) {
-      // 展開：先切換 cells，然後 animate height 0 → full
-      setDisplayExpanded(true);
       Animated.parallel([
         Animated.timing(gridH, {
           toValue: expandedH,
@@ -91,7 +95,6 @@ export function CalendarCard({ viewDate, expanded, onToggleExpanded, onPrev, onN
         }),
       ]).start();
     } else {
-      // 收合：先 animate，動畫結束後才切換 cells
       Animated.parallel([
         Animated.timing(gridH, {
           toValue: collapsedH,
@@ -105,23 +108,9 @@ export function CalendarCard({ viewDate, expanded, onToggleExpanded, onPrev, onN
           easing: Easing.out(Easing.cubic),
           useNativeDriver: false,
         }),
-      ]).start(() => setDisplayExpanded(false));
+      ]).start();
     }
   }, [expanded, collapsedH, expandedH, todayRowIdx]);
-
-  // ─── 初始狀態設定（量測完成後 set 初始值）─────────────────────────────────
-  useEffect(() => {
-    if (collapsedH === 0 || expandedH === 0) return;
-    if (!expanded) {
-      gridH.setValue(collapsedH);
-      gridMT.setValue(-todayRowIdx * collapsedH);
-    } else {
-      gridH.setValue(expandedH);
-      gridMT.setValue(0);
-    }
-    // 只在首次量測完成時設定
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collapsedH === 0 || expandedH === 0]);
 
   // ─── API ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -212,12 +201,12 @@ export function CalendarCard({ viewDate, expanded, onToggleExpanded, onPrev, onN
         <>
           <View style={[styles.floatWrapper, styles.floatWrapperLeft]}>
             <Pressable onPress={onPrev} style={styles.floatBtn} hitSlop={10}>
-              <Text selectable={false} style={styles.floatArrow}>‹</Text>
+              <Text selectable={false} style={styles.floatArrow}>{"〈"}</Text>
             </Pressable>
           </View>
           <View style={[styles.floatWrapper, styles.floatWrapperRight]}>
             <Pressable onPress={onNext} style={styles.floatBtn} hitSlop={10}>
-              <Text selectable={false} style={styles.floatArrow}>›</Text>
+              <Text selectable={false} style={styles.floatArrow}>{"〉"}</Text>
             </Pressable>
           </View>
         </>
@@ -302,19 +291,14 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.75)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 4,
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
   },
   floatArrow: {
-    color: "#111111",
-    fontSize: 22,
-    lineHeight: 26,
+    color: "rgba(255,255,255,0.90)",
+    fontSize: 26,
+    lineHeight: 30,
     textAlign: "center",
   },
 });

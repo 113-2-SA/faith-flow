@@ -385,7 +385,8 @@ export default function CommunityFeedScreen() {
                 <Text style={styles.authorName}>{item.username ?? '匿名'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                  onPress={() => {
+                  onPress={(e) => {
+                    e.stopPropagation();
                     if (item.is_owner) {
                       Alert.alert('操作', '', [
                         { text: '編輯', onPress: () => router.push(`/community/edit/${item.community_post_id}` as never) },
@@ -578,46 +579,36 @@ export default function CommunityFeedScreen() {
   return (
     <VideoBackground source={require('../../assets/backgrounds/main.mp4')}>
       <View style={styles.container}>
-        {/* Top bar */}
+        {/* 頂部搜尋區 */}
         <CopilotStep
-          text="心靈營火：這是信仰分享的社群空間，你可以在這裡閱讀他人的祈禱日記與週回顧，互相鼓勵。"
+          text="心靈營火：這是信仰分享的社群空間，你可以搜尋、閱讀他人的祈禱日記與週回顧，互相鼓勵。"
           order={10}
           name="community_topbar"
         >
           <WalkthroughableView collapsable={false}>
-            <GlassCard style={styles.topBar}>
-              <Text style={styles.topBarTitle}>心靈營火</Text>
+            <GlassCard style={styles.searchCard} intensity={85}>
+              <Text style={styles.searchLabel}>搜尋貼文</Text>
+              <View style={styles.searchInputRow}>
+                <Text style={styles.searchIcon}>🔍</Text>
+                <TextInput
+                  style={styles.searchTextInput}
+                  placeholder="關鍵字..."
+                  placeholderTextColor="rgba(255,255,255,0.5)"
+                  value={searchInput}
+                  onChangeText={setSearchInput}
+                  onSubmitEditing={handleSearch}
+                  returnKeyType="search"
+                  underlineColorAndroid="transparent"
+                  cursorColor="#ffffff"
+                  selectionColor="rgba(255,255,255,0.5)"
+                />
+                {(searchMode || searchInput.length > 0) ? (
+                  <TouchableOpacity style={styles.clearButton} onPress={clearSearch} hitSlop={8}>
+                    <Text style={styles.clearButtonText}>✕</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             </GlassCard>
-          </WalkthroughableView>
-        </CopilotStep>
-
-        {/* Search bar */}
-        <CopilotStep
-          text="搜尋貼文：輸入關鍵字可搜尋社群內容，點貼文上的 # 標籤可快速篩選同主題分享。"
-          order={11}
-          name="community_search"
-        >
-          <WalkthroughableView collapsable={false}>
-            <View style={styles.searchBar}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="搜尋貼文..."
-            placeholderTextColor="rgba(255,255,255,0.4)"
-            value={searchInput}
-            onChangeText={setSearchInput}
-            onSubmitEditing={handleSearch}
-            returnKeyType="search"
-          />
-          {searchMode ? (
-            <TouchableOpacity style={styles.searchBtn} onPress={clearSearch}>
-              <Text style={styles.searchBtnText}>✕</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.searchBtn} onPress={handleSearch}>
-              <Text style={styles.searchBtnText}>🔍</Text>
-            </TouchableOpacity>
-          )}
-            </View>
           </WalkthroughableView>
         </CopilotStep>
 
@@ -722,7 +713,7 @@ export default function CommunityFeedScreen() {
               style={styles.fab}
               onPress={() => router.push('./community/create')}
             >
-              <Text style={styles.fabText}>+</Text>
+              <Text style={styles.fabText}>＋</Text>
             </TouchableOpacity>
           </WalkthroughableView>
         </CopilotStep>
@@ -980,16 +971,42 @@ export default function CommunityFeedScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topBar: {
-    margin: 16,
+  searchCard: {
+    marginHorizontal: 16,
+    marginTop: 8,
     marginBottom: 0,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderColor: 'rgba(255,255,255,0.01)',
+    borderWidth: 1,
   },
-  topBarTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.95)',
-    textAlign: 'center',
+  searchLabel: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 6,
+  },
+  searchInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  searchIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  clearButton: {
+    padding: 4,
+    marginLeft: 4,
+  },
+  clearButtonText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,
@@ -1177,11 +1194,9 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: 'rgba(0,122,255,0.7)',
+    backgroundColor: 'rgba(255,255,255,0.90)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.5)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -1189,40 +1204,18 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   fabText: {
-    fontSize: 32,
-    color: 'rgba(255,255,255,0.95)',
-    fontWeight: '300',
+    fontSize: 28,
+    lineHeight: 28,
+    color: 'rgba(20,50,90,0.85)',
+    fontWeight: '400',
+    textAlign: 'center',
+    includeFontPadding: false,
   },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    marginTop: 8,
-    gap: 8,
-  },
-  searchInput: {
+  searchTextInput: {
     flex: 1,
-    height: 38,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 19,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
-    paddingHorizontal: 14,
     fontSize: 14,
     color: 'rgba(255,255,255,0.95)',
-  },
-  searchBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
-  },
-  searchBtnText: {
-    fontSize: 16,
+    paddingVertical: 0,
   },
   sortRow: {
     flexDirection: 'row',
@@ -1296,7 +1289,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 10,
     marginBottom: 12,
-    backgroundColor: 'rgba(80,0,180,0.12)',
+    backgroundColor: 'rgba(0,0,0,0.20)',
   },
   summaryCardBible: {
     fontSize: 12,
@@ -1319,7 +1312,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 10,
     marginBottom: 12,
-    backgroundColor: 'rgba(0,80,180,0.12)',
+    backgroundColor: 'rgba(0,0,0,0.20)',
   },
   diaryCardHeader: {
     flexDirection: 'row',
@@ -1351,7 +1344,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 10,
     marginBottom: 12,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: 'rgba(0,0,0,0.20)',
   },
   quotedHeader: {
     flexDirection: 'row',
