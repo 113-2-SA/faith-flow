@@ -1,6 +1,5 @@
 // app/settings/index.tsx
 import { useFocusEffect } from "@react-navigation/native";
-import { router } from "expo-router";
 import { signOut } from "firebase/auth";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -116,7 +115,6 @@ export default function SettingsScreen() {
   const onLogout = async () => {
     try {
       await signOut(auth);
-      router.replace("/auth/login");
     } catch (e) {
       console.error("signOut failed:", e);
     }

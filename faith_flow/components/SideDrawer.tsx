@@ -35,7 +35,6 @@ export function SideDrawer({ open, onClose }: Props) {
     { label: "有答大師", href: "/chat" },
     { label: "心靈營火", href: "/community" },
     { label: "朝聖之地", href: "/pilgrimage" },
-    { label: "說明", href: "/about" },
     { label: "帳號設定", href: "/settings" },
   ];
 

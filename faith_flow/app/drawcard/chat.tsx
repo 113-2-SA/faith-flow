@@ -18,8 +18,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../context/authcontext";
 import { VideoBackground } from "../../components/VideoBackground";
 import { GlassCard } from "../../components/GlassCard";
-
-const API_BASE = "http://localhost:3000";// 改成 localhost，因為前後端都在同一台 VM 上
+import { API_BASE_URL } from "../../lib/api";
 
 type Message = {
   id: string;
@@ -59,12 +58,11 @@ export default function DrawCardChatScreen() {
 
     try {
       const token = await currentUser?.getIdToken();
-      // 先用 chat API 暫代，之後可換成專屬的活水泉源 AI
       const conversationText = messages
         .map((m) => `${m.role === "user" ? "使用者" : "AI"}：${m.content}`)
         .join("\n");
 
-      const res = await fetch(`${API_BASE}/api/livingwater/chat`, {
+      const res = await fetch(`${API_BASE_URL}/api/livingwater/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -78,13 +76,22 @@ export default function DrawCardChatScreen() {
         }),
       });
 
-      const data = await res.json();
-      const aiMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: data.reply || "（AI 暫時無法回應）",
-      };
-      setMessages((prev) => [...prev, aiMsg]);
+      // 後端回傳 SSE 串流，逐行解析取出 done 事件的 reply
+      const raw = await res.text();
+      let reply = "";
+      for (const line of raw.split("\n")) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const obj = JSON.parse(line.slice(6).trim());
+          if (obj.type === "done" && obj.reply) reply = obj.reply;
+          if (obj.type === "error" && !reply) reply = obj.message || "";
+        } catch { /* skip malformed chunk */ }
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        { id: (Date.now() + 1).toString(), role: "assistant", content: reply || "（AI 暫時無法回應）" },
+      ]);
     } catch (err) {
       console.error("[DrawCardChat] send failed:", err);
       setMessages((prev) => [

@@ -19,6 +19,7 @@ import { ChurchVideoViewer } from "./ChurchVideoViewer";
 import { GlassCard } from "./GlassCard";
 import { db } from "../lib/firebase";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { loadPrayers, PrayerRecord } from "../lib/prayerStore";
 
 const GoogleMapsComponent = lazy(() => import("./GoogleMapsComponent.web"));
 
@@ -70,6 +71,7 @@ export function BasilicaMap() {
   const [showImages, setShowImages] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [prayerRecords, setPrayerRecords] = useState<PrayerRecord[]>([]);
 
   const searchWidth = useRef(new Animated.Value(0)).current;
   const sheetY = useRef(new Animated.Value(COLLAPSED_Y)).current;
@@ -128,6 +130,8 @@ export function BasilicaMap() {
 
   // ── Data ─────────────────────────────────────────────────────────
   useEffect(() => { setShowPanorama(false); setShowImages(false); setShowVideo(false); }, [selectedId]);
+
+  useEffect(() => { loadPrayers().then(setPrayerRecords).catch(() => {}); }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -195,6 +199,7 @@ export function BasilicaMap() {
               }}
               selectedId={selectedId}
               autoFitBounds={searchText.trim() !== "" || filterType !== "all"}
+              prayerMarkers={prayerRecords}
             />
           )}
         </Suspense>
@@ -300,14 +305,14 @@ export function BasilicaMap() {
               ) : null}
 
               <Pressable onPress={() => setShowImages(true)}>
-                <GlassCard style={styles.detailActionCard} glassColor="rgba(52,168,83,0.12)">
+                <GlassCard style={styles.detailActionCard}>
                   <Text style={styles.imageBtnText}>🖼️ 查看圖片</Text>
                 </GlassCard>
               </Pressable>
 
               {selectedBasilica.videoUrl ? (
                 <Pressable onPress={() => setShowVideo(true)}>
-                  <GlassCard style={styles.detailActionCard} glassColor="rgba(220,80,60,0.12)">
+                  <GlassCard style={styles.detailActionCard}>
                     <Text style={styles.videoBtnText}>🎬 查看影片</Text>
                   </GlassCard>
                 </Pressable>
@@ -315,14 +320,14 @@ export function BasilicaMap() {
 
               {selectedBasilica.panoramaId ? (
                 <Pressable onPress={() => setShowPanorama(true)}>
-                  <GlassCard style={styles.detailActionCard} glassColor="rgba(65,83,103,0.12)">
+                  <GlassCard style={styles.detailActionCard}>
                     <Text style={styles.panoramaBtnText}>🌐 進入 360° 全景</Text>
                   </GlassCard>
                 </Pressable>
               ) : null}
 
               <Pressable onPress={() => router.push("/pray" as any)}>
-                <GlassCard style={styles.detailActionCard} glassColor="rgba(102,126,234,0.12)">
+                <GlassCard style={styles.detailActionCard}>
                   <Text style={styles.recordBtnText}>🎙 錄音祈禱</Text>
                 </GlassCard>
               </Pressable>
@@ -476,7 +481,7 @@ const styles = StyleSheet.create({
   filterContent: { gap: 8, paddingHorizontal: 2 },
   filterBtnWrap: { borderRadius: 10, overflow: "hidden" },
   filterBtn: { padding: 0 },
-  filterScroll: { paddingHorizontal: 10, paddingVertical: 3 },
+  filterScroll: { paddingHorizontal: 10, paddingVertical: 3, height: 44 },
   filterText: {
     color: "rgba(255,255,255,0.80)", fontSize: 13,
     fontFamily: "NotoSerifTC_400Regular",
@@ -503,10 +508,10 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSerifTC_400Regular", letterSpacing: 0.5,
   },
   bodyText: { fontSize: 12, color: "rgba(255,255,255,0.80)", lineHeight: 18, fontFamily: "NotoSerifTC_400Regular" },
-  imageBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(52,168,83,0.90)", fontFamily: "NotoSerifTC_400Regular", textAlign: "center" },
-  videoBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(220,80,60,0.90)", fontFamily: "NotoSerifTC_400Regular", textAlign: "center" },
-  panoramaBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(65,83,103,0.90)", fontFamily: "NotoSerifTC_400Regular", textAlign: "center" },
-  recordBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(102,126,234,0.90)", fontFamily: "NotoSerifTC_400Regular", textAlign: "center" },
+  imageBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.95)", fontFamily: "NotoSerifTC_400Regular", textAlign: "center" },
+  videoBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.95)", fontFamily: "NotoSerifTC_400Regular", textAlign: "center" },
+  panoramaBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.95)", fontFamily: "NotoSerifTC_400Regular", textAlign: "center" },
+  recordBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.95)", fontFamily: "NotoSerifTC_400Regular", textAlign: "center" },
 
   // ── List ───────────────────────────────────────────────────────
   listItemWrap: { marginBottom: 8 },

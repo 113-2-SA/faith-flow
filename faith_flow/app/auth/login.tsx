@@ -54,13 +54,17 @@ export default function LoginScreen() {
     } as any);
   }, []);
 
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: webClientId,
-    webClientId,
-    iosClientId: isExpoGo ? undefined : iosClientId,
-    redirectUri,
-    scopes: ["openid", "profile", "email"],
-  });
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest(
+    webClientId
+      ? {
+          clientId: webClientId,
+          webClientId,
+          iosClientId: isExpoGo ? undefined : iosClientId,
+          redirectUri,
+          scopes: ["openid", "profile", "email"],
+        }
+      : (null as any)
+  );
 
   useEffect(() => {
     (async () => {

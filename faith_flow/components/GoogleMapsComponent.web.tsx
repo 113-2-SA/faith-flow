@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from "react";
 import { View, StyleSheet, Text } from "react-native";
 import { GoogleMap, useJsApiLoader, Marker } from "@react-google-maps/api";
 import { MAP_CONFIG } from "../config/mapConfig";
+import { PrayerRecord } from "../lib/prayerStore";
 
 export type Basilica = {
   id: string;
@@ -23,6 +24,7 @@ interface GoogleMapsComponentProps {
   onMarkerPress: (id: string) => void;
   selectedId: string | null;
   autoFitBounds?: boolean;
+  prayerMarkers?: PrayerRecord[];
 }
 
 const MAP_CONTAINER_STYLE: React.CSSProperties = {
@@ -48,6 +50,7 @@ export default function GoogleMapsComponent({
   onMarkerPress,
   selectedId,
   autoFitBounds,
+  prayerMarkers = [],
 }: GoogleMapsComponentProps) {
   // useJsApiLoader is a singleton — won't re-inject the script on remount
   const { isLoaded, loadError } = useJsApiLoader({
@@ -124,6 +127,22 @@ export default function GoogleMapsComponent({
               }}
             />
           </React.Fragment>
+        ))}
+        {prayerMarkers.map((p) => (
+          <Marker
+            key={`prayer-${p.id}`}
+            position={{ lat: p.latitude, lng: p.longitude }}
+            title={p.title || "祈禱記錄"}
+            icon={{
+              path: "M 6,0 L 10,0 L 10,6 L 16,6 L 16,10 L 10,10 L 10,16 L 6,16 L 6,10 L 0,10 L 0,6 L 6,6 Z",
+              fillColor: "#f5d060",
+              fillOpacity: 0.95,
+              strokeColor: "rgba(255,255,255,0.85)",
+              strokeWeight: 1,
+              scale: 1.3,
+              anchor: new window.google.maps.Point(8, 8),
+            }}
+          />
         ))}
       </GoogleMap>
     </View>
