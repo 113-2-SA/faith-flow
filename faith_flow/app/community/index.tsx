@@ -44,7 +44,6 @@ export default function CommunityFeedScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
-  const [selectedPostType, setSelectedPostType] = useState<string | null>(null);
   const [shareTarget, setShareTarget] = useState<Post | null>(null);
   const [shareCaption, setShareCaption] = useState('');
   const [sharing, setSharing] = useState(false);
@@ -90,7 +89,7 @@ export default function CommunityFeedScreen() {
       const token = await currentUser.getIdToken();
       const currentOffset = reset ? 0 : offset;
       const activeTag = tag ?? null;
-      const activePostType = postType !== undefined ? postType : selectedPostType;
+      const activePostType = postType ?? null;
       const tagParam = activeTag ? `&tag=${encodeURIComponent(activeTag)}` : '';
       const typeParam = activePostType ? `&post_type=${encodeURIComponent(activePostType)}` : '';
       const res = await fetch(
@@ -121,7 +120,7 @@ export default function CommunityFeedScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     setOffset(0);
-    fetchPosts(true, null, selectedPostType);
+    fetchPosts(true);
   };
 
   const onTagPress = (tag: string) => {
@@ -135,10 +134,14 @@ export default function CommunityFeedScreen() {
   };
 
   const onPostTypePress = (postType: string) => {
-    const next = selectedPostType === postType ? null : postType;
-    setSelectedPostType(next);
-    setOffset(0);
-    fetchPosts(true, null, next);
+    const label = POST_TYPE_LABELS[postType] ?? postType;
+    setSearchInput(label);
+    setSearchMode(true);
+    if (!searchExpanded) {
+      setSearchExpanded(true);
+      Animated.timing(searchWidth, { toValue: 240, duration: 220, useNativeDriver: false }).start();
+    }
+    searchPosts(label, []);
   };
 
   const onLoadMore = () => {
@@ -205,28 +208,21 @@ export default function CommunityFeedScreen() {
 
   const deletePost = async (postId: number) => {
     if (!currentUser) return;
-    Alert.alert('刪除貼文', '確定要刪除這篇貼文嗎？', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '刪除', style: 'destructive', onPress: async () => {
-          try {
-            const token = await currentUser.getIdToken();
-            const res = await fetch(`${API_BASE_URL}/api/post/${postId}`, {
-              method: 'DELETE',
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            const data = await res.json();
-            if (data.ok) {
-              setPosts((prev) => prev.filter((p) => p.community_post_id !== postId));
-            } else {
-              Alert.alert('錯誤', data.error ?? '刪除失敗');
-            }
-          } catch {
-            Alert.alert('錯誤', '網路連線失敗');
-          }
-        },
-      },
-    ]);
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${API_BASE_URL}/api/post/${postId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setPosts((prev) => prev.filter((p) => p.community_post_id !== postId));
+      } else {
+        Alert.alert('錯誤', data.error ?? '刪除失敗');
+      }
+    } catch {
+      Alert.alert('錯誤', '網路連線失敗');
+    }
   };
 
   const submitReport = async () => {
@@ -329,7 +325,6 @@ export default function CommunityFeedScreen() {
   const renderPost = ({ item }: { item: Post }) => (
     <PostCard
       post={item}
-      selectedPostType={selectedPostType}
       onPress={() => router.push(`./community/post/${item.community_post_id}`)}
       onLike={() => toggleLike(item.community_post_id, !!item.is_liked)}
       onComment={() => router.push(`./community/post/${item.community_post_id}`)}
@@ -405,16 +400,6 @@ export default function CommunityFeedScreen() {
           </View>
         )}
 
-        {/* Active post type filter */}
-        {!searchMode && selectedPostType && (
-          <TouchableOpacity
-            style={[styles.filterBar, styles.filterBarType]}
-            onPress={() => onPostTypePress(selectedPostType)}
-          >
-            <Text style={[styles.filterBarText, styles.filterBarTypeText]}>{POST_TYPE_LABELS[selectedPostType]}</Text>
-            <Text style={[styles.filterBarClose, styles.filterBarTypeText]}>✕</Text>
-          </TouchableOpacity>
-        )}
 
         {/* 步驟 12：貼文互動提示 */}
         <CopilotStep

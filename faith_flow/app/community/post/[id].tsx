@@ -60,6 +60,8 @@ export default function PostDetailScreen() {
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportTarget, setReportTarget] = useState<{ type: 'post' | 'comment'; id: number } | null>(null);
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [shareCaption, setShareCaption] = useState('');
   const [sharing, setSharing] = useState(false);
@@ -134,21 +136,38 @@ export default function PostDetailScreen() {
     setSubmitting(true);
     try {
       const token = await currentUser.getIdToken();
-      const body: Record<string, unknown> = { post_id: postId, comment_content: text };
-      if (replyTo) body.parent_comment_id = replyTo.id;
-      const res = await fetch(`${API_BASE_URL}/api/comments`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setCommentText('');
-        setReplyTo(null);
-        await fetchComments();
-        setPost((p) => p ? { ...p, comment_count: (p.comment_count ?? 0) + 1 } : p);
+
+      if (editingCommentId) {
+        const res = await fetch(`${API_BASE_URL}/api/comments/${editingCommentId}`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ comment_content: text }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          setCommentText('');
+          setEditingCommentId(null);
+          await fetchComments();
+        } else {
+          Alert.alert('錯誤', data.error ?? '編輯失敗');
+        }
       } else {
-        Alert.alert('錯誤', data.error ?? '留言失敗');
+        const body: Record<string, unknown> = { post_id: postId, comment_content: text };
+        if (replyTo) body.parent_comment_id = replyTo.id;
+        const res = await fetch(`${API_BASE_URL}/api/comments`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          setCommentText('');
+          setReplyTo(null);
+          await fetchComments();
+          setPost((p) => p ? { ...p, comment_count: (p.comment_count ?? 0) + 1 } : p);
+        } else {
+          Alert.alert('錯誤', data.error ?? '留言失敗');
+        }
       }
     } catch {
       Alert.alert('錯誤', '網路連線失敗');
@@ -159,42 +178,37 @@ export default function PostDetailScreen() {
 
   async function deletePost() {
     if (!currentUser || !post) return;
-
-    const doDelete = async () => {
-      try {
-        const token = await currentUser.getIdToken();
-        const res = await fetch(`${API_BASE_URL}/api/post/${postId}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-        if (data.ok) {
-          router.replace('/community');
-        } else {
-          Alert.alert('錯誤', data.error ?? '刪除失敗');
-        }
-      } catch {
-        Alert.alert('錯誤', '網路連線失敗');
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${API_BASE_URL}/api/post/${postId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.ok) {
+        router.replace('/community');
+      } else {
+        Alert.alert('錯誤', data.error ?? '刪除失敗');
       }
-    };
-
-    if (Platform.OS === 'web') {
-      if (window.confirm('確定要刪除這篇貼文嗎？')) await doDelete();
-      return;
+    } catch {
+      Alert.alert('錯誤', '網路連線失敗');
     }
+  }
 
-    Alert.alert('刪除貼文', '確定要刪除這篇貼文嗎？', [
-      { text: '取消', style: 'cancel' },
-      { text: '刪除', style: 'destructive', onPress: doDelete },
-    ]);
+  function openReport(type: 'post' | 'comment', id: number) {
+    setReportTarget({ type, id });
+    setReportMenuVisible(true);
   }
 
   async function submitReport() {
-    if (!reportReason || !currentUser) return;
+    if (!reportReason || !currentUser || !reportTarget) return;
     setReportSubmitting(true);
     try {
       const token = await currentUser.getIdToken();
-      const res = await fetch(`${API_BASE_URL}/api/post/${postId}/report`, {
+      const url = reportTarget.type === 'post'
+        ? `${API_BASE_URL}/api/post/${reportTarget.id}/report`
+        : `${API_BASE_URL}/api/comments/${reportTarget.id}/report`;
+      const res = await fetch(url, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: reportReason }),
@@ -203,6 +217,7 @@ export default function PostDetailScreen() {
       if (data.ok) {
         setReportModalVisible(false);
         setReportReason('');
+        setReportTarget(null);
         Alert.alert('已送出', '感謝您的檢舉，我們將盡快審查。');
       } else {
         Alert.alert('錯誤', data.error ?? '檢舉失敗');
@@ -211,6 +226,36 @@ export default function PostDetailScreen() {
       Alert.alert('錯誤', '網路連線失敗');
     } finally {
       setReportSubmitting(false);
+    }
+  }
+
+  function startEditComment(comment: Comment) {
+    setEditingCommentId(comment.comment_id);
+    setCommentText(comment.comment_content);
+    setReplyTo(null);
+    inputRef.current?.focus();
+  }
+
+  async function deleteComment(commentId: number) {
+    if (!currentUser) return;
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${API_BASE_URL}/api/comments/${commentId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setComments(prev => prev
+          .filter(c => c.comment_id !== commentId)
+          .map(c => ({ ...c, replies: c.replies?.filter(r => r.comment_id !== commentId) }))
+        );
+        setPost(p => p ? { ...p, comment_count: Math.max(0, (p.comment_count ?? 0) - 1) } : p);
+      } else {
+        Alert.alert('錯誤', data.error ?? '刪除失敗');
+      }
+    } catch {
+      Alert.alert('錯誤', '網路連線失敗');
     }
   }
 
@@ -310,7 +355,7 @@ export default function PostDetailScreen() {
                 onShare={() => setShareModalVisible(true)}
                 onEdit={() => router.push(`/community/edit/${postId}` as never)}
                 onDelete={deletePost}
-                onReport={!post.is_owner ? () => setReportMenuVisible(true) : undefined}
+                onReport={!post.is_owner ? () => openReport('post', postId) : undefined}
                 onAvatarPress={() => router.push(`/user/${post.author_user_id}` as never)}
                 onDiaryCardPress={setDiaryModalCard}
                 onSummaryCardPress={setSummaryModalCard}
@@ -333,6 +378,9 @@ export default function PostDetailScreen() {
                 comment={item}
                 onLike={() => toggleCommentLike(item.comment_id, item.is_liked ?? false)}
                 onReply={() => startReply(item)}
+                onEdit={item.is_owner ? () => startEditComment(item) : undefined}
+                onDelete={item.is_owner ? () => deleteComment(item.comment_id) : undefined}
+                onReport={!item.is_owner ? () => openReport('comment', item.comment_id) : undefined}
               />
               {(item.replies ?? []).map(r => (
                 <CommentCard
@@ -340,6 +388,9 @@ export default function PostDetailScreen() {
                   comment={r}
                   isReply
                   onLike={() => toggleCommentLike(r.comment_id, r.is_liked ?? false)}
+                  onEdit={r.is_owner ? () => startEditComment(r) : undefined}
+                  onDelete={r.is_owner ? () => deleteComment(r.comment_id) : undefined}
+                  onReport={!r.is_owner ? () => openReport('comment', r.comment_id) : undefined}
                 />
               ))}
             </>
@@ -347,8 +398,16 @@ export default function PostDetailScreen() {
         />
 
         {/* Comment input */}
-        <GlassCard style={styles.inputBar}>
-          {replyTo && (
+        <GlassCard style={styles.inputBar} glassColor="rgba(0,0,0,0.48)">
+          {editingCommentId && (
+            <View style={styles.replyHint}>
+              <Text style={styles.replyHintText}>正在編輯留言</Text>
+              <TouchableOpacity onPress={() => { setEditingCommentId(null); setCommentText(''); }}>
+                <Text style={styles.replyHintClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {!editingCommentId && replyTo && (
             <View style={styles.replyHint}>
               <Text style={styles.replyHintText}>回覆 {replyTo.username}</Text>
               <TouchableOpacity onPress={() => setReplyTo(null)}>
@@ -518,12 +577,12 @@ export default function PostDetailScreen() {
         visible={reportMenuVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setReportMenuVisible(false)}
+        onRequestClose={() => { setReportMenuVisible(false); setReportTarget(null); }}
       >
         <TouchableOpacity
           style={styles.reportMenuOverlay}
           activeOpacity={1}
-          onPress={() => setReportMenuVisible(false)}
+          onPress={() => { setReportMenuVisible(false); setReportTarget(null); }}
         >
           <TouchableOpacity activeOpacity={1} style={styles.reportMenuCard}>
             <View style={styles.reportMenuHandle} />
@@ -546,7 +605,7 @@ export default function PostDetailScreen() {
         visible={reportModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => { setReportModalVisible(false); setReportReason(''); }}
+        onRequestClose={() => { setReportModalVisible(false); setReportReason(''); setReportTarget(null); }}
       >
         <View style={styles.reportReasonOverlay}>
           <View style={styles.reportReasonCard}>
@@ -566,7 +625,7 @@ export default function PostDetailScreen() {
             <View style={styles.reportReasonButtons}>
               <TouchableOpacity
                 style={styles.reportCancelBtn}
-                onPress={() => { setReportModalVisible(false); setReportReason(''); }}
+                onPress={() => { setReportModalVisible(false); setReportReason(''); setReportTarget(null); }}
               >
                 <Text style={styles.reportCancelText}>取消</Text>
               </TouchableOpacity>
@@ -851,7 +910,7 @@ const styles = StyleSheet.create({
   },
   replyHintText: { fontSize: 12, color: 'rgba(135,206,250,0.9)' },
   replyHintClose: { fontSize: 14, color: 'rgba(255,255,255,0.5)', paddingHorizontal: 4 },
-  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   input: {
     flex: 1,
     minHeight: 36, maxHeight: 100,
@@ -865,10 +924,9 @@ const styles = StyleSheet.create({
   },
   sendBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(0,122,255,0.7)',
+    backgroundColor: 'rgba(255,255,255,0.7)',
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
   },
-  sendBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.15)' },
+  sendBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.1)' },
   sendIcon: { fontSize: 18, color: 'white', fontWeight: '600' },
 });

@@ -1,12 +1,17 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
+  Dimensions,
   Image,
+  Modal,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { GlassCard } from './GlassCard';
 import { timeAgo } from '../utils/dateUtils';
 
@@ -81,6 +86,7 @@ export interface CommentData {
   created_at: string;
   like_count?: number;
   is_liked?: boolean;
+  is_owner?: boolean;
   reply_count?: number;
   replies?: CommentData[];
 }
@@ -93,19 +99,182 @@ export const POST_TYPE_LABELS: Record<string, string> = {
   shared: '轉發',
 };
 
+// ─── Shared menu hook helpers ─────────────────────────────────────────────────
+
+function useMenuState() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const menuBtnRef = useRef<TouchableOpacity>(null);
+  const menuAnim = useRef(new Animated.Value(0)).current;
+
+  function openMenu() {
+    menuBtnRef.current?.measureInWindow((x, y, w, h) => {
+      menuAnim.setValue(0);
+      setMenuPos({ top: y + h + 6, right: Dimensions.get('window').width - (x + w) });
+      setMenuOpen(true);
+      Animated.timing(menuAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    });
+  }
+
+  function closeMenu(andThen?: () => void) {
+    Animated.timing(menuAnim, { toValue: 0, duration: 160, useNativeDriver: true }).start(() => {
+      setMenuOpen(false);
+      setMenuPos(null);
+      andThen?.();
+    });
+  }
+
+  return { menuOpen, menuPos, menuBtnRef, menuAnim, openMenu, closeMenu };
+}
+
+function useLikeAnim() {
+  const likeScale = useRef(new Animated.Value(1)).current;
+  const likeGlow = useRef(new Animated.Value(0)).current;
+
+  function triggerLikeAnim() {
+    likeScale.setValue(1);
+    likeGlow.setValue(0);
+    Animated.parallel([
+      Animated.sequence([
+        Animated.spring(likeScale, { toValue: 1.45, useNativeDriver: true, speed: 50, bounciness: 12 }),
+        Animated.spring(likeScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 5 }),
+      ]),
+      Animated.sequence([
+        Animated.timing(likeGlow, { toValue: 1, duration: 200, useNativeDriver: false }),
+        Animated.timing(likeGlow, { toValue: 0, duration: 350, useNativeDriver: false }),
+      ]),
+    ]).start();
+  }
+
+  return { likeScale, likeGlow, triggerLikeAnim };
+}
+
+// ─── Shared ContextMenuModal ──────────────────────────────────────────────────
+
+interface ContextMenuProps {
+  visible: boolean;
+  pos: { top: number; right: number } | null;
+  anim: Animated.Value;
+  onClose: () => void;
+  isOwner: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onReport?: () => void;
+  closeMenu: (cb?: () => void) => void;
+}
+
+function ContextMenuModal({
+  visible, pos, anim, isOwner,
+  onEdit, onDelete, onReport, closeMenu,
+}: ContextMenuProps) {
+  const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    if (!visible) setConfirming(false);
+  }, [visible]);
+
+  return (
+    <Modal visible={visible} transparent animationType="none" statusBarTranslucent>
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: anim }]}>
+        <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFill}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => closeMenu()} />
+        </BlurView>
+      </Animated.View>
+      {pos && (
+        <Animated.View style={[
+          styles.contextMenu,
+          {
+            top: pos.top,
+            right: pos.right,
+            opacity: anim,
+            transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }],
+          },
+        ]}>
+          {confirming ? (
+            <>
+              <View style={styles.menuConfirmHeader}>
+                <Text style={styles.menuConfirmText}>確定要刪除嗎？</Text>
+              </View>
+              <View style={styles.menuDivider} />
+              <TouchableOpacity style={styles.menuItem} onPress={() => closeMenu(onDelete)}>
+                <MaterialCommunityIcons name="delete-outline" size={17} color="#FF3B30" />
+                <Text style={[styles.menuItemText, styles.menuItemRed]}>確定刪除</Text>
+              </TouchableOpacity>
+            </>
+          ) : isOwner ? (
+            <>
+              {onEdit && (
+                <TouchableOpacity style={styles.menuItem} onPress={() => closeMenu(onEdit)}>
+                  <MaterialCommunityIcons name="pencil" size={17} color="rgba(0,0,0,0.65)" />
+                  <Text style={styles.menuItemText}>編輯</Text>
+                </TouchableOpacity>
+              )}
+              {onEdit && onDelete && <View style={styles.menuDivider} />}
+              {onDelete && (
+                <TouchableOpacity style={styles.menuItem} onPress={() => setConfirming(true)}>
+                  <MaterialCommunityIcons name="delete-outline" size={17} color="#FF3B30" />
+                  <Text style={[styles.menuItemText, styles.menuItemRed]}>刪除</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          ) : onReport ? (
+            <TouchableOpacity style={styles.menuItem} onPress={() => closeMenu(onReport)}>
+              <MaterialCommunityIcons name="alert-outline" size={17} color="#FF3B30" />
+              <Text style={[styles.menuItemText, styles.menuItemRed]}>檢舉</Text>
+            </TouchableOpacity>
+          ) : null}
+        </Animated.View>
+      )}
+    </Modal>
+  );
+}
+
+// ─── LikeButton ───────────────────────────────────────────────────────────────
+
+interface LikeButtonProps {
+  isLiked: boolean;
+  likeCount?: number;
+  likeScale: Animated.Value;
+  likeGlow: Animated.Value;
+  onPress: () => void;
+}
+
+function LikeButton({ isLiked, likeCount, likeScale, likeGlow, onPress }: LikeButtonProps) {
+  return (
+    <TouchableOpacity style={styles.actionBtn} onPress={onPress}>
+      <View style={styles.likeIconWrap}>
+        <Animated.View style={[
+          styles.likeGlowRing,
+          {
+            opacity: likeGlow,
+            transform: [{ scale: likeGlow.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1.8] }) }],
+          },
+        ]} />
+        <Animated.View style={{ transform: [{ scale: likeScale }] }}>
+          <MaterialCommunityIcons
+            name={isLiked ? 'heart' : 'hands-pray'}
+            size={20}
+            color={isLiked ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.55)'}
+          />
+        </Animated.View>
+      </View>
+      {likeCount !== undefined && (
+        <Text style={styles.actionText}>{likeCount}</Text>
+      )}
+    </TouchableOpacity>
+  );
+}
+
 // ─── PostCard ─────────────────────────────────────────────────────────────────
 
 interface PostCardProps {
   post: PostData;
-  selectedPostType?: string | null;
-  /** Wrap entire card in a TouchableOpacity (feed list) */
   onPress?: () => void;
   onLike?: () => void;
   onComment?: () => void;
   onShare?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
-  /** Called when non-owner taps "檢舉" in the ⋯ contextual menu */
   onReport?: () => void;
   onTagPress?: (tag: string) => void;
   onPostTypePress?: (postType: string) => void;
@@ -119,7 +288,6 @@ interface PostCardProps {
 
 export function PostCard({
   post,
-  selectedPostType,
   onPress,
   onLike,
   onComment,
@@ -136,8 +304,15 @@ export function PostCard({
   onOriginalPostPress,
   style,
 }: PostCardProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const { menuOpen, menuPos, menuBtnRef, menuAnim, openMenu, closeMenu } = useMenuState();
+  const { likeScale, likeGlow, triggerLikeAnim } = useLikeAnim();
+
   const hasMenu = post.is_owner ? (!!onEdit || !!onDelete) : !!onReport;
+
+  function handleLike() {
+    if (!post.is_liked) triggerLikeAnim();
+    onLike?.();
+  }
 
   const card = (
     <GlassCard style={[styles.postCard, style]}>
@@ -155,36 +330,30 @@ export function PostCard({
         </TouchableOpacity>
 
         <View style={styles.postMeta}>
-          {/* author row: name · category #tags ⋯ */}
           <View style={styles.authorRow}>
             <TouchableOpacity onPress={onAvatarPress}>
               <Text style={styles.authorName}>{post.username ?? '匿名'}</Text>
             </TouchableOpacity>
 
-            {/* Category label — immediately after name */}
             {post.post_type !== 'original' && POST_TYPE_LABELS[post.post_type] && (
               <TouchableOpacity onPress={() => onPostTypePress?.(post.post_type)}>
-                <Text style={[
-                  styles.categoryLabel,
-                  selectedPostType === post.post_type && styles.categoryLabelActive,
-                ]}>
+                <Text style={styles.categoryLabel}>
                   {' · '}{POST_TYPE_LABELS[post.post_type]}
                 </Text>
               </TouchableOpacity>
             )}
 
-            {/* Inline tags */}
             {post.tags?.map((t, i) => (
               <TouchableOpacity key={i} onPress={() => onTagPress?.(t)}>
                 <Text style={styles.inlineTag}>{' #'}{t}</Text>
               </TouchableOpacity>
             ))}
 
-            {/* ⋯ menu — pushed to right, toggles contextual popup */}
             {hasMenu && (
               <TouchableOpacity
+                ref={menuBtnRef}
                 style={styles.postMenuBtn}
-                onPress={() => setMenuOpen(v => !v)}
+                onPress={openMenu}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Text style={styles.postMenuIcon}>…</Text>
@@ -326,16 +495,15 @@ export function PostCard({
         </TouchableOpacity>
       )}
 
-      {/* ── Actions: like / comment / share only — edit & delete moved to ⋯ menu ── */}
+      {/* ── Actions ── */}
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.actionBtn} onPress={onLike}>
-          <MaterialCommunityIcons
-            name={post.is_liked ? 'heart' : 'hands-pray'}
-            size={20}
-            color={post.is_liked ? '#FF6B6B' : 'rgba(255,255,255,0.55)'}
-          />
-          <Text style={styles.actionText}>{post.like_count ?? 0}</Text>
-        </TouchableOpacity>
+        <LikeButton
+          isLiked={post.is_liked ?? false}
+          likeCount={post.like_count ?? 0}
+          likeScale={likeScale}
+          likeGlow={likeGlow}
+          onPress={handleLike}
+        />
 
         <TouchableOpacity style={styles.actionBtn} onPress={onComment}>
           <MaterialCommunityIcons name="comment-outline" size={20} color="rgba(255,255,255,0.85)" />
@@ -348,46 +516,8 @@ export function PostCard({
           </TouchableOpacity>
         )}
       </View>
-
     </GlassCard>
   );
-
-  // Contextual menu popup — rendered outside GlassCard so it isn't clipped
-  const menuEl = menuOpen && hasMenu ? (
-    <View style={styles.contextMenu}>
-      {post.is_owner ? (
-        <>
-          {onEdit && (
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => { setMenuOpen(false); onEdit(); }}
-            >
-              <MaterialCommunityIcons name="pencil" size={17} color="rgba(0,0,0,0.65)" />
-              <Text style={styles.menuItemText}>編輯</Text>
-            </TouchableOpacity>
-          )}
-          {onEdit && onDelete && <View style={styles.menuDivider} />}
-          {onDelete && (
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => { setMenuOpen(false); onDelete(); }}
-            >
-              <MaterialCommunityIcons name="delete-outline" size={17} color="#FF3B30" />
-              <Text style={[styles.menuItemText, styles.menuItemRed]}>刪除</Text>
-            </TouchableOpacity>
-          )}
-        </>
-      ) : onReport ? (
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => { setMenuOpen(false); onReport(); }}
-        >
-          <MaterialCommunityIcons name="alert-outline" size={17} color="#FF3B30" />
-          <Text style={[styles.menuItemText, styles.menuItemRed]}>檢舉</Text>
-        </TouchableOpacity>
-      ) : null}
-    </View>
-  ) : null;
 
   const inner = onPress ? (
     <TouchableOpacity activeOpacity={0.7} onPress={onPress}>{card}</TouchableOpacity>
@@ -396,7 +526,19 @@ export function PostCard({
   return (
     <View style={styles.cardWrapper}>
       {inner}
-      {menuEl}
+      {hasMenu && (
+        <ContextMenuModal
+          visible={menuOpen}
+          pos={menuPos}
+          anim={menuAnim}
+          onClose={() => closeMenu()}
+          isOwner={!!post.is_owner}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onReport={onReport}
+          closeMenu={closeMenu}
+        />
+      )}
     </View>
   );
 }
@@ -408,57 +550,102 @@ interface CommentCardProps {
   isReply?: boolean;
   onLike?: () => void;
   onReply?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onReport?: () => void;
 }
 
-export function CommentCard({ comment, isReply = false, onLike, onReply }: CommentCardProps) {
+export function CommentCard({
+  comment,
+  isReply = false,
+  onLike,
+  onReply,
+  onEdit,
+  onDelete,
+  onReport,
+}: CommentCardProps) {
   const liked = comment.is_liked ?? false;
+  const { menuOpen, menuPos, menuBtnRef, menuAnim, openMenu, closeMenu } = useMenuState();
+  const { likeScale, likeGlow, triggerLikeAnim } = useLikeAnim();
+
+  const hasMenu = comment.is_owner ? (!!onEdit || !!onDelete) : !!onReport;
+
+  function handleLike() {
+    if (!liked) triggerLikeAnim();
+    onLike?.();
+  }
+
   return (
-    <GlassCard style={[styles.commentCard, isReply && styles.replyCard]}>
-      <View style={styles.postHeader}>
-        {comment.avatar_url ? (
-          <Image source={{ uri: comment.avatar_url }} style={styles.commentAvatarImg} />
-        ) : (
-          <View style={styles.commentAvatar}>
-            <Text style={styles.commentAvatarText}>{comment.username?.[0] ?? '?'}</Text>
+    <View style={styles.cardWrapper}>
+      <GlassCard style={[styles.commentCard, isReply && styles.replyCard]}>
+        <View style={styles.postHeader}>
+          {comment.avatar_url ? (
+            <Image source={{ uri: comment.avatar_url }} style={styles.commentAvatarImg} />
+          ) : (
+            <View style={styles.commentAvatar}>
+              <Text style={styles.commentAvatarText}>{comment.username?.[0] ?? '?'}</Text>
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <View style={styles.authorRow}>
+              <Text style={styles.authorName}>{comment.username ?? '匿名'}</Text>
+              {hasMenu && (
+                <TouchableOpacity
+                  ref={menuBtnRef}
+                  style={styles.postMenuBtn}
+                  onPress={openMenu}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Text style={styles.postMenuIcon}>…</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <Text style={styles.timeText}>{timeAgo(comment.created_at)}</Text>
           </View>
-        )}
-        <View style={{ flex: 1 }}>
-          <Text style={styles.authorName}>{comment.username ?? '匿名'}</Text>
-          <Text style={styles.timeText}>{timeAgo(comment.created_at)}</Text>
         </View>
-      </View>
 
-      <Text style={styles.postText}>{comment.comment_content}</Text>
+        <Text style={styles.postText}>{comment.comment_content}</Text>
 
-      <View style={styles.actions}>
-        <TouchableOpacity style={styles.actionBtn} onPress={onLike}>
-          <MaterialCommunityIcons
-            name={liked ? 'heart' : 'hands-pray'}
-            size={20}
-            color={liked ? '#FF6B6B' : 'rgba(255,255,255,0.55)'}
+        <View style={styles.actions}>
+          <LikeButton
+            isLiked={liked}
+            likeCount={comment.like_count ?? 0}
+            likeScale={likeScale}
+            likeGlow={likeGlow}
+            onPress={handleLike}
           />
-          <Text style={styles.actionText}>{comment.like_count ?? 0}</Text>
-        </TouchableOpacity>
-        {!isReply && onReply && (
-          <TouchableOpacity style={styles.actionBtn} onPress={onReply}>
-            <MaterialCommunityIcons name="comment-outline" size={20} color="rgba(255,255,255,0.85)" />
-          </TouchableOpacity>
-        )}
-      </View>
-    </GlassCard>
+          {!isReply && onReply && (
+            <TouchableOpacity style={styles.actionBtn} onPress={onReply}>
+              <MaterialCommunityIcons name="comment-outline" size={20} color="rgba(255,255,255,0.85)" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </GlassCard>
+
+      {hasMenu && (
+        <ContextMenuModal
+          visible={menuOpen}
+          pos={menuPos}
+          anim={menuAnim}
+          onClose={() => closeMenu()}
+          isOwner={!!comment.is_owner}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onReport={onReport}
+          closeMenu={closeMenu}
+        />
+      )}
+    </View>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  // Wrapper — relative positioning so contextual menu sits outside GlassCard
   cardWrapper: { position: 'relative' },
 
-  // Post card shell
   postCard: { marginBottom: 16 },
 
-  // Header
   postHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   avatarImage: {
     width: 40, height: 40, borderRadius: 20, marginRight: 10,
@@ -478,14 +665,12 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap', marginBottom: 2,
   },
   authorName: { fontSize: 15, fontWeight: '600', color: 'rgba(255,255,255,0.95)' },
-  categoryLabel: { fontSize: 14, color: 'rgba(135,206,250,0.9)', fontWeight: '500' },
-  categoryLabelActive: { color: 'rgba(255,215,0,0.95)', fontWeight: '700' },
+  categoryLabel: { fontSize: 14, color: 'rgba(255,255,255,0.8)', fontWeight: '400' },
   inlineTag: { fontSize: 14, color: 'rgba(255,255,255,0.8)', fontWeight: '400' },
   timeText: { fontSize: 12, color: 'rgba(255,255,255,0.6)' },
   postMenuBtn: { marginLeft: 'auto', paddingHorizontal: 6 },
   postMenuIcon: { fontSize: 18, color: 'rgba(255,255,255,0.6)' },
 
-  // Body
   postText: { fontSize: 15, color: 'rgba(255,255,255,0.9)', lineHeight: 22, marginBottom: 12 },
   postImage: {
     width: '100%', aspectRatio: 4 / 3, maxHeight: 300,
@@ -493,7 +678,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.2)',
   },
 
-  // Attachment cards (diary / summary)
   attachCard: {
     borderWidth: 1, borderColor: 'rgba(100,180,255,0.35)',
     borderRadius: 10, padding: 10, marginBottom: 12,
@@ -507,7 +691,6 @@ const styles = StyleSheet.create({
   attachPreview: { fontSize: 13, color: 'rgba(255,255,255,0.65)', lineHeight: 18 },
   summaryBible: { fontSize: 12, color: 'rgba(200,170,255,0.85)', fontStyle: 'italic', marginTop: 4 },
 
-  // Letter card
   letterCard: {
     borderWidth: 1, borderColor: 'rgba(80,180,120,0.4)',
     borderRadius: 10, padding: 10, marginBottom: 12,
@@ -524,7 +707,6 @@ const styles = StyleSheet.create({
   letterPreview: { fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 17 },
   letterQuote: { fontSize: 12, color: 'rgba(180,230,180,0.85)', fontStyle: 'italic', lineHeight: 17 },
 
-  // Quoted / embedded original post
   quotedCard: {
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
     borderRadius: 10, padding: 10, marginBottom: 12,
@@ -542,7 +724,6 @@ const styles = StyleSheet.create({
   quotedTime: { fontSize: 12, color: 'rgba(255,255,255,0.45)' },
   quotedText: { fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 20 },
 
-  // Actions bar
   actions: {
     flexDirection: 'row',
     borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.15)',
@@ -554,21 +735,28 @@ const styles = StyleSheet.create({
   },
   actionText: { fontSize: 13, color: 'rgba(255,255,255,0.8)' },
 
-  // Contextual popup menu (rendered outside GlassCard)
+  likeIconWrap: {
+    width: 24, height: 24,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  likeGlowRing: {
+    position: 'absolute',
+    width: 30, height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+  },
+
   contextMenu: {
     position: 'absolute',
-    top: 44,
-    right: 12,
     backgroundColor: 'white',
     borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 10,
-    minWidth: 110,
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    elevation: 12,
+    minWidth: 120,
     overflow: 'hidden',
-    zIndex: 200,
   },
   menuItem: {
     flexDirection: 'row',
@@ -587,8 +775,17 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: 'rgba(0,0,0,0.08)',
   },
+  menuConfirmHeader: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  menuConfirmText: {
+    fontSize: 13,
+    color: 'rgba(0,0,0,0.5)',
+    fontWeight: '500',
+  },
 
-  // Comment cards
   commentCard: { marginBottom: 10 },
   replyCard: { marginLeft: 24, marginBottom: 6 },
   commentAvatarImg: {
