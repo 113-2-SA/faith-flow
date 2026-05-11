@@ -56,7 +56,6 @@
     },
     "plugins": [
       "expo-router",
-      
       [
         "expo-splash-screen",
         {
@@ -71,7 +70,8 @@
       ],
       "expo-video",
       "expo-audio",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-asset"
     ],
     "assetBundlePatterns": [
       "assets/**/*"
