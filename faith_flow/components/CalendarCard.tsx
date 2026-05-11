@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, View, Text, StyleSheet, Pressable, Platform, UIManager } from "react-native";
+import { Animated, Easing, View, Text, StyleSheet, Pressable, Platform, UIManager, useWindowDimensions } from "react-native";
 import { buildMonthGrid } from "./calendarUtils";
 import { GlassCard } from "./GlassCard";
 import { useAuth } from "../hooks/useAuth";
@@ -13,6 +13,7 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
 
 const WEEK = ["Sun", "Mon", "Tue", "WED", "THU", "FRI", "SAT"];
 const ANIM_MS = 300;
+const CELL_MB = 4; // cell 的 marginBottom
 
 type Props = {
   viewDate: Date;
@@ -27,18 +28,27 @@ export function CalendarCard({ viewDate, expanded, onToggleExpanded, onPrev, onN
   const [fontsLoaded] = useFonts({ CrimsonText_400Regular, CrimsonText_600SemiBold });
   const { user } = useAuth();
   const [diaryDates, setDiaryDates] = useState<Set<string>>(new Set());
+  const { width: screenWidth } = useWindowDimensions();
 
-  // 量測實際高度後再決定動畫目標值
-  const [collapsedH, setCollapsedH] = useState(0);
-  const [expandedH, setExpandedH] = useState(0);
-  const gridH = useRef(new Animated.Value(0)).current;
-  const gridMT = useRef(new Animated.Value(0)).current; // marginTop 負值往上偏移，顯示今日所在行
+  // 量測 grid 容器的實際寬度
+  const [containerW, setContainerW] = useState(0);
+  const onContainerLayout = (e: any) => {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0) setContainerW(w);
+  };
+
+  // cellSize：明確像素值，確保正方形（Yoga 引擎在 flexWrap + % width + aspectRatio 組合下無法正確推導高度）
+  const cellSize = containerW > 0 ? Math.floor(containerW / 7) : 0;
+  // rowH = 單格高度 + marginBottom
+  const rowH = cellSize > 0 ? cellSize + CELL_MB : 0;
+
+  const gridH  = useRef(new Animated.Value(0)).current;
+  const gridMT = useRef(new Animated.Value(0)).current;
+  const prevRowH = useRef(0);
   const initializedRef = useRef(false);
 
   const year = viewDate.getFullYear();
 
-  // ─── 量測 ────────────────────────────────────────────────────────────────
-  // 永遠 render 完整月曆（42 cells），用 height + marginTop 控制顯示範圍
   const cells = useMemo(() => buildMonthGrid(viewDate), [viewDate]);
 
   // 今天在月曆的第幾行（0-based）
@@ -54,63 +64,29 @@ export function CalendarCard({ viewDate, expanded, onToggleExpanded, onPrev, onN
     return idx >= 0 ? Math.floor(idx / 7) : 0;
   }, [cells]);
 
-  // grid 永遠 render 42 cells（6 行），一次量測就能得到兩個高度
-  const onGridLayout = (e: any) => {
-    const h = e.nativeEvent.layout.height;
-    if (h <= 0) return;
-    setExpandedH(h);
-    setCollapsedH(Math.round(h / 6));
-  };
-
   // ─── 動畫 ────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (collapsedH === 0 || expandedH === 0) return;
+    if (rowH === 0) return;
 
-    // 首次量測完成：直接設定初始值，不做動畫
-    if (!initializedRef.current) {
+    const targetH  = expanded ? rowH * 6 : rowH;
+    const targetMT = expanded ? 0 : -todayRowIdx * rowH;
+    const sizeChanged = prevRowH.current !== rowH;
+    prevRowH.current = rowH;
+
+    // 首次量測或螢幕尺寸改變：直接跳到正確位置，不做動畫
+    if (!initializedRef.current || sizeChanged) {
       initializedRef.current = true;
-      if (!expanded) {
-        gridH.setValue(collapsedH);
-        gridMT.setValue(-todayRowIdx * collapsedH);
-      } else {
-        gridH.setValue(expandedH);
-        gridMT.setValue(0);
-      }
+      gridH.setValue(targetH);
+      gridMT.setValue(targetMT);
       return;
     }
 
-    if (expanded) {
-      Animated.parallel([
-        Animated.timing(gridH, {
-          toValue: expandedH,
-          duration: ANIM_MS,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: false,
-        }),
-        Animated.timing(gridMT, {
-          toValue: 0,
-          duration: ANIM_MS,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: false,
-        }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(gridH, {
-          toValue: collapsedH,
-          duration: ANIM_MS,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: false,
-        }),
-        Animated.timing(gridMT, {
-          toValue: -todayRowIdx * collapsedH,
-          duration: ANIM_MS,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: false,
-        }),
-      ]).start();
-    }
-  }, [expanded, collapsedH, expandedH, todayRowIdx]);
+    // 正常展開／收合：有動畫
+    Animated.parallel([
+      Animated.timing(gridH,  { toValue: targetH,  duration: ANIM_MS, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+      Animated.timing(gridMT, { toValue: targetMT, duration: ANIM_MS, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+    ]).start();
+  }, [expanded, rowH, todayRowIdx]);
 
   // ─── API ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -163,10 +139,10 @@ export function CalendarCard({ viewDate, expanded, onToggleExpanded, onPrev, onN
 
         <View style={styles.divider} />
 
-        {/* 動畫容器：height 控制可見高度，overflow hidden 裁切 */}
-        <Animated.View style={{ height: (collapsedH > 0 && expandedH > 0) ? gridH : undefined, overflow: "hidden" }}>
+        {/* 動畫容器：量測容器寬度，height 控制可見範圍 */}
+        <Animated.View style={{ height: gridH, overflow: "hidden" }} onLayout={onContainerLayout}>
           {/* grid 偏移：讓今日所在行對齊可見窗口 */}
-          <Animated.View style={[styles.grid, { marginTop: gridMT }]} onLayout={onGridLayout}>
+          <Animated.View style={[styles.grid, { marginTop: gridMT }]}>
             {cells.map((c, idx) => {
               const day = c.date.getDate();
               const dateString = `${c.date.getFullYear()}-${String(c.date.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -177,7 +153,12 @@ export function CalendarCard({ viewDate, expanded, onToggleExpanded, onPrev, onN
                   key={`${c.date.toISOString()}-${idx}`}
                   disabled={!c.inMonth}
                   onPress={() => handleDateClick(c.date, c.inMonth)}
-                  style={[styles.cell, c.isToday && styles.cellToday]}
+                  style={[
+                    styles.cell,
+                    // 明確設定 width/height 為相同像素值，確保正方形
+                    cellSize > 0 && { width: cellSize, height: cellSize },
+                    c.isToday && styles.cellToday,
+                  ]}
                 >
                   <Text selectable={false}
                     style={[
@@ -188,7 +169,7 @@ export function CalendarCard({ viewDate, expanded, onToggleExpanded, onPrev, onN
                     ]}>
                     {day}
                   </Text>
-                  {hasDiary && <View style={styles.dot} />}
+                  {hasDiary && <View style={[styles.dot, cellSize > 0 && { bottom: Math.round(cellSize * 0.18) }]} />}
                 </Pressable>
               );
             })}
@@ -240,19 +221,16 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 8,
   },
-
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    paddingHorizontal: 2,
   },
   cell: {
-    width: "14.285%",
-    aspectRatio: 1,
+    // width/height 由 cellSize 在 render 時明確注入（像素值）
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 14,
-    marginBottom: 4,
+    marginBottom: CELL_MB,
   },
   cellText: {
     color: "rgba(255,255,255,0.85)",
@@ -276,7 +254,6 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: "rgba(255,255,255,0.85)",
   },
-
   floatWrapper: {
     position: "absolute",
     top: 0,
