@@ -317,6 +317,12 @@ export function BasilicaMap() {
                 </GlassCard>
               </Pressable>
 
+              <Pressable onPress={() => { setSelectedId(null); closeSheet(); }} style={styles.backToMapBtn}>
+                <GlassCard style={styles.backToMapCard} glassColor="rgba(255,255,255,0.08)">
+                  <Text style={styles.backToMapText}>🗺️ 返回地圖</Text>
+                </GlassCard>
+              </Pressable>
+
               <View style={{ height: 24 }} />
             </ScrollView>
           ) : (
@@ -438,11 +444,14 @@ const styles = StyleSheet.create({
   panoramaBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.95)", textAlign: "center" },
   recordBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.95)", textAlign: "center" },
   listItemWrap: { marginBottom: 8 },
-  listItemCard: { paddingVertical: 10, paddingHorizontal: 14 },
-  listRecordCard: { paddingVertical: 10, paddingHorizontal: 14, marginBottom: 0 },
+  listItemCard: {},
+  listRecordCard: {},
   listName: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.95)" },
   listSub: { fontSize: 11, color: "rgba(255,255,255,0.60)", marginTop: 3 },
   moreBtn: { paddingVertical: 12, alignItems: "center" },
   moreBtnText: { fontSize: 13, color: "rgba(255,255,255,0.70)" },
   statusText: { textAlign: "center", color: "rgba(255,255,255,0.55)", fontSize: 14, marginTop: 20 },
+  backToMapBtn: { marginTop: 8, marginBottom: 0 },
+  backToMapCard: { paddingVertical: 10, paddingHorizontal: 14 },
+  backToMapText: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.70)", textAlign: "center" },
 });

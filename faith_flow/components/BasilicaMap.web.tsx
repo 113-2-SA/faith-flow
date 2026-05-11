@@ -232,8 +232,11 @@ export function BasilicaMap() {
       {/* ── Bottom sheet ── */}
       <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetY }] }]}>
 
-        {/* GlassCard 提供主題玻璃背景（跟隨 GlassTheme） */}
-        <GlassCard style={styles.sheetGlass}>
+        {/* 玻璃背景層（純視覺，absolute fill） */}
+        <GlassCard style={styles.sheetBgGlass} />
+
+        {/* 版面配置層（純 flex column，不依賴 GlassCard 雙層 View） */}
+        <View style={styles.sheetLayout}>
 
           {/* Drag handle（純視覺，不接受事件） */}
           <View style={styles.handleArea} pointerEvents="none">
@@ -332,6 +335,12 @@ export function BasilicaMap() {
                 </GlassCard>
               </Pressable>
 
+              <Pressable onPress={() => { setSelectedId(null); closeSheet(); }} style={styles.backToMapBtn}>
+                <GlassCard style={styles.backToMapCard} glassColor="rgba(255,255,255,0.08)">
+                  <Text style={styles.backToMapText}>🗺️ 返回地圖</Text>
+                </GlassCard>
+              </Pressable>
+
               <View style={{ height: 24 }} />
             </ScrollView>
           ) : (
@@ -371,7 +380,7 @@ export function BasilicaMap() {
               )}
             </ScrollView>
           )}
-        </GlassCard>
+        </View>
 
         {/* 手勢捕捉層：蓋住 handle 區，讓 filter tabs 在下方可正常點擊 */}
         <View style={styles.gestureOverlay} {...panResponder.panHandlers} />
@@ -451,6 +460,21 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 22,
     padding: 0,
   },
+  sheetBgGlass: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    borderRadius: 0,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    padding: 0,
+  },
+  sheetLayout: {
+    flex: 1,
+    flexDirection: "column",
+    overflow: "hidden",
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+  },
   // 手勢捕捉層，蓋住 handle 高度，讓 content 區的 filter tabs 可點擊
   gestureOverlay: {
     position: "absolute",
@@ -515,11 +539,14 @@ const styles = StyleSheet.create({
 
   // ── List ───────────────────────────────────────────────────────
   listItemWrap: { marginBottom: 8 },
-  listItemCard: { paddingVertical: 10, paddingHorizontal: 14 },
-  listRecordCard: { paddingVertical: 10, paddingHorizontal: 14, marginBottom: 0 },
+  listItemCard: {},
+  listRecordCard: {},
   listName: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.95)", fontFamily: "NotoSerifTC_400Regular" },
   listSub: { fontSize: 11, color: "rgba(255,255,255,0.60)", marginTop: 3, fontFamily: "NotoSerifTC_400Regular" },
   moreBtn: { paddingVertical: 12, alignItems: "center" },
   moreBtnText: { fontSize: 13, color: "rgba(255,255,255,0.70)", fontFamily: "NotoSerifTC_400Regular" },
   statusText: { textAlign: "center", color: "rgba(255,255,255,0.55)", fontSize: 14, marginTop: 20, fontFamily: "NotoSerifTC_400Regular" },
+  backToMapBtn: { marginTop: 8, marginBottom: 0 },
+  backToMapCard: { paddingVertical: 10, paddingHorizontal: 14 },
+  backToMapText: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.70)", textAlign: "center", fontFamily: "NotoSerifTC_400Regular" },
 });
