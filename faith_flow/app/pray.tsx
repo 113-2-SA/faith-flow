@@ -14,6 +14,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { VideoBackground } from "../components/VideoBackground";
 import { GlassCard } from "../components/GlassCard";
 import { savePrayer } from "../lib/prayerStore";
+import { auth } from "../lib/firebase";
 
 type TranscriptMsg = {
   type: "transcript";
@@ -23,7 +24,6 @@ type TranscriptMsg = {
 };
 
 const getAuthToken = async (): Promise<string> => {
-  const auth = getAuth();
   const user = auth.currentUser;
   if (!user) throw new Error('使用者未登入');
   return await user.getIdToken();
@@ -347,266 +347,177 @@ export default function Pray() {
   const canPray = locationPerm === "granted" || locationPerm === "denied";
 
   return (
-    <div
-      style={{
-        maxWidth: 900,
-        margin: "0 auto",
-        padding: 16,
-        fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
-      }}
-    >
-      <h2 style={{ margin: "0 0 12px" }}>即時祈禱轉錄</h2>
+    <VideoBackground source={require("../assets/backgrounds/main.mp4")}>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <Text style={styles.pageTitle}>即時祈禱轉錄</Text>
 
-      {/* 步驟一：定位同意 */}
-      {locationPerm === "idle" && (
-        <LocationConsentCard onGrant={handleGrantLocation} onDeny={handleDenyLocation} />
-      )}
+        {/* 步驟一：定位同意 */}
+        {locationPerm === "idle" && (
+          <LocationConsentCard onGrant={handleGrantLocation} onDeny={handleDenyLocation} />
+        )}
 
-      {locationPerm === "asking" && (
-        <p style={{ color: "#8b6020", textAlign: "center", padding: 24 }}>
-          正在取得位置資訊…
-        </p>
-      )}
+        {locationPerm === "asking" && (
+          <GlassCard style={styles.noticeCard}>
+            <ActivityIndicator color="rgba(255,255,255,0.8)" />
+            <Text style={styles.noticeText}>正在取得位置資訊…</Text>
+          </GlassCard>
+        )}
 
-      {/* 定位狀態標籤 */}
-      {canPray && (
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "5px 14px",
-            borderRadius: 20,
-            fontSize: 12,
-            fontWeight: 600,
-            marginBottom: 14,
-            background:
-              locationPerm === "granted"
-                ? "rgba(58,138,90,0.12)"
-                : "rgba(160,100,10,0.10)",
-            color: locationPerm === "granted" ? "#2e7d52" : "#8b6020",
-            border: `1px solid ${locationPerm === "granted" ? "#6fcf97" : "#c8a050"}`,
-          }}
-        >
-          {locationPerm === "granted" ? "📍 已記錄真實位置" : "📍 標示於聖殿鄰近（匿名）"}
-        </div>
-      )}
+        {/* 定位狀態標籤 */}
+        {canPray && (
+          <View style={styles.locationTag}>
+            <Text style={styles.locationTagText}>
+              {locationPerm === "granted" ? "📍 已記錄真實位置" : "📍 標示於聖殿鄰近（匿名）"}
+            </Text>
+          </View>
+        )}
 
-      {/* 步驟二：錄音操作（定位確認後顯示） */}
-      {canPray && (
-        <>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
-            <button onClick={requestMic} disabled={isRecording} style={{ padding: "8px 12px" }}>
-              允許麥克風
-            </button>
-
-            {/* 語言選擇 */}
-            {(["zh-TW", "en-US"] as const).map((l) => (
-              <button
-                key={l}
-                onClick={() => setLang(l)}
+        {/* 步驟二：錄音操作（定位確認後顯示） */}
+        {canPray && (
+          <>
+            <GlassCard style={styles.controlCard}>
+              <TouchableOpacity
+                onPress={requestMic}
                 disabled={isRecording}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 6,
-                  border: "1px solid #c8922a",
-                  background: lang === l ? "#c8922a" : "transparent",
-                  color: lang === l ? "#fff" : "#c8922a",
-                  fontWeight: 600,
-                  cursor: "pointer",
+                style={[styles.outlineBtn, isRecording && styles.btnDisabled]}
+              >
+                <Text style={styles.outlineBtnText}>允許麥克風</Text>
+              </TouchableOpacity>
+
+              <View style={styles.langRow}>
+                <Text style={styles.langLabel}>語言：</Text>
+                {(["zh-TW", "en-US"] as const).map((l) => (
+                  <TouchableOpacity
+                    key={l}
+                    onPress={() => setLang(l)}
+                    disabled={isRecording}
+                    style={[styles.langBtn, lang === l && styles.langBtnActive]}
+                  >
+                    <Text style={[styles.langBtnText, lang === l && styles.langBtnTextActive]}>
+                      {l === "zh-TW" ? "中文" : "English"}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {!isRecording ? (
+                <TouchableOpacity
+                  onPress={startRecording}
+                  disabled={hasMicPermission === false}
+                  style={[styles.recordBtn, hasMicPermission === false && styles.btnDisabled]}
+                >
+                  <MaterialCommunityIcons name="microphone" size={20} color="rgba(0,0,0,0.75)" />
+                  <Text style={styles.recordBtnText}>開始祈禱（錄音轉錄）</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity onPress={stopRecording} style={[styles.recordBtn, styles.recordBtnActive]}>
+                  <MaterialCommunityIcons name="stop" size={20} color="rgba(255,100,80,0.95)" />
+                  <Text style={styles.recordBtnTextActive}>結束祈禱</Text>
+                </TouchableOpacity>
+              )}
+
+              <View style={styles.wsRow}>
+                <Text style={styles.wsText}>WS：{wsStatus} | 錄音：{isRecording ? "進行中" : "未開始"}</Text>
+              </View>
+            </GlassCard>
+
+            <GlassCard style={styles.controlCard}>
+              <TouchableOpacity
+                onPress={loadPreview}
+                disabled={isRecording || !combinedText.trim() || isLoadingPreview}
+                style={[styles.outlineBtn, (isRecording || !combinedText.trim() || isLoadingPreview) && styles.btnDisabled]}
+              >
+                <Text style={styles.outlineBtnText}>{isLoadingPreview ? "⏳ 生成中..." : "👁️ 預覽日記"}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={saveToDiary}
+                disabled={!previewData || isSaving || saveSuccess}
+                style={[styles.outlineBtn, (!previewData || isSaving || saveSuccess) && styles.btnDisabled]}
+              >
+                <Text style={styles.outlineBtnText}>
+                  {isSaving ? "⏳ 儲存中..." : saveSuccess ? "✅ 已儲存！" : "💾 儲存為日記"}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  setFinalText("");
+                  setInterimText("");
+                  setDebug([]);
+                  setError("");
+                  setShowCross(false);
+                  setPreviewData(null);
+                  setSaveSuccess(false);
                 }}
+                disabled={isRecording}
+                style={[styles.outlineBtn, isRecording && styles.btnDisabled]}
               >
-                {l === "zh-TW" ? "中文" : "English"}
-              </button>
-            ))}
+                <Text style={styles.outlineBtnText}>清除</Text>
+              </TouchableOpacity>
+            </GlassCard>
 
-            {!isRecording ? (
-              <button
-                onClick={startRecording}
-                disabled={hasMicPermission === false}
-                style={{ padding: "8px 12px" }}
-              >
-                開始祈禱（錄音轉錄）
-              </button>
-            ) : (
-              <button onClick={stopRecording} style={{ padding: "8px 12px" }}>
-                結束祈禱
-              </button>
+            {saveSuccess && (
+              <GlassCard style={styles.successCard}>
+                <Text style={styles.successText}>✨ 祈禱已成功轉換為日記！</Text>
+              </GlassCard>
             )}
 
-            <button
-              onClick={loadPreview}
-              disabled={isRecording || !combinedText.trim() || isLoadingPreview}
-              style={{
-                padding: "8px 12px",
-                backgroundColor: "#FF9800",
-                color: "white",
-                border: "none",
-                borderRadius: 4,
-                cursor:
-                  isRecording || !combinedText.trim() || isLoadingPreview
-                    ? "not-allowed"
-                    : "pointer",
-                opacity:
-                  isRecording || !combinedText.trim() || isLoadingPreview ? 0.5 : 1,
-              }}
-            >
-              {isLoadingPreview ? "⏳ 生成中..." : "👁️ 預覽日記"}
-            </button>
+            {!!error && (
+              <GlassCard style={styles.errorCard}>
+                <Text style={styles.errorText}>{error}</Text>
+              </GlassCard>
+            )}
 
-            <button
-              onClick={saveToDiary}
-              disabled={!previewData || isSaving || saveSuccess}
-              style={{
-                padding: "8px 12px",
-                backgroundColor: saveSuccess ? "#4CAF50" : "#2196F3",
-                color: "white",
-                border: "none",
-                borderRadius: 4,
-                cursor: !previewData || isSaving || saveSuccess ? "not-allowed" : "pointer",
-                opacity: !previewData || isSaving || saveSuccess ? 0.5 : 1,
-              }}
-            >
-              {isSaving ? "⏳ 儲存中..." : saveSuccess ? "✅ 已儲存！" : "💾 儲存為日記"}
-            </button>
+            {/* AI 預覽卡片 */}
+            {previewData && (
+              <GlassCard style={styles.previewCard}>
+                <Text style={styles.previewTitle}>📋 日記預覽</Text>
 
-            <button
-              onClick={() => {
-                setFinalText("");
-                setInterimText("");
-                setDebug([]);
-                setError("");
-                setShowCross(false);
-                setPreviewData(null);
-                setSaveSuccess(false);
-              }}
-              disabled={isRecording}
-              style={{ padding: "8px 12px" }}
-            >
-              清除
-            </button>
-
-            <div style={{ alignSelf: "center", fontSize: 12, opacity: 0.8 }}>
-              WS：{wsStatus} | 錄音：{isRecording ? "進行中" : "未開始"}
-            </div>
-          </div>
-
-          {saveSuccess && (
-            <div
-              style={{
-                padding: 12,
-                marginBottom: 12,
-                backgroundColor: "#4CAF50",
-                color: "white",
-                borderRadius: 6,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <span style={{ fontSize: 20 }}>✨</span>
-              <span>祈禱已成功轉換為日記！</span>
-            </div>
-          )}
-
-          {error && (
-            <div
-              style={{
-                padding: 12,
-                marginBottom: 12,
-                border: "1px solid #c00",
-                color: "#c00",
-                borderRadius: 6,
-              }}
-            >
-              {error}
-            </div>
-          )}
-
-          {/* AI 預覽卡片 */}
-          {previewData && (
-            <div
-              style={{
-                padding: 16,
-                marginBottom: 12,
-                backgroundColor: "#f0f7ff",
-                border: "2px solid #2196F3",
-                borderRadius: 8,
-              }}
-            >
-              <h3 style={{ margin: "0 0 12px", color: "#2196F3" }}>📋 日記預覽</h3>
-
-              <div style={{ marginBottom: 12 }}>
-                <strong>標題：</strong>
-                <div
-                  style={{
-                    padding: 8,
-                    backgroundColor: "white",
-                    borderRadius: 4,
-                    marginTop: 4,
-                  }}
-                >
-                  {previewData.suggestedTitle}
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 12 }}>
-                <strong>語音內容：</strong>
-                <div
-                  style={{
-                    padding: 8,
-                    backgroundColor: "white",
-                    borderRadius: 4,
-                    marginTop: 4,
-                  }}
-                >
-                  {previewData.content}
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 12 }}>
-                <strong>標籤：</strong>
-                <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
-                  {previewData.suggestedTags.map((tag, i) => (
-                    <span
-                      key={i}
-                      style={{
-                        padding: "4px 12px",
-                        backgroundColor: "#2196F3",
-                        color: "white",
-                        borderRadius: 16,
-                        fontSize: 14,
-                      }}
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-            {previewData.suggestedBibleQuote && (
-              <>
-                <Text style={styles.previewLabel}>聖經經文</Text>
+                <Text style={styles.previewLabel}>標題</Text>
                 <GlassCard style={styles.previewInner}>
-                  <Text style={[styles.previewValue, { fontStyle: "italic" }]}>
-                    {previewData.suggestedBibleQuote}
-                  </Text>
+                  <Text style={styles.previewValue}>{previewData.suggestedTitle}</Text>
                 </GlassCard>
-              </>
+
+                <Text style={styles.previewLabel}>語音內容</Text>
+                <GlassCard style={styles.previewInner}>
+                  <Text style={styles.previewValue}>{previewData.content}</Text>
+                </GlassCard>
+
+                <Text style={styles.previewLabel}>標籤</Text>
+                <View style={styles.tagRow}>
+                  {previewData.suggestedTags.map((tag, i) => (
+                    <GlassCard key={i} style={styles.tagChip}>
+                      <Text style={styles.tagText}>{tag}</Text>
+                    </GlassCard>
+                  ))}
+                </View>
+
+                {previewData.suggestedBibleQuote && (
+                  <>
+                    <Text style={styles.previewLabel}>聖經經文</Text>
+                    <GlassCard style={styles.previewInner}>
+                      <Text style={[styles.previewValue, { fontStyle: "italic" }]}>
+                        {previewData.suggestedBibleQuote}
+                      </Text>
+                    </GlassCard>
+                  </>
+                )}
+
+                <Text style={styles.previewHint}>💡 確認無誤後，點擊「儲存為日記」即可存入資料庫</Text>
+              </GlassCard>
             )}
 
-            <Text style={styles.previewHint}>💡 確認無誤後，點擊「儲存為日記」即可存入資料庫</Text>
-          </GlassCard>
-        )}
+            {showCross && canPray && recordSaved && (
+              <GlassCard style={styles.savedCard} glassColor="rgba(52,168,83,0.22)">
+                <MaterialCommunityIcons name="check-circle-outline" size={32} color="rgba(100,200,130,0.95)" />
+                <Text style={styles.savedText}>祈禱已記錄 ✝</Text>
+              </GlassCard>
+            )}
 
-        {showCross && canPray && recordSaved && (
-          <GlassCard style={styles.savedCard} glassColor="rgba(52,168,83,0.22)">
-            <MaterialCommunityIcons name="check-circle-outline" size={32} color="rgba(100,200,130,0.95)" />
-            <Text style={styles.savedText}>祈禱已記錄 ✝</Text>
-          </GlassCard>
+            <View style={{ height: 40 }} />
+          </>
         )}
-
-        <View style={{ height: 40 }} />
       </ScrollView>
     </VideoBackground>
   );

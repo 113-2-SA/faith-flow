@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!firebaseIdToken) throw new Error('Missing Firebase ID token');
 
       // 呼叫後端 API
-      const response = await fetch(`${API_BASE_URL}/auth/sync`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/sync`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${firebaseIdToken}`,

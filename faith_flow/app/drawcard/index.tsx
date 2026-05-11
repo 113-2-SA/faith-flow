@@ -3,8 +3,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Dimensions, Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../context/authcontext";
-
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+import { API_BASE_URL as API_BASE } from "../../lib/api";
 const { width: SCREEN_W } = Dimensions.get("window");
 const CARD_W = (SCREEN_W - 80) / 5;
 const CARD_H = CARD_W * 1.55;
