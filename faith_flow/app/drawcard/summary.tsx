@@ -3,8 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../context/authcontext";
-
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+import { API_BASE_URL } from "../../lib/api";
 
 export default function SummaryScreen() {
   const router = useRouter();
@@ -27,7 +26,8 @@ export default function SummaryScreen() {
     try {
       setLoading(true); setError("");
       const token = await currentUser?.getIdToken();
-      const res = await fetch(`${API_BASE}/api/livingwater/generate-letter`, {
+
+      const res = await fetch(`${API_BASE_URL}/api/livingwater/generate-letter`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ question: params.question, theme: params.theme, source_hint: params.quote_source, conversation: params.conversation }),

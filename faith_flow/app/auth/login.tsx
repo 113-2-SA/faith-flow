@@ -77,7 +77,7 @@ export default function LoginScreen() {
         if (!idToken) throw new Error("Missing id_token");
         const credential = GoogleAuthProvider.credential(idToken);
         await signInWithCredential(auth, credential);
-        router.replace("/home");
+        // _layout.tsx 的 <Redirect href="/home" /> 會自動處理跳轉
       } catch (e) {
         console.error("Google 登入失敗:", e);
         setError("Google 登入失敗，請再試一次");
@@ -100,7 +100,7 @@ export default function LoginScreen() {
       } else {
         await createUserWithEmailAndPassword(auth, email, password);
       }
-      router.replace("/home");
+      // _layout.tsx 的 <Redirect href="/home" /> 會自動處理跳轉
     } catch (e: any) {
       const msg: Record<string, string> = {
         "auth/user-not-found": "找不到此帳號",

@@ -3,8 +3,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Dimensions, FlatList, Image, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../context/authcontext";
-
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+import { toLocaleDateCST } from "../../utils/dateUtils";
+import { API_BASE_URL } from "../../lib/api";
 const { height: SCREEN_H } = Dimensions.get("window");
 
 function getWeekLabel() {
@@ -42,7 +42,7 @@ export default function CollectionScreen() {
       if (currentUser) {
         try {
           const token = await currentUser.getIdToken(true);
-          const drawsRes = await fetch(API_BASE + "/api/livingwater/my-draws", {
+          const drawsRes = await fetch(API_BASE_URL + "/api/livingwater/my-draws", {
             headers: { Authorization: 'Bearer ' + token }
           });
           const drawsData = await drawsRes.json();
@@ -50,7 +50,7 @@ export default function CollectionScreen() {
         } catch (e) { console.warn('[Collection] 取得 my-draws 失敗:', e); }
       }
 
-      const res = await fetch(API_BASE + "/api/livingwater/weekly-cards");
+      const res = await fetch(API_BASE_URL + "/api/livingwater/weekly-cards");
       const data = await res.json();
       if (data.success) {
         const enriched = data.data.map((card: CardItem) => {

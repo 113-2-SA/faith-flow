@@ -1,7 +1,6 @@
 // context/AuthContext.tsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 import { 
   User,
   onAuthStateChanged,
@@ -43,7 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!firebaseIdToken) throw new Error('Missing Firebase ID token');
 
       // 呼叫後端 API
-      const response = await fetch(`${API_BASE}/auth/sync`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/sync`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${firebaseIdToken}`,

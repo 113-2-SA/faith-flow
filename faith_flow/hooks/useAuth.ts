@@ -1,36 +1,10 @@
 // hooks/useAuth.ts
 import { onAuthStateChanged, User } from "firebase/auth";
 import { useEffect, useState } from "react";
-import Constants from 'expo-constants';
 import { auth } from "../lib/firebase";
+import { API_BASE_URL } from "../lib/api";
 
-// ⭐ 智慧判斷 API URL
-function getApiUrl() {
-  // 正式環境
-  if (!__DEV__) {
-    return 'https://api.your-domain.com';
-  }
-  
-  // 開發環境：自動偵測
-  const debuggerHost = Constants.expoConfig?.hostUri;
-  
-  if (debuggerHost) {
-    // 從 Metro Bundler 的位址自動取得 IP
-    // 例如：192.168.1.100:8081 → http://192.168.1.100:3000
-    const host = debuggerHost.split(':')[0];
-    const apiUrl = `http://${host}:3000`;
-    
-    console.log('📱 偵測到 Expo DevServer:', debuggerHost);
-    console.log('🌐 使用 API URL:', apiUrl);
-    
-    return apiUrl;
-  }
-  
-  // Fallback
-  return 'http://localhost:3000';
-}
-
-const API_URL = getApiUrl();
+const API_URL = API_BASE_URL;
 
 /**
  * 同步使用者到 PostgreSQL 資料庫

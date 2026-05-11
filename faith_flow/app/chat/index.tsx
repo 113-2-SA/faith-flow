@@ -17,10 +17,11 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/authcontext';
 import { toLocaleDateCST } from '../../utils/dateUtils';
+import { API_BASE_URL } from '../../lib/api';
 import { VideoBackground } from '../../components/VideoBackground';
 import { GlassCard } from '../../components/GlassCard';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+// const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
 // ─── 型別定義 ─────────────────────────────────────────────────────────────
 interface Citation {
@@ -100,7 +101,7 @@ export default function ChatScreen() {
     setConvsLoading(true);
     try {
       const token = await getToken();
-      const res = await fetch(`${API_BASE}/api/chat/history`, {
+      const res = await fetch(`${API_BASE_URL}/api/chat/history`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const data = await res.json();
@@ -115,7 +116,7 @@ export default function ChatScreen() {
   const createNewConversation = async () => {
     try {
       const token = await getToken();
-      const res = await fetch(`${API_BASE}/api/chat/conversations`, {
+      const res = await fetch(`${API_BASE_URL}/api/chat/conversations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       });
@@ -134,7 +135,7 @@ export default function ChatScreen() {
   const switchConversation = async (convId: string) => {
     try {
       const token = await getToken();
-      const res = await fetch(`${API_BASE}/api/chat/${convId}/messages`, {
+      const res = await fetch(`${API_BASE_URL}/api/chat/${convId}/messages`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const data = await res.json();
@@ -164,7 +165,7 @@ export default function ChatScreen() {
     if (!editingTitle.trim()) return;
     try {
       const token = await getToken();
-      const res = await fetch(`${API_BASE}/api/chat/${convId}/title`, {
+      const res = await fetch(`${API_BASE_URL}/api/chat/${convId}/title`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ title: editingTitle.trim() }),
@@ -187,7 +188,7 @@ export default function ChatScreen() {
     if (!confirmed) return;
     try {
       const token = await getToken();
-      await fetch(`${API_BASE}/api/chat/${convId}`, {
+      await fetch(`${API_BASE_URL}/api/chat/${convId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -264,7 +265,7 @@ export default function ChatScreen() {
         body.quoted_type = currentQuote.type;
       }
 
-      const res = await fetch(`${API_BASE}/api/chat/stream`, {
+      const res = await fetch(`${API_BASE_URL}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(body),
