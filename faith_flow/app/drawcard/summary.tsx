@@ -14,9 +14,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../context/authcontext";
-
-// ⚠️ 注意：本機測試用 localhost，手機/外部測試改回 140.136.155.150
-const API_BASE = "http://localhost:3000";
+import { API_BASE_URL } from "../../lib/api";
 
 export default function SummaryScreen() {
   const router = useRouter();
@@ -53,7 +51,7 @@ export default function SummaryScreen() {
 
       const token = await currentUser?.getIdToken();
 
-      const res = await fetch(`${API_BASE}/api/livingwater/generate-letter`, {
+      const res = await fetch(`${API_BASE_URL}/api/livingwater/generate-letter`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

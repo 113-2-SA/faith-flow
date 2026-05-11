@@ -15,6 +15,7 @@ import { useAuth } from '../context/authcontext';
 import { VideoBackground } from '../../components/VideoBackground';
 import { GlassCard } from '../../components/GlassCard';
 import { toDateOnlyCST } from '../../utils/dateUtils';
+import { API_BASE_URL } from '../../lib/api'; 
 
 interface Diary {
   diary_id: number;
@@ -53,7 +54,7 @@ export default function DiaryListScreen() {
     try {
       const token = await user.getIdToken();
 
-      let url = 'http://localhost:3000/api/diary';
+      let url = `${API_BASE_URL}/api/diary`;
       const queryParts: string[] = [];
 
       if (date) queryParts.push(`date=${date}`);

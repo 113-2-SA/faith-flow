@@ -17,8 +17,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../context/authcontext";
-
-const API_BASE = "http://localhost:3000";// 改成 localhost，因為前後端都在同一台 VM 上
+import { API_BASE_URL } from "../../lib/api";
 
 type Message = {
   id: string;
@@ -63,7 +62,7 @@ export default function DrawCardChatScreen() {
         .map((m) => `${m.role === "user" ? "使用者" : "AI"}：${m.content}`)
         .join("\n");
 
-      const res = await fetch(`${API_BASE}/api/livingwater/chat`, {
+      const res = await fetch(`${API_BASE_URL}/api/livingwater/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

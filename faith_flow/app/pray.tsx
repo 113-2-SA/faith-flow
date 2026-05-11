@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Text } from "react-native";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import { auth } from "../lib/firebase";
@@ -419,7 +420,7 @@ export default function Pray() {
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
       }}
     >
-      <h2 style={{ margin: "0 0 12px" }}>即時祈禱轉錄</h2>
+      <Text style={{ fontSize: 20, fontWeight: "bold", marginBottom: 12 }}>即時祈禱轉錄</Text>
 
       {/* 步驟一：定位同意 */}
       {locationPerm === "idle" && (
@@ -598,7 +599,7 @@ export default function Pray() {
                 borderRadius: 8,
               }}
             >
-              <h3 style={{ margin: "0 0 12px", color: "#2196F3" }}>📋 日記預覽</h3>
+              <Text style={{ fontSize: 16, fontWeight: "bold", marginBottom: 12, color: "#2196F3" }}>📋 日記預覽</Text>
 
               <div style={{ marginBottom: 12 }}>
                 <strong>標題：</strong>

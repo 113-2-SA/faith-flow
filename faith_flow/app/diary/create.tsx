@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { auth } from '../../lib/firebase';
+import { API_BASE_URL } from '../../lib/api';
 
 const getToday = () => {
   const today = new Date();
@@ -72,7 +73,7 @@ export default function CreateDiaryScreen() {
 
       // ⚠️ Expo 在手機/模擬器時 localhost 指的是「手機自己」
       // 如果你是用手機測，要把 localhost 改成你電腦的 IP，例如 http://192.168.1.10:3000
-      const response = await fetch('http://localhost:3000/api/diary', {
+      const response = await fetch(`${API_BASE_URL}/api/diary`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${idToken}`,

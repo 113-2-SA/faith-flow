@@ -20,8 +20,7 @@ import {
 } from "react-native";
 import { useAuth } from "../context/authcontext";
 import { toLocaleDateCST } from "../../utils/dateUtils";
-
-const API_BASE = "http://localhost:3000";
+import { API_BASE_URL } from "../../lib/api";
 const { height: SCREEN_H } = Dimensions.get("window");
 
 // 週次計算（例如：2025 week 51）
@@ -78,7 +77,7 @@ export default function CollectionScreen() {
 
   const fetchCards = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/livingwater/weekly-cards`);
+      const res = await fetch(`${API_BASE_URL}/api/livingwater/weekly-cards`);
       const data = await res.json();
       if (data.success) {
         // 如果從 letter.tsx 帶了最新信箋資料，補進今天的卡片
@@ -126,7 +125,7 @@ if (isToday && params.summary) {
 
       const postText = `📖 ${selectedCard.question}\n\n${selectedCard.summary || ""}\n\n「${selectedCard.quote}」\n——${selectedCard.quote_source}`;
 
-      const res = await fetch(`${API_BASE}/api/post`, {
+      const res = await fetch(`${API_BASE_URL}/api/post`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
