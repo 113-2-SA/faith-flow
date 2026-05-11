@@ -1,6 +1,5 @@
 // app/settings/index.tsx
 import { useFocusEffect } from "@react-navigation/native";
-import { router } from "expo-router";
 import { signOut } from "firebase/auth";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -116,7 +115,6 @@ export default function SettingsScreen() {
   const onLogout = async () => {
     try {
       await signOut(auth);
-      router.replace("/auth/login");
     } catch (e) {
       console.error("signOut failed:", e);
     }
@@ -232,7 +230,13 @@ function Row(props: {
   return (
     <View style={styles.row}>
       <Text style={styles.rowText}>{props.title}</Text>
-      <Switch value={props.value} onValueChange={props.onValueChange} />
+      <Switch
+        value={props.value}
+        onValueChange={props.onValueChange}
+        trackColor={{ false: "rgba(160,160,160,0.5)", true: "rgba(255,255,255,0.55)" }}
+        thumbColor="rgba(255,255,255,0.95)"
+        ios_backgroundColor="rgba(160,160,160,0.5)"
+      />
     </View>
   );
 }
@@ -302,18 +306,16 @@ const styles = StyleSheet.create({
   },
   saveBtn: {
     marginTop: 16,
-    backgroundColor: "rgba(0,122,255,0.7)",
+    backgroundColor: "rgba(255,255,255,0.85)",
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.3)",
   },
-  saveBtnDisabled: { backgroundColor: "rgba(255,255,255,0.15)" },
+  saveBtnDisabled: { backgroundColor: "rgba(255,255,255,0.25)" },
   saveBtnText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "white",
+    color: "rgba(0,0,0,0.75)",
   },
   divider: {
     height: 1,
@@ -330,7 +332,9 @@ const styles = StyleSheet.create({
   logoutBtn: {
     padding: 14,
     borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(255,255,255,0.22)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.35)",
   },
-  logoutText: { color: "white", textAlign: "center", fontSize: 15 },
+  logoutText: { color: "rgba(255,255,255,0.9)", textAlign: "center", fontSize: 15, fontWeight: "500" },
 });

@@ -4,19 +4,20 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  Dimensions,
   FlatList,
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../context/authcontext";
+import { VideoBackground } from "../../components/VideoBackground";
+import { GlassCard } from "../../components/GlassCard";
 import { API_BASE_URL } from "../../lib/api";
 
 type Message = {
@@ -57,7 +58,6 @@ export default function DrawCardChatScreen() {
 
     try {
       const token = await currentUser?.getIdToken();
-      // 先用 chat API 暫代，之後可換成專屬的活水泉源 AI
       const conversationText = messages
         .map((m) => `${m.role === "user" ? "使用者" : "AI"}：${m.content}`)
         .join("\n");
@@ -76,13 +76,22 @@ export default function DrawCardChatScreen() {
         }),
       });
 
-      const data = await res.json();
-      const aiMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: data.reply || "（AI 暫時無法回應）",
-      };
-      setMessages((prev) => [...prev, aiMsg]);
+      // 後端回傳 SSE 串流，逐行解析取出 done 事件的 reply
+      const raw = await res.text();
+      let reply = "";
+      for (const line of raw.split("\n")) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const obj = JSON.parse(line.slice(6).trim());
+          if (obj.type === "done" && obj.reply) reply = obj.reply;
+          if (obj.type === "error" && !reply) reply = obj.message || "";
+        } catch { /* skip malformed chunk */ }
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        { id: (Date.now() + 1).toString(), role: "assistant", content: reply || "（AI 暫時無法回應）" },
+      ]);
     } catch (err) {
       console.error("[DrawCardChat] send failed:", err);
       setMessages((prev) => [
@@ -112,55 +121,51 @@ export default function DrawCardChatScreen() {
 };
 
   return (
-    <View style={styles.bg}>
-      <SafeAreaView style={styles.safe}>
+    <VideoBackground source={require("../../assets/backgrounds/main.mp4")}>
+      <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
           <Pressable onPress={() => setShowReview(true)} style={styles.iconBtn}>
-            <Text style={styles.iconText}>🕐</Text>
+            <MaterialCommunityIcons name="history" size={20} color="rgba(255,255,255,0.90)" />
           </Pressable>
           <Pressable onPress={handleEnd} style={styles.iconBtn}>
-            <Text style={styles.iconText}>↪</Text>
+            <MaterialCommunityIcons name="check-all" size={20} color="rgba(255,255,255,0.90)" />
           </Pressable>
         </View>
 
         {/* 問題卡片 */}
-        <View style={styles.questionCard}>
+        <GlassCard style={styles.questionCard}>
           <Text style={styles.questionText}>{params.question}</Text>
-        </View>
+        </GlassCard>
 
-        {/* 🐱 AI 角色圖 */}
+        {/* AI 角色圖 */}
         <View style={styles.avatarArea}>
-        <Text style={styles.avatar}>🐱</Text>
+          <Text style={styles.avatar}>🐱</Text>
         </View>
 
         {/* 完整對話串 */}
         <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(m) => m.id}
-        style={styles.messageList}
-        contentContainerStyle={styles.messageListContent}
-        onContentSizeChange={() =>
-            flatListRef.current?.scrollToEnd({ animated: true })
-        }
-        renderItem={({ item }) => (
-            <View
-            style={[
-                styles.bubble,
-                item.role === "user" ? styles.bubbleUser : styles.bubbleAI,
-            ]}
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(m) => m.id}
+          style={styles.messageList}
+          contentContainerStyle={styles.messageListContent}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+          renderItem={({ item }) => (
+            <GlassCard
+              style={[styles.bubble, item.role === "user" ? styles.bubbleUser : styles.bubbleAI]}
+              glassColor={item.role === "user" ? "rgba(102,126,234,0.60)" : "rgba(255,255,255,0.10)"}
             >
-            <Text style={styles.bubbleText}>{item.content}</Text>
-            </View>
-        )}
+              <Text style={styles.bubbleText}>{item.content}</Text>
+            </GlassCard>
+          )}
         />
 
         {/* 載入中提示 */}
         {loading && (
-        <View style={styles.loadingRow}>
+          <View style={styles.loadingRow}>
             <Text style={styles.loadingText}>活水泉源思考中...</Text>
-        </View>
+          </View>
         )}
 
         {/* 輸入框 */}
@@ -173,28 +178,21 @@ export default function DrawCardChatScreen() {
             value={input}
             onChangeText={setInput}
             placeholder="輸入你的回應..."
-            placeholderTextColor="rgba(255,255,255,0.5)"
+            placeholderTextColor="rgba(255,255,255,0.40)"
             multiline
           />
-          <Pressable
-            style={styles.sendBtn}
-            onPress={sendMessage}
-            disabled={loading}
-          >
-            <Text style={styles.sendIcon}>➤</Text>
+          <Pressable style={[styles.sendBtn, loading && styles.sendBtnDisabled]} onPress={sendMessage} disabled={loading}>
+            <MaterialCommunityIcons name="send" size={20} color={loading ? "rgba(255,255,255,0.30)" : "rgba(0,0,0,0.75)"} />
           </Pressable>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+      </View>
 
-      {/* 對話回顧 Modal（5.2.2） */}
+      {/* 對話回顧 Modal */}
       <Modal visible={showReview} animationType="slide" transparent>
         <View style={styles.reviewOverlay}>
           <View style={styles.reviewPanel}>
-            <Pressable
-              onPress={() => setShowReview(false)}
-              style={styles.closeBtn}
-            >
-              <Text style={styles.closeText}>✕</Text>
+            <Pressable onPress={() => setShowReview(false)} style={styles.closeBtn}>
+              <MaterialCommunityIcons name="close" size={18} color="rgba(255,255,255,0.70)" />
             </Pressable>
             <Text style={styles.reviewTitle}>對話回顧</Text>
             <Text style={styles.reviewHint}>
@@ -204,14 +202,7 @@ export default function DrawCardChatScreen() {
               data={messages}
               keyExtractor={(m) => m.id}
               renderItem={({ item }) => (
-                <View
-                  style={[
-                    styles.reviewMsg,
-                    item.role === "user"
-                      ? styles.reviewUser
-                      : styles.reviewAI,
-                  ]}
-                >
+                <View style={[styles.reviewMsg, item.role === "user" ? styles.reviewUser : styles.reviewAI]}>
                   <Text style={styles.reviewMsgText}>{item.content}</Text>
                 </View>
               )}
@@ -219,17 +210,16 @@ export default function DrawCardChatScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </VideoBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  bg: { flex: 1, backgroundColor: "#2d5a3d" },
-  safe: { flex: 1 },
+  container: { flex: 1 },
   header: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    paddingTop: 50,
+    paddingTop: 8,
     paddingHorizontal: 16,
     gap: 12,
   },
@@ -237,97 +227,101 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
     alignItems: "center",
     justifyContent: "center",
   },
-  iconText: { fontSize: 18, color: "#fff" },
-  questionCard: {
-    margin: 16,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: "rgba(20,20,40,0.7)",
-  },
+  questionCard: { margin: 16, marginBottom: 0 },
   questionText: {
-    color: "#fff",
+    color: "rgba(255,255,255,0.95)",
     fontSize: 14,
     lineHeight: 22,
     textAlign: "center",
   },
-  // 把原本的 avatarArea 改成這樣（縮小，不佔滿畫面）
-avatarArea: {
-  alignItems: "center",
-  paddingVertical: 8,
-},
-avatar: { fontSize: 40 },  // 原本是 80，縮小一點
-
-// 新增以下樣式
-messageList: {
-  flex: 1,
-  paddingHorizontal: 16,
-},
-messageListContent: {
-  paddingBottom: 8,
-  gap: 8,
-},
-bubble: {
-  maxWidth: "80%",
-  padding: 12,
-  borderRadius: 16,
-},
-bubbleUser: {
-  alignSelf: "flex-end",
-  backgroundColor: "rgba(255,255,255,0.2)",
-},
-bubbleAI: {
-  alignSelf: "flex-start",
-  backgroundColor: "rgba(0,0,0,0.3)",
-},
-bubbleText: {
-  color: "#fff",
-  fontSize: 14,
-  lineHeight: 20,
-},
-loadingRow: {
-  paddingHorizontal: 16,
-  paddingBottom: 4,
-},
-loadingText: {
-  color: "rgba(255,255,255,0.5)",
-  fontSize: 12,
-},
-  userBubble: {
-    margin: 16,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    alignSelf: "flex-end",
-    maxWidth: "80%",
-  },
-  userBubbleText: { color: "#fff", fontSize: 14 },
+  avatarArea: { alignItems: "center", paddingVertical: 8 },
+  avatar: { fontSize: 40 },
+  messageList: { flex: 1, paddingHorizontal: 12 },
+  messageListContent: { paddingBottom: 8, gap: 8 },
+  bubble: { maxWidth: "80%", padding: 0 },
+  bubbleUser: { alignSelf: "flex-end" },
+  bubbleAI: { alignSelf: "flex-start" },
+  bubbleText: { color: "rgba(255,255,255,0.95)", fontSize: 14, lineHeight: 20 },
+  loadingRow: { paddingHorizontal: 16, paddingBottom: 4 },
+  loadingText: { color: "rgba(255,255,255,0.50)", fontSize: 12 },
   inputArea: {
     flexDirection: "row",
     alignItems: "flex-end",
-    paddingHorizontal: 16,
-    paddingBottom: 32,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    paddingBottom: 20,
+    backgroundColor: "rgba(0,0,0,0.40)",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.12)",
     gap: 8,
   },
   input: {
     flex: 1,
-    borderRadius: 24,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    color: "#fff",
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.20)",
+    color: "rgba(255,255,255,0.95)",
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 14,
     maxHeight: 100,
   },
-    sendBtn: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: "rgba(255,255,255,0.3)",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-  });
+  sendBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(255,255,255,0.85)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sendBtnDisabled: { backgroundColor: "rgba(255,255,255,0.15)" },
+  reviewOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  reviewPanel: {
+    width: "90%",
+    maxHeight: "80%",
+    backgroundColor: "rgba(18,28,52,0.96)",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+  closeBtn: {
+    alignSelf: "flex-end",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  reviewTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "rgba(255,255,255,0.95)",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  reviewHint: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.50)",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  reviewMsg: { padding: 10, borderRadius: 10, marginBottom: 8 },
+  reviewUser: { backgroundColor: "rgba(102,126,234,0.30)", alignSelf: "flex-end" },
+  reviewAI: { backgroundColor: "rgba(255,255,255,0.10)", alignSelf: "flex-start" },
+  reviewMsgText: { fontSize: 14, color: "rgba(255,255,255,0.90)", lineHeight: 20 },
+});

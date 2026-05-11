@@ -2,11 +2,13 @@ import React, { useEffect, useRef } from "react";
 import {
   Animated,
   Dimensions,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { BlurView } from "expo-blur";
 import { signOut } from "firebase/auth";
 import { useRouter } from "expo-router";
 
@@ -16,6 +18,11 @@ type Props = {
   open: boolean;
   onClose: () => void;
 };
+
+// Web: 直接走 CSS backdrop-filter；Native: 用 BlurView
+const webBlur = Platform.OS === "web"
+  ? ({ backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" } as any)
+  : null;
 
 export function SideDrawer({ open, onClose }: Props) {
   const router = useRouter();
@@ -28,8 +35,6 @@ export function SideDrawer({ open, onClose }: Props) {
     { label: "有答大師", href: "/chat" },
     { label: "心靈營火", href: "/community" },
     { label: "朝聖之地", href: "/pilgrimage" },
-    { label: "思高聖經", href: "/bible" },
-    { label: "說明", href: "/about" },
     { label: "帳號設定", href: "/settings" },
   ];
 
@@ -41,66 +46,49 @@ export function SideDrawer({ open, onClose }: Props) {
       console.error("signOut failed:", e);
     }
   };
+
   const x = useRef(new Animated.Value(-drawerW)).current;
   const overlay = useRef(new Animated.Value(0)).current;
+
+  const hasMounted = useRef(false);
+  if (open) hasMounted.current = true;
 
   useEffect(() => {
     if (open) {
       Animated.parallel([
-        Animated.timing(x, {
-          toValue: 0,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-        Animated.timing(overlay, {
-          toValue: 1,
-          duration: 220,
-          useNativeDriver: true,
-        }),
+        Animated.timing(x, { toValue: 0, duration: 220, useNativeDriver: true }),
+        Animated.timing(overlay, { toValue: 1, duration: 220, useNativeDriver: true }),
       ]).start();
     } else {
       Animated.parallel([
-        Animated.timing(x, {
-          toValue: -drawerW,
-          duration: 180,
-          useNativeDriver: true,
-        }),
-        Animated.timing(overlay, {
-          toValue: 0,
-          duration: 180,
-          useNativeDriver: true,
-        }),
+        Animated.timing(x, { toValue: -drawerW, duration: 200, useNativeDriver: true }),
+        Animated.timing(overlay, { toValue: 0, duration: 200, useNativeDriver: true }),
       ]).start();
     }
   }, [open, drawerW, overlay, x]);
 
-  // open=false 時直接不渲染，避免擋觸控
-  if (!open) return null;
+  if (!hasMounted.current) return null;
 
   return (
-    <View style={[StyleSheet.absoluteFill, styles.root]} pointerEvents="box-none">
-      {/* Overlay（點空白處關閉） */}
+    <View
+      style={[StyleSheet.absoluteFill, styles.root]}
+      pointerEvents={open ? "box-none" : "none"}
+    >
+      {/* 遮罩 */}
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
         <Animated.View
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              backgroundColor: "rgba(0,0,0,0.25)",
-              opacity: overlay,
-            },
-          ]}
-        />
+          style={[StyleSheet.absoluteFill, { opacity: overlay }, webBlur]}
+        >
+          {Platform.OS !== "web" && (
+            <BlurView intensity={28} tint="dark" style={StyleSheet.absoluteFill} />
+          )}
+          <View style={[StyleSheet.absoluteFill, styles.overlayColor]} />
+        </Animated.View>
       </Pressable>
 
       {/* Drawer */}
       <Animated.View
-        style={[
-          styles.drawer,
-          {
-            width: drawerW,
-            transform: [{ translateX: x }],
-          },
-        ]}
+        style={[styles.drawer, { width: drawerW, transform: [{ translateX: x }] }]}
       >
         <View style={styles.header}>
           <Text style={styles.title}>MENU</Text>
@@ -132,8 +120,9 @@ export function SideDrawer({ open, onClose }: Props) {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    zIndex: 999,
+  root: { zIndex: 999 },
+  overlayColor: {
+    backgroundColor: "rgba(0,0,0,0.25)",
   },
   drawer: {
     position: "absolute",
@@ -150,7 +139,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.12)",
+    borderBottomColor: "rgba(0,0,0,0.08)",
   },
   title: { color: "rgba(0,0,0,0.85)", letterSpacing: 2 },
   list: { marginTop: 14 },
@@ -159,7 +148,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 14,
   },
-  itemText: { color: "rgba(0,0,0,0.88)", fontSize: 16 },
+  itemText: { color: "rgba(0,0,0,0.88)", fontSize: 16, fontFamily: "NotoSerifTC_400Regular" },
   footer: { marginTop: "auto", paddingBottom: 20 },
   logoutBtn: {
     paddingVertical: 12,
@@ -167,5 +156,5 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: "rgba(0,0,0,0.08)",
   },
-  logoutText: { color: "rgba(0,0,0,0.9)", textAlign: "center" },
+  logoutText: { color: "rgba(0,0,0,0.9)", textAlign: "center", fontFamily: "NotoSerifTC_400Regular" },
 });

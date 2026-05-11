@@ -16,6 +16,25 @@ function isSameDay(a: Date, b: Date) {
   );
 }
 
+/** 回傳包含 referenceDate 那一周（Sun~Sat）的 7 格 */
+export function buildWeekRow(referenceDate: Date): DayCell[] {
+  const today = startOfDay(new Date());
+  const ref = startOfDay(referenceDate);
+  const dayOfWeek = ref.getDay(); // 0=Sun
+  const weekStart = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate() - dayOfWeek);
+
+  const cells: DayCell[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + i);
+    cells.push({
+      date: d,
+      inMonth: d.getMonth() === ref.getMonth(),
+      isToday: isSameDay(d, today),
+    });
+  }
+  return cells;
+}
+
 /** Sun 起始，回傳 6x7（42格） */
 export function buildMonthGrid(viewDate: Date): DayCell[] {
   const year = viewDate.getFullYear();

@@ -1,16 +1,32 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Text } from "react-native";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import { auth } from "../lib/firebase";
-import { API_BASE_URL } from "../lib/api";
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { VideoBackground } from "../components/VideoBackground";
+import { GlassCard } from "../components/GlassCard";
+import { savePrayer } from "../lib/prayerStore";
 
-// ─── 型別 ───────────────────────────────────────────────────────────────────
 type TranscriptMsg = {
   type: "transcript";
   transcript: string;
   is_final?: boolean;
   speech_final?: boolean;
+};
+
+const getAuthToken = async (): Promise<string> => {
+  const auth = getAuth();
+  const user = auth.currentUser;
+  if (!user) throw new Error('使用者未登入');
+  return await user.getIdToken();
 };
 
 type WsStatus = "idle" | "connecting" | "open" | "closed" | "error";
@@ -24,15 +40,8 @@ type PreviewData = {
   content: string;
 };
 
-// ─── 常數 ───────────────────────────────────────────────────────────────────
-const WS_URL = `${API_BASE_URL.replace(/^http/, "ws")}/ws/transcribe`;
-
-// ─── 工具函式 ────────────────────────────────────────────────────────────────
-const getAuthToken = async (): Promise<string> => {
-  const user = auth.currentUser;
-  if (!user) throw new Error("使用者未登入");
-  return await user.getIdToken(true);
-};
+const WS_URL = "ws://localhost:3000/ws/transcribe";
+const API_URL = "http://localhost:3000";
 
 function pickMimeType(): string | "" {
   const candidates = [
@@ -42,7 +51,6 @@ function pickMimeType(): string | "" {
     "audio/ogg",
   ];
   for (const t of candidates) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const MR: any = (window as any).MediaRecorder;
     if (MR && typeof MR.isTypeSupported === "function" && MR.isTypeSupported(t))
       return t;
@@ -50,102 +58,51 @@ function pickMimeType(): string | "" {
   return "";
 }
 
-// ─── 定位同意卡片 ─────────────────────────────────────────────────────────────
-function LocationConsentCard({
-  onGrant,
-  onDeny,
-}: {
-  onGrant: () => void;
-  onDeny: () => void;
-}) {
+function LocationConsentCard({ onGrant, onDeny }: { onGrant: () => void; onDeny: () => void }) {
   return (
-    <div style={cardStyle}>
-      <div style={{ fontSize: 40, marginBottom: 12 }}>📍</div>
-      <p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: 17, color: "#3a2a00" }}>
-        記錄祈禱位置
-      </p>
-      <p style={{ margin: "0 0 20px", fontSize: 14, color: "#6b5020", lineHeight: 1.6 }}>
-        允許此功能後，您的祈禱將以
-        <strong>教堂標記</strong>
-        顯示在聖殿地圖上，與其他信徒共享見證。
-        <br />
-        位置資訊<strong>僅用於地圖顯示</strong>，不會對外分享。
-      </p>
-      <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-        <button style={btnPrimaryStyle} onClick={onGrant}>
-          ✓ 同意，記錄位置
-        </button>
-        <button style={btnSecondaryStyle} onClick={onDeny}>
-          不同意
-        </button>
-      </div>
-      <p style={{ margin: "14px 0 0", fontSize: 12, color: "#b09060", lineHeight: 1.5 }}>
-        不同意時，您的祈禱仍會被儲存，<br />
-        並以<em>匿名方式</em>標示在聖殿鄰近。
-      </p>
-    </div>
+    <GlassCard style={styles.consentCard}>
+      <MaterialCommunityIcons name="map-marker" size={40} color="rgba(255,255,255,0.90)" style={{ marginBottom: 12 }} />
+      <Text style={styles.consentTitle}>記錄祈禱位置</Text>
+      <Text style={styles.consentBody}>
+        允許此功能後，您的祈禱將以{"\n"}
+        <Text style={styles.consentBold}>十字架標記</Text>
+        顯示在朝聖地圖上，與其他信徒共同見證。{"\n"}
+        位置資訊<Text style={styles.consentBold}>僅用於地圖顯示</Text>，不會對外分享。
+      </Text>
+      <View style={styles.consentBtnRow}>
+        <TouchableOpacity style={styles.primaryBtn} onPress={onGrant}>
+          <Text style={styles.primaryBtnText}>✝ 同意，記錄位置</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.secondaryBtn} onPress={onDeny}>
+          <Text style={styles.secondaryBtnText}>不同意</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={styles.consentFootnote}>
+        不同意時，您的祈禱仍會被保存，{"\n"}並以匿名方式標示在聖殿附近。
+      </Text>
+    </GlassCard>
   );
 }
 
-const cardStyle: React.CSSProperties = {
-  maxWidth: 360,
-  margin: "20px auto",
-  padding: "28px 24px",
-  borderRadius: 16,
-  border: "1px solid rgba(200,146,42,0.35)",
-  background: "linear-gradient(135deg, #fffdf5 0%, #fff8e7 100%)",
-  boxShadow: "0 4px 24px rgba(180,130,40,0.13)",
-  textAlign: "center",
-};
-const btnPrimaryStyle: React.CSSProperties = {
-  padding: "10px 22px",
-  borderRadius: 24,
-  border: "none",
-  background: "linear-gradient(135deg, #c8922a, #f5d680)",
-  color: "#4a2e00",
-  fontWeight: 700,
-  fontSize: 14,
-  cursor: "pointer",
-};
-const btnSecondaryStyle: React.CSSProperties = {
-  padding: "10px 22px",
-  borderRadius: 24,
-  border: "1px solid #c8922a",
-  background: "transparent",
-  color: "#8b6020",
-  fontWeight: 600,
-  fontSize: 14,
-  cursor: "pointer",
-};
-
-// ─── 主元件 ───────────────────────────────────────────────────────────────────
 export default function Pray() {
   const router = useRouter();
-
-  // 定位
   const [locationPerm, setLocationPerm] = useState<LocationPermState>("idle");
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
-
-  // 語言
   const [lang, setLang] = useState<"zh-TW" | "en-US">("zh-TW");
-
-  // 錄音
   const [hasMicPermission, setHasMicPermission] = useState<boolean | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [wsStatus, setWsStatus] = useState<WsStatus>("idle");
   const [error, setError] = useState<string>("");
-
   const [finalText, setFinalText] = useState("");
   const [interimText, setInterimText] = useState("");
   const [showCross, setShowCross] = useState(false);
-
-  // 預覽 / 儲存
+  const [recordSaved, setRecordSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-
   const [debug, setDebug] = useState<string[]>([]);
+
   const pushDebug = (line: string) =>
     setDebug((prev) => {
       const next = [...prev, line];
@@ -165,20 +122,12 @@ export default function Pray() {
     return a || b;
   }, [finalText, interimText]);
 
-  // ── 定位 ────────────────────────────────────────────────────────────────────
   const fetchLocation = async (): Promise<{ latitude: number; longitude: number } | null> => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        pushDebug("[位置] 系統定位權限被拒");
-        return null;
-      }
-      const pos = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      pushDebug(
-        `[位置] lat=${pos.coords.latitude.toFixed(5)} lng=${pos.coords.longitude.toFixed(5)}`
-      );
+      if (status !== "granted") { pushDebug("[位置] 系統定位權限被拒"); return null; }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      pushDebug(`[位置] lat=${pos.coords.latitude.toFixed(5)} lng=${pos.coords.longitude.toFixed(5)}`);
       return { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
     } catch (e) {
       pushDebug(`[位置] 取得座標失敗: ${(e as Error)?.message}`);
@@ -189,12 +138,8 @@ export default function Pray() {
   const handleGrantLocation = async () => {
     setLocationPerm("asking");
     const coords = await fetchLocation();
-    if (coords) {
-      setUserCoords(coords);
-      setLocationPerm("granted");
-    } else {
-      setLocationPerm("denied");
-    }
+    if (coords) { setUserCoords(coords); setLocationPerm("granted"); }
+    else { setLocationPerm("denied"); }
   };
 
   const handleDenyLocation = () => {
@@ -202,11 +147,12 @@ export default function Pray() {
     pushDebug("[位置] 使用者選擇不同意定位");
   };
 
-  // ── 麥克風 ───────────────────────────────────────────────────────────────────
   const requestMic = async () => {
     setError("");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
       stream.getTracks().forEach((t) => t.stop());
       setHasMicPermission(true);
       pushDebug("[前端] 麥克風權限：允許");
@@ -217,200 +163,189 @@ export default function Pray() {
     }
   };
 
-  // ── WebSocket ────────────────────────────────────────────────────────────────
   const openWs = (): Promise<WebSocket> => {
     setError("");
     setWsStatus("connecting");
-    const url = `${WS_URL}?lang=${lang}`;
-    pushDebug(`[前端] WebSocket 連線中：${url}`);
-
     return new Promise((resolve, reject) => {
       try {
-        const ws = new WebSocket(url);
+        const ws = new WebSocket(`${WS_URL}?lang=${lang}`);
         ws.binaryType = "arraybuffer";
-
-        ws.onopen = () => {
-          setWsStatus("open");
-          pushDebug("[前端] WebSocket 已連線");
-          resolve(ws);
-        };
-        ws.onclose = (ev) => {
-          setWsStatus("closed");
-          pushDebug(`[前端] WebSocket 已關閉 code=${ev.code}`);
-        };
-        ws.onerror = () => {
-          setWsStatus("error");
-          pushDebug("[前端] WebSocket 發生錯誤");
-          reject(new Error("WebSocket 連線失敗"));
-        };
+        ws.onopen = () => { setWsStatus("open"); resolve(ws); };
+        ws.onclose = (ev) => { setWsStatus("closed"); pushDebug(`[WS] 已關閉 code=${ev.code}`); };
+        ws.onerror = () => { setWsStatus("error"); reject(new Error("WebSocket 連線失敗")); };
         ws.onmessage = (event) => {
           try {
             const msg = JSON.parse(String(event.data)) as TranscriptMsg;
             if (msg?.type === "transcript" && typeof msg.transcript === "string") {
               const t = msg.transcript.trim();
               if (!t) return;
-              if (msg.is_final) {
-                setFinalText((prev) => (prev ? prev + " " + t : t));
-                setInterimText("");
-              } else {
-                setInterimText(t);
-              }
-              return;
+              if (msg.is_final) { setFinalText((prev) => (prev ? prev + "，" + t : t)); setInterimText(""); }
+              else { setInterimText(t); }
             }
+            pushDebug(`[前端] WS(JSON)：${String(event.data).slice(0, 200)}`);
           } catch {
             const t = String(event.data || "").trim();
-            if (t) {
-              setFinalText((prev) => (prev ? prev + " " + t : t));
-              setInterimText("");
-            }
+            if (t) setFinalText((prev) => (prev ? prev + " " + t : t));
           }
         };
         socketRef.current = ws;
-      } catch (e) {
-        reject(e);
-      }
+      } catch (e) { reject(e); }
     });
   };
 
-  // ── 開始錄音 ──────────────────────────────────────────────────────────────────
   const startRecording = async () => {
     setError("");
     setShowCross(false);
-    setSaveSuccess(false);
-    setPreviewData(null);
-
+    setRecordSaved(false);
     try {
       const ws = await openWs();
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       streamRef.current = stream;
-
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+      const options: MediaRecorderOptions = mimeType ? { mimeType } : {};
+      const recorder = new MediaRecorder(stream, options);
       recorderRef.current = recorder;
-
-      recorder.onstart = () => {
-        setIsRecording(true);
-        pushDebug(`[前端] MediaRecorder start mime=${recorder.mimeType}`);
-      };
+      recorder.onstart = () => { setIsRecording(true); pushDebug(`[前端] MediaRecorder start mime=${recorder.mimeType}`); };
       recorder.onstop = () => pushDebug("[前端] MediaRecorder stop");
-      recorder.onerror = (ev) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const msg = (ev as any)?.error?.message || "MediaRecorder 錯誤";
-        setError(msg);
-      };
+      recorder.onerror = (ev) => { const msg = (ev as any)?.error?.message || "MediaRecorder 錯誤"; setError(msg); };
       recorder.ondataavailable = async (ev: BlobEvent) => {
-        if (!ev.data || ev.data.size === 0) return;
-        if (ws.readyState !== WebSocket.OPEN) return;
-        const buf = await ev.data.arrayBuffer();
-        ws.send(buf);
+        try {
+          if (!ev.data || ev.data.size === 0) return;
+          if (ws.readyState !== WebSocket.OPEN) return;
+          const buf = await ev.data.arrayBuffer();
+          ws.send(buf);
+          pushDebug(`[音訊] ${buf.byteLength} bytes`);
+        } catch (e) {
+          pushDebug(`[前端] ondataavailable send error: ${(e as Error)?.message || String(e)}`);
+        }
       };
-
       recorder.start(250);
       setInterimText("");
     } catch (e) {
       const msg = (e as Error)?.message || "啟動錄音失敗";
       setError(msg);
+      pushDebug(`[前端] startRecording 失敗: ${msg}`);
       await stopRecording();
     }
   };
 
-  // ── 停止錄音 ──────────────────────────────────────────────────────────────────
   const stopRecording = async () => {
     const rec = recorderRef.current;
     if (rec && rec.state !== "inactive") rec.stop();
     recorderRef.current = null;
-
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
-
     const ws = socketRef.current;
     if (ws && ws.readyState <= WebSocket.OPEN) ws.close();
     socketRef.current = null;
-
     setIsRecording(false);
     setWsStatus("closed");
     setInterimText("");
     setShowCross(true);
-    pushDebug("[前端] 已停止錄音並清理連線");
   };
 
-  // ── AI 預覽 ───────────────────────────────────────────────────────────────────
-  const loadPreview = async () => {
-    const text = combinedText.trim();
-    if (!text) { setError("沒有可預覽的內容"); return; }
-
-    setIsLoadingPreview(true);
-    setError("");
-    try {
-      const token = await getAuthToken();
-      const res = await fetch(`${API_BASE_URL}/api/diary/preview-prayer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ transcript: text }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setPreviewData(data.data);
-        pushDebug("[預覽] AI 建議已取得");
-      } else {
-        setError(data.error || "預覽生成失敗");
-      }
-    } catch (e) {
-      setError("網路錯誤，請稍後再試");
-      pushDebug(`[預覽] 失敗: ${(e as Error)?.message}`);
-    } finally {
-      setIsLoadingPreview(false);
-    }
-  };
-
-  // ── 儲存為日記 ────────────────────────────────────────────────────────────────
-  const saveToDiary = async () => {
-    if (!previewData || isSaving || saveSuccess) return;
+  const handleConfirmRecord = async () => {
+    if (isSaving || recordSaved) return;
     setIsSaving(true);
-    setError("");
     try {
-      const token = await getAuthToken();
-      const res = await fetch(`${API_BASE_URL}/api/diary/from-prayer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          transcript: combinedText.trim(),
-          collectId: null,
-          latitude: userCoords?.latitude ?? null,
-          longitude: userCoords?.longitude ?? null,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data.ok) {
-        setSaveSuccess(true);
-        pushDebug(
-          `[前端] 日記已儲存 ID=${data.data?.diary_id} location=${userCoords ? "GPS" : "無"}`
-        );
-      } else {
-        setError(data.error ?? "儲存失敗");
-      }
+      const rec = recorderRef.current;
+      if (rec && rec.state !== "inactive") rec.stop();
+      recorderRef.current = null;
+      const stream = streamRef.current;
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      const ws = socketRef.current;
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) ws.close();
+      socketRef.current = null;
+      setIsRecording(false);
+      setWsStatus("closed");
+      setInterimText("");
+      setShowCross(true);
+      pushDebug("[前端] 已停止錄音並清理連線");
+      await savePrayer(combinedText, userCoords ?? undefined);
+      setRecordSaved(true);
+      pushDebug(`[前端] 已儲存 locationSource=${userCoords ? "gps" : "default"}`);
     } catch (e) {
-      setError("網路錯誤，請稍後再試");
-      pushDebug(`[儲存] 失敗: ${(e as Error)?.message}`);
+      setError("儲存失敗，請稍後再試。");
     } finally {
       setIsSaving(false);
     }
   };
 
-  // ── 生命週期 ──────────────────────────────────────────────────────────────────
+  const loadPreview = async () => {
+    const textToPreview = combinedText.trim();
+    if (!textToPreview) { setError("沒有可預覽的內容"); return; }
+    setIsLoadingPreview(true);
+    setError("");
+    try {
+      const token = await getAuthToken();
+      if (!token) { setError("請先登入"); return; }
+      const response = await fetch(`${API_URL}/api/diary/preview-prayer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ transcript: textToPreview }),
+      });
+      const result = await response.json();
+      if (result.ok) { setPreviewData(result.data); }
+      else { setError(result.error || "預覽生成失敗"); }
+    } catch {
+      setError("網路錯誤，請稍後再試");
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  };
+
+  const saveToDiary = async () => {
+    if (!previewData) { setError("請先預覽"); return; }
+    setIsSaving(true);
+    setError("");
+    try {
+      const token = await getAuthToken();
+      if (!token) { setError("請先登入"); return; }
+      const response = await fetch(`${API_URL}/api/diary/from-prayer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ transcript: combinedText.trim(), collectId: null }),
+      });
+      const result = await response.json();
+      if (result.ok) {
+        setSaveSuccess(true);
+        setTimeout(() => {
+          setFinalText(""); setInterimText(""); setPreviewData(null);
+          setSaveSuccess(false); setShowCross(false);
+        }, 3000);
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification("✨ 祈禱已記錄", { body: `標題：${result.data.diary_title}` });
+        }
+      } else {
+        setError(result.error || "儲存失敗");
+      }
+    } catch {
+      setError("網路錯誤，請稍後再試");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   useEffect(() => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setHasMicPermission(false);
       setError("此瀏覽器不支援 getUserMedia。");
     }
+    setHasMicPermission(null);
   }, []);
 
   useEffect(() => { return () => { void stopRecording(); }; }, []);
 
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
   const canPray = locationPerm === "granted" || locationPerm === "denied";
 
-  // ─── Render ───────────────────────────────────────────────────────────────────
   return (
     <div
       style={{
@@ -420,7 +355,7 @@ export default function Pray() {
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
       }}
     >
-      <Text style={{ fontSize: 20, fontWeight: "bold", marginBottom: 12 }}>即時祈禱轉錄</Text>
+      <h2 style={{ margin: "0 0 12px" }}>即時祈禱轉錄</h2>
 
       {/* 步驟一：定位同意 */}
       {locationPerm === "idle" && (
@@ -599,7 +534,7 @@ export default function Pray() {
                 borderRadius: 8,
               }}
             >
-              <Text style={{ fontSize: 16, fontWeight: "bold", marginBottom: 12, color: "#2196F3" }}>📋 日記預覽</Text>
+              <h3 style={{ margin: "0 0 12px", color: "#2196F3" }}>📋 日記預覽</h3>
 
               <div style={{ marginBottom: 12 }}>
                 <strong>標題：</strong>
@@ -649,172 +584,97 @@ export default function Pray() {
                 </div>
               </div>
 
-              {previewData.suggestedBibleQuote && (
-                <div style={{ marginBottom: 12 }}>
-                  <strong>聖經金句：</strong>
-                  <div
-                    style={{
-                      padding: "8px 8px 8px 12px",
-                      backgroundColor: "white",
-                      borderRadius: 4,
-                      marginTop: 4,
-                      fontStyle: "italic",
-                      borderLeft: "4px solid #2196F3",
-                    }}
-                  >
+            {previewData.suggestedBibleQuote && (
+              <>
+                <Text style={styles.previewLabel}>聖經經文</Text>
+                <GlassCard style={styles.previewInner}>
+                  <Text style={[styles.previewValue, { fontStyle: "italic" }]}>
                     {previewData.suggestedBibleQuote}
-                  </div>
-                </div>
-              )}
-
-              <div style={{ fontSize: 12, color: "#666", marginTop: 8 }}>
-                💡 確認無誤後，點擊「儲存為日記」即可存入資料庫
-              </div>
-            </div>
-          )}
-
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 12, marginBottom: 6, opacity: 0.8 }}>
-              即時結果（可修改）
-            </div>
-            <textarea
-              value={combinedText}
-              onChange={(e) => {
-                setFinalText(e.target.value);
-                setInterimText("");
-                setPreviewData(null);
-              }}
-              placeholder="等待語音輸入..."
-              rows={6}
-              style={{
-                width: "100%",
-                padding: 12,
-                borderRadius: 8,
-                border: "1px solid #ccc",
-                lineHeight: 1.5,
-                fontSize: 16,
-              }}
-            />
-          </div>
-
-          <details>
-            <summary style={{ cursor: "pointer", marginBottom: 8 }}>除錯訊息</summary>
-            <div
-              style={{
-                whiteSpace: "pre-wrap",
-                fontFamily: "monospace",
-                fontSize: 12,
-                border: "1px solid #ddd",
-                borderRadius: 8,
-                padding: 12,
-                maxHeight: 260,
-                overflow: "auto",
-              }}
-            >
-              {debug.length ? debug.join("\n") : "（目前沒有）"}
-            </div>
-          </details>
-        </>
-      )}
-
-      {/* 十字架動畫 + 儲存後導航 */}
-      {showCross && canPray && (
-        <>
-          <style>{`
-            @keyframes crossFadeIn {
-              0%   { opacity:0; transform:translateY(18px) scale(0.88); }
-              60%  { opacity:1; transform:translateY(-4px) scale(1.04); }
-              100% { opacity:1; transform:translateY(0) scale(1); }
-            }
-            @keyframes glowPulse {
-              0%,100% { filter: drop-shadow(0 0 10px rgba(255,220,100,.55)); }
-              50%     { filter: drop-shadow(0 0 22px rgba(255,230,120,.85)); }
-            }
-            @keyframes beamExpand {
-              from { opacity:0; transform:scaleY(0.2); }
-              to   { opacity:0.18; transform:scaleY(1); }
-            }
-            @keyframes btnSlideIn {
-              from { opacity:0; transform:translateY(10px); }
-              to   { opacity:1; transform:translateY(0); }
-            }
-            .cross-wrap { display:flex; flex-direction:column; align-items:center; padding:36px 0 24px; gap:14px; }
-            .cross-container { position:relative; display:flex; align-items:center; justify-content:center; }
-            .cross-svg { animation: crossFadeIn .9s cubic-bezier(.22,1,.36,1) forwards, glowPulse 3.2s ease-in-out .9s infinite; }
-            .cross-beam { position:absolute; left:50%; top:0; transform:translateX(-50%); width:56px; height:260px;
-              background:linear-gradient(to bottom,rgba(255,230,120,0),rgba(255,220,100,.55),rgba(255,230,120,0));
-              border-radius:50%; animation:beamExpand 1.1s cubic-bezier(.22,1,.36,1) .5s forwards; opacity:0; pointer-events:none; }
-            .cross-caption { font-size:15px; letter-spacing:.12em; color:#8b7355; opacity:0;
-              animation:crossFadeIn .8s ease 1.1s forwards; font-style:italic; }
-            .nav-btn { margin-top:4px; padding:11px 32px; border:none; border-radius:24px; font-size:15px; font-weight:600;
-              letter-spacing:.08em; cursor:pointer; animation:btnSlideIn .7s ease 1.4s both; transition:opacity .2s,transform .15s; }
-            .nav-btn:active { transform:scale(0.96); }
-            .btn-gold  { background:linear-gradient(135deg,#c8922a,#f5d680); color:#4a2e00; box-shadow:0 2px 12px rgba(200,146,42,.35); }
-            .btn-green { background:linear-gradient(135deg,#3a8a5a,#6fcf97); color:#fff; box-shadow:0 2px 12px rgba(58,138,90,.3); }
-          `}</style>
-          <div className="cross-wrap">
-            <div className="cross-container">
-              <div className="cross-beam" />
-              <svg
-                className="cross-svg"
-                width="96"
-                height="128"
-                viewBox="0 0 96 128"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <rect x="40" y="8" width="16" height="112" rx="3" fill="url(#gV)" />
-                <rect x="12" y="34" width="72" height="16" rx="3" fill="url(#gH)" />
-                <circle cx="48" cy="42" r="5" fill="#fffbe6" opacity=".85" />
-                <defs>
-                  <linearGradient id="gV" x1="48" y1="8" x2="48" y2="120" gradientUnits="userSpaceOnUse">
-                    <stop offset="0%" stopColor="#f5d680" />
-                    <stop offset="45%" stopColor="#c8922a" />
-                    <stop offset="100%" stopColor="#a06a10" />
-                  </linearGradient>
-                  <linearGradient id="gH" x1="12" y1="42" x2="84" y2="42" gradientUnits="userSpaceOnUse">
-                    <stop offset="0%" stopColor="#a06a10" />
-                    <stop offset="50%" stopColor="#f5d680" />
-                    <stop offset="100%" stopColor="#a06a10" />
-                  </linearGradient>
-                </defs>
-              </svg>
-            </div>
-            <div className="cross-caption">祈禱已蒙垂聽</div>
-
-            {saveSuccess ? (
-              <div style={{ display: "flex", gap: 10 }}>
-                <button
-                  className="nav-btn btn-green"
-                  onClick={() => router.push("/diary/list" as any)}
-                >
-                  前往日記
-                </button>
-                <button
-                  className="nav-btn btn-gold"
-                  onClick={() => router.push("/pilgrimage" as any)}
-                >
-                  前往聖殿地圖
-                </button>
-              </div>
-            ) : (
-              locationPerm === "denied" && (
-                <p
-                  style={{
-                    fontSize: 12,
-                    color: "#8b6020",
-                    textAlign: "center",
-                    maxWidth: 280,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  您的祈禱將以匿名方式標示在聖殿鄰近。
-                </p>
-              )
+                  </Text>
+                </GlassCard>
+              </>
             )}
-          </div>
-        </>
-      )}
-    </div>
+
+            <Text style={styles.previewHint}>💡 確認無誤後，點擊「儲存為日記」即可存入資料庫</Text>
+          </GlassCard>
+        )}
+
+        {showCross && canPray && recordSaved && (
+          <GlassCard style={styles.savedCard} glassColor="rgba(52,168,83,0.22)">
+            <MaterialCommunityIcons name="check-circle-outline" size={32} color="rgba(100,200,130,0.95)" />
+            <Text style={styles.savedText}>祈禱已記錄 ✝</Text>
+          </GlassCard>
+        )}
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </VideoBackground>
   );
 }
+
+const styles = StyleSheet.create({
+  scroll: { padding: 20, paddingBottom: 40 },
+  pageTitle: { fontSize: 24, fontWeight: "700", color: "rgba(255,255,255,0.95)", marginBottom: 4 },
+  pageSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.55)", marginBottom: 20 },
+
+  consentCard: { marginBottom: 16, alignItems: "center" },
+  consentTitle: { fontSize: 17, fontWeight: "700", color: "rgba(255,255,255,0.95)", marginBottom: 10, textAlign: "center" },
+  consentBody: { fontSize: 14, color: "rgba(255,255,255,0.80)", lineHeight: 22, textAlign: "center", marginBottom: 20 },
+  consentBold: { fontWeight: "700", color: "rgba(255,255,255,0.95)" },
+  consentBtnRow: { flexDirection: "row", gap: 12, marginBottom: 14 },
+  consentFootnote: { fontSize: 12, color: "rgba(255,255,255,0.50)", textAlign: "center", lineHeight: 18 },
+
+  primaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.85)", borderRadius: 24, paddingVertical: 10, paddingHorizontal: 18 },
+  primaryBtnText: { fontSize: 14, fontWeight: "700", color: "rgba(0,0,0,0.75)" },
+  secondaryBtn: { borderRadius: 24, borderWidth: 1, borderColor: "rgba(255,255,255,0.55)", paddingVertical: 10, paddingHorizontal: 18, justifyContent: "center" },
+  secondaryBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.80)" },
+
+  noticeCard: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 },
+  noticeText: { color: "rgba(255,255,255,0.80)", fontSize: 14 },
+
+  successCard: { marginBottom: 12, alignItems: "center" },
+  successText: { fontSize: 15, fontWeight: "600", color: "rgba(255,255,255,0.95)" },
+
+  errorCard: { marginBottom: 12 },
+  errorText: { fontSize: 14, color: "rgba(255,160,150,0.95)" },
+
+  locationTag: { alignSelf: "flex-start", backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.30)", paddingHorizontal: 14, paddingVertical: 5, marginBottom: 12 },
+  locationTagText: { fontSize: 12, fontWeight: "600", color: "rgba(255,255,255,0.85)" },
+
+  transcriptCard: { marginBottom: 12 },
+  fieldLabel: { fontSize: 12, color: "rgba(255,255,255,0.55)", marginBottom: 8 },
+  transcriptInput: { backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.20)", padding: 12, color: "rgba(255,255,255,0.95)", fontSize: 15, minHeight: 120, textAlignVertical: "top" },
+
+  controlCard: { marginBottom: 12, gap: 12 },
+  langRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  langLabel: { fontSize: 13, color: "rgba(255,255,255,0.70)" },
+  langBtn: { borderRadius: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.30)", paddingHorizontal: 14, paddingVertical: 5 },
+  langBtnActive: { backgroundColor: "rgba(255,255,255,0.20)", borderColor: "rgba(255,255,255,0.60)" },
+  langBtnText: { fontSize: 13, color: "rgba(255,255,255,0.65)" },
+  langBtnTextActive: { color: "rgba(255,255,255,0.95)", fontWeight: "600" },
+
+  recordBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.85)", borderRadius: 30, paddingVertical: 14, gap: 8 },
+  recordBtnActive: { backgroundColor: "rgba(255,255,255,0.10)", borderWidth: 1, borderColor: "rgba(255,100,80,0.60)" },
+  recordBtnText: { fontSize: 16, fontWeight: "700", color: "rgba(0,0,0,0.75)" },
+  recordBtnTextActive: { color: "rgba(255,100,80,0.95)" },
+
+  wsRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  wsText: { fontSize: 13, color: "rgba(255,255,255,0.65)" },
+
+  outlineBtn: { backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 20, paddingVertical: 10, paddingHorizontal: 18, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.30)" },
+  outlineBtnText: { color: "rgba(255,255,255,0.90)", fontSize: 14, fontWeight: "600" },
+  btnDisabled: { opacity: 0.4 },
+
+  previewCard: { marginBottom: 12 },
+  previewTitle: { fontSize: 16, fontWeight: "700", color: "rgba(255,255,255,0.95)", marginBottom: 12 },
+  previewLabel: { fontSize: 11, color: "rgba(255,255,255,0.55)", marginBottom: 4, marginTop: 8, fontWeight: "600", letterSpacing: 0.5 },
+  previewInner: { marginBottom: 4 },
+  previewValue: { fontSize: 14, color: "rgba(255,255,255,0.90)", lineHeight: 20 },
+  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 4 },
+  tagChip: { paddingVertical: 4, paddingHorizontal: 10 },
+  tagText: { fontSize: 13, color: "rgba(255,255,255,0.90)" },
+  previewHint: { fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 10 },
+
+  savedCard: { alignItems: "center", gap: 8 },
+  savedText: { fontSize: 16, fontWeight: "700", color: "rgba(255,255,255,0.95)" },
+});

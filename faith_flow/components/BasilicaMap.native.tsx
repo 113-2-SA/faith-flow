@@ -9,9 +9,7 @@ import { db } from "../lib/firebase";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { useChurchPhoto } from "../hooks/useChurchPhoto";
 import { ChurchPanoramaViewer } from "./ChurchPanoramaViewer";
-import { ChurchVideoViewer } from "./ChurchVideoViewer";
-import { useFocusEffect } from "expo-router";
-import { loadPrayers, PrayerRecord } from "../lib/prayerStore";
+import { useRouter } from "expo-router";
 
 function ChurchPhoto({ nameEn, nameCh }: { nameEn: string; nameCh?: string }) {
   const { photoUrl, loading, error } = useChurchPhoto(nameEn, nameCh);
@@ -78,6 +76,7 @@ export type Basilica = {
 type FilterType = "all" | "major" | "cathedral" | "chapel";
 
 export function BasilicaMap() {
+  const router = useRouter();
   const [basilicas, setBasilicas] = useState<Basilica[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,19 +88,10 @@ export function BasilicaMap() {
   const [detailY, setDetailY] = useState(0);
   const [displayCount, setDisplayCount] = useState(3);
   const [showPanorama, setShowPanorama] = useState(false);
-  const [showVideo, setShowVideo] = useState(false);
-  const [prayers, setPrayers] = useState<PrayerRecord[]>([]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadPrayers().then(setPrayers);
-    }, [])
-  );
-
-  // 切換教堂時關閉全景與影片
+  // 切換教堂時關閉全景
   useEffect(() => {
     setShowPanorama(false);
-    setShowVideo(false);
   }, [selectedId]);
 
   useEffect(() => {
@@ -260,6 +250,12 @@ export function BasilicaMap() {
           ref={mapRef}
           provider={PROVIDER_GOOGLE}
           style={styles.map}
+          mapType="hybrid"
+          showsCompass={false}
+          rotateEnabled={false}
+          toolbarEnabled={false}
+          showsScale={false}
+          zoomControlEnabled={false}
           initialRegion={{
             latitude: MAP_CONFIG.defaultCenter.lat,
             longitude: MAP_CONFIG.defaultCenter.lng,
@@ -284,21 +280,6 @@ export function BasilicaMap() {
               </View>
             </Marker>
           ))}
-          {prayers.map((p) => (
-            <Marker
-              key={`prayer-${p.id}`}
-              coordinate={{ latitude: p.latitude, longitude: p.longitude }}
-              tracksViewChanges={false}
-            >
-              <View style={[
-                styles.prayerMarker,
-                p.locationSource === "gps" ? styles.prayerMarkerGps : styles.prayerMarkerAnon,
-              ]}>
-                <View style={[styles.prayerCrossV, p.locationSource === "gps" ? styles.prayerCrossGold : styles.prayerCrossSilver]} />
-                <View style={[styles.prayerCrossH, p.locationSource === "gps" ? styles.prayerCrossGold : styles.prayerCrossSilver]} />
-              </View>
-            </Marker>
-          ))}
         </MapView>
       </View>
 
@@ -308,18 +289,6 @@ export function BasilicaMap() {
           <View style={[styles.legendDot, styles.legendDotChurch]} />
           <Text style={styles.legendLabel}>教堂</Text>
         </View>
-        {prayers.length > 0 && (
-          <>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, styles.legendDotGps]} />
-              <Text style={styles.legendLabel}>祈禱（定位）</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, styles.legendDotAnon]} />
-              <Text style={styles.legendLabel}>祈禱（匿名）</Text>
-            </View>
-          </>
-        )}
       </View>
 
       {/* Search */}
@@ -411,33 +380,6 @@ export function BasilicaMap() {
               </ThemedText>
             </View>
 
-            {/* 查看影片按鈕 */}
-            {selectedBasilica.videoUrl ? (
-              <Pressable
-                onPress={() => {
-                  setShowVideo(true);
-                  scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-                }}
-                style={({ pressed }) => [
-                  styles.videoBtn,
-                  pressed && styles.videoBtnPressed,
-                ]}
-              >
-                <View style={styles.videoBtnInner}>
-                  <Text style={styles.videoBtnIcon}>🎬</Text>
-                  <View>
-                    <ThemedText style={styles.videoBtnLabel}>
-                      查看影片
-                    </ThemedText>
-                    <ThemedText style={styles.videoBtnSub}>
-                      教堂介紹影片
-                    </ThemedText>
-                  </View>
-                  <Text style={styles.videoBtnArrow}>›</Text>
-                </View>
-              </Pressable>
-            ) : null}
-
             {/* 360° 全景按鈕 */}
             {selectedBasilica.panoramaId ? (
               <Pressable
@@ -470,6 +412,20 @@ export function BasilicaMap() {
                 </ThemedText>
               </View>
             )}
+
+            <Pressable
+              onPress={() => router.push("/pray")}
+              style={({ pressed }) => [styles.recordBtn, pressed && styles.recordBtnPressed]}
+            >
+              <View style={styles.recordBtnInner}>
+                <Text style={styles.recordBtnIcon}>🎙</Text>
+                <View>
+                  <ThemedText style={styles.recordBtnLabel}>錄音祈禱</ThemedText>
+                  <ThemedText style={styles.recordBtnSub}>語音記錄靈修心聲</ThemedText>
+                </View>
+                <Text style={styles.recordBtnArrow}>›</Text>
+              </View>
+            </Pressable>
           </ScrollView>
         </GlassCard>
         </View>
@@ -582,23 +538,9 @@ export function BasilicaMap() {
             <ThemedText style={styles.statValue}>{filtered.length}</ThemedText>
             <ThemedText style={styles.statLabel}>篩選結果</ThemedText>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <ThemedText style={styles.statValue}>{prayers.length}</ThemedText>
-            <ThemedText style={styles.statLabel}>次祈禱</ThemedText>
-          </View>
         </View>
       </GlassCard>
       </ScrollView>
-
-      {/* 影片檢視器放置於 ScrollView 外以防佈局干擾 */}
-      {showVideo && selectedBasilica?.videoUrl && (
-        <ChurchVideoViewer
-          videoUrl={selectedBasilica.videoUrl}
-          basilicaName={selectedBasilica.name}
-          onClose={() => setShowVideo(false)}
-        />
-      )}
 
       {/* 360° 全景檢視器改放置於 ScrollView 外以防佈局干擾 */}
       {showPanorama && selectedBasilica?.panoramaId && (
@@ -930,31 +872,29 @@ const styles = StyleSheet.create({
   customMarker: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(102,126,234,0.9)',
     alignItems: 'center',
-    // 加上陰影讓地圖標記更立體
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    elevation: 4,
+    justifyContent: 'center',
+    shadowColor: '#1a73e8',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 5,
+    elevation: 5,
   },
   crossVertical: {
     position: 'absolute',
-    width: 4,
-    height: 20,
-    backgroundColor: '#ffffff',
+    width: 5,
+    height: 26,
+    backgroundColor: '#1a73e8',
     borderRadius: 2,
-    top: 6,
+    top: 3,
   },
   crossHorizontal: {
     position: 'absolute',
-    width: 14,
-    height: 4,
-    backgroundColor: '#ffffff',
+    width: 18,
+    height: 5,
+    backgroundColor: '#1a73e8',
     borderRadius: 2,
-    top: 11,
+    top: 10,
   },
   noPanoramaHint: {
     marginTop: 12,
@@ -969,41 +909,41 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "rgba(255,255,255,0.4)",
   },
-  videoBtn: {
-    marginTop: 16,
+  recordBtn: {
+    marginTop: 12,
     borderRadius: 14,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(220,80,60,0.6)",
-    backgroundColor: "rgba(220,80,60,0.18)",
+    borderColor: "rgba(102,126,234,0.6)",
+    backgroundColor: "rgba(102,126,234,0.18)",
   },
-  videoBtnPressed: {
-    backgroundColor: "rgba(220,80,60,0.38)",
-    borderColor: "rgba(220,80,60,1)",
+  recordBtnPressed: {
+    backgroundColor: "rgba(102,126,234,0.38)",
+    borderColor: "rgba(102,126,234,1)",
   },
-  videoBtnInner: {
+  recordBtnInner: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 14,
     gap: 12,
   },
-  videoBtnIcon: {
+  recordBtnIcon: {
     fontSize: 28,
   },
-  videoBtnLabel: {
+  recordBtnLabel: {
     fontSize: 14,
     fontWeight: "700",
     color: "rgba(255,255,255,0.95)",
   },
-  videoBtnSub: {
+  recordBtnSub: {
     fontSize: 11,
-    color: "rgba(220,80,60,0.9)",
+    color: "rgba(102,126,234,0.9)",
     marginTop: 2,
   },
-  videoBtnArrow: {
+  recordBtnArrow: {
     fontSize: 24,
-    color: "rgba(220,80,60,0.8)",
+    color: "rgba(102,126,234,0.8)",
     marginLeft: "auto",
   },
   panoramaBtn: {

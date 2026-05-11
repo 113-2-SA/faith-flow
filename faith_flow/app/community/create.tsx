@@ -1,22 +1,16 @@
-import { useState, useEffect } from 'react';
-import { Platform } from 'react-native';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  Image,
-} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAuth } from '../context/authcontext';
-import { VideoBackground } from '../../components/VideoBackground';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator, Alert, Image, Platform, ScrollView,
+  StyleSheet, Text,
+  TextInput,
+  TouchableOpacity, View
+} from 'react-native';
 import { GlassCard } from '../../components/GlassCard';
+import { VideoBackground } from '../../components/VideoBackground';
 import { API_BASE_URL } from '../../lib/api';
+import { useAuth } from '../context/authcontext';
 
 type Visibility = 'public' | 'group' | 'private';
 
@@ -43,10 +37,27 @@ interface SummaryItem {
   end_date: string;
 }
 
+// ✨ 新增：信箋資料的型別定義
+interface LetterItem {
+  letter_id: number;
+  summary_text: string;      // 信箋摘要內容
+  question?: string;         // 問題主題（從 ai_questions 來）
+  image_url?: string;        // 卡片圖片（Cloudflare R2）
+  quote?: string;        // ✨ 改這裡（原本是 letter_quote）
+  quote_source?: string; // 金句來源
+  }
+
 export default function CreatePostScreen() {
   const router = useRouter();
   const { currentUser } = useAuth();
-  const params = useLocalSearchParams<{ diary_id?: string; summary_year?: string; summary_week?: string }>();
+
+  // ✨ 新增 letter_id 到路由參數解析
+  const params = useLocalSearchParams<{
+    diary_id?: string;
+    summary_year?: string;
+    summary_week?: string;
+    letter_id?: string;      // 新增：從 collection.tsx 帶過來
+  }>();
 
   const [postText, setPostText] = useState('');
   const [visibility, setVisibility] = useState<Visibility>('public');
@@ -63,6 +74,10 @@ export default function CreatePostScreen() {
   // 周回顧附件（從路由參數帶入）
   const [attachedSummary, setAttachedSummary] = useState<SummaryItem | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+
+  // ✨ 新增：信箋附件的 state
+  const [attachedLetter, setAttachedLetter] = useState<LetterItem | null>(null);
+  const [letterLoading, setLetterLoading] = useState(false);
 
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -133,6 +148,43 @@ export default function CreatePostScreen() {
     loadDiary();
   }, [params.diary_id, currentUser]);
 
+  // ✨ 新增：若有 letter_id 參數，自動抓取信箋資料
+  // 📌 為什麼要呼叫 API 而不是直接用 params 傳資料？
+  //    因為照著日記的模式，統一從後端抓，資料更完整也更安全
+  useEffect(() => {
+    if (!params.letter_id || !currentUser) return;
+    const loadLetter = async () => {
+      setLetterLoading(true);
+      try {
+        const token = await currentUser.getIdToken();
+        // 呼叫交接文件中已存在的 API：GET /api/livingwater/letter/:letter_id
+        const res = await fetch(
+          `${API_BASE_URL}/api/livingwater/letter/${params.letter_id}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const data = await res.json();
+        if (data.success) {
+          const l = data.data;
+          setAttachedLetter({
+            letter_id:           l.letter_id,
+            summary_text:        l.summary_text,
+            question:            l.question ?? '',
+            image_url:           l.image_url ?? null,
+            quote:        l.quote ?? null,        // ✨ 改這裡
+            quote_source: l.quote_source ?? null, // ✨ 改這裡
+        });
+        } else {
+          Alert.alert('提醒', '無法載入信箋，請重新嘗試');
+        }
+      } catch {
+        Alert.alert('錯誤', '網路連線失敗');
+      } finally {
+        setLetterLoading(false);
+      }
+    };
+    loadLetter();
+  }, [params.letter_id, currentUser]);
+
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -168,8 +220,8 @@ export default function CreatePostScreen() {
   };
 
   const handleSubmit = async () => {
-    // 有附件（日記或周回顧）時 postText 可以留空，否則必填
-    if (!attachedDiary && !attachedSummary && !postText.trim()) {
+    // ✨ 修改：有信箋附件時 postText 也可以留空
+    if (!attachedDiary && !attachedSummary && !attachedLetter && !postText.trim()) {
       Alert.alert('提醒', '請輸入貼文內容');
       return;
     }
@@ -181,7 +233,13 @@ export default function CreatePostScreen() {
     setLoading(true);
     try {
       const token = await currentUser.getIdToken(true);
-      const postType = attachedDiary ? 'diary' : attachedSummary ? 'summary' : 'normal';
+
+      // ✨ 修改：post_type 加入 'letter' 判斷
+      // 📌 優先順序：letter > diary > summary > normal
+      const postType = attachedLetter ? 'letter'
+        : attachedDiary ? 'diary'
+        : attachedSummary ? 'summary'
+        : 'normal';
 
       let body: string | FormData;
       let headers: Record<string, string> = { Authorization: `Bearer ${token}` };
@@ -194,6 +252,8 @@ export default function CreatePostScreen() {
         if (tags.length > 0) formData.append('tags', JSON.stringify(tags));
         if (attachedDiary) formData.append('diary_id', String(attachedDiary.diary_id));
         if (attachedSummary) formData.append('summary_id', String(attachedSummary.summary_id));
+        // ✨ 新增：信箋 id 加入 FormData
+        if (attachedLetter) formData.append('letter_id', String(attachedLetter.letter_id));
         const filename = imageUri.split('/').pop() ?? 'photo.jpg';
         if (Platform.OS === 'web') {
           const response = await fetch(imageUri);
@@ -216,6 +276,8 @@ export default function CreatePostScreen() {
           ...(tags.length > 0 ? { tags } : {}),
           ...(attachedDiary ? { diary_id: attachedDiary.diary_id } : {}),
           ...(attachedSummary ? { summary_id: attachedSummary.summary_id } : {}),
+          // ✨ 新增：信箋 id 加入 JSON body
+          ...(attachedLetter ? { letter_id: attachedLetter.letter_id } : {}),
         });
       }
 
@@ -264,7 +326,61 @@ export default function CreatePostScreen() {
           </View>
         </GlassCard>
 
-        {/* Attached diary card */}
+        {/* ✨ 新增：信箋預覽卡片（照著日記的 UI 模式） */}
+        {letterLoading ? (
+          <GlassCard style={styles.card}>
+            <ActivityIndicator color="rgba(255,255,255,0.7)" />
+            <Text style={styles.label}>載入信箋中...</Text>
+          </GlassCard>
+        ) : attachedLetter ? (
+          <GlassCard style={styles.card}>
+            <Text style={styles.label}>引用的信箋</Text>
+            <View style={styles.attachedLetterCard}>
+              {/* 左圖右文，和 letter.tsx / collection.tsx 的版面一致 */}
+              <View style={styles.letterPreviewRow}>
+                {attachedLetter.image_url ? (
+                  <Image
+                    source={{ uri: attachedLetter.image_url }}
+                    style={styles.letterPreviewImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.letterPreviewImagePlaceholder}>
+                    <Text style={{ fontSize: 24 }}>🖼️</Text>
+                  </View>
+                )}
+                <View style={styles.letterPreviewText}>
+                  {/* 問題標題 */}
+                  {attachedLetter.question ? (
+                    <Text style={styles.letterQuestion} numberOfLines={2}>
+                      {attachedLetter.question}
+                    </Text>
+                  ) : null}
+                  {/* 摘要前60字預覽 */}
+                  <Text style={styles.diaryPreview} numberOfLines={3}>
+                    {attachedLetter.summary_text.slice(0, 80)}
+                    {attachedLetter.summary_text.length > 80 ? '...' : ''}
+                  </Text>
+                  {/* 金句 */}
+                  {attachedLetter.quote ? (
+  <Text style={styles.letterQuote} numberOfLines={2}>
+    「{attachedLetter.quote}」
+  </Text>
+) : null}
+                </View>
+                {/* 移除按鈕 */}
+                <TouchableOpacity
+                  onPress={() => setAttachedLetter(null)}
+                  style={styles.removeBtn}
+                >
+                  <Text style={styles.removeBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </GlassCard>
+        ) : null}
+
+        {/* Attached diary card（原有，完全沒動） */}
         {diaryLoading ? (
           <GlassCard style={styles.card}>
             <ActivityIndicator color="rgba(255,255,255,0.7)" />
@@ -294,7 +410,7 @@ export default function CreatePostScreen() {
           </GlassCard>
         ) : null}
 
-        {/* Attached summary card */}
+        {/* Attached summary card（原有，完全沒動） */}
         {summaryLoading ? (
           <GlassCard style={styles.card}>
             <ActivityIndicator color="rgba(255,255,255,0.7)" />
@@ -328,21 +444,26 @@ export default function CreatePostScreen() {
 
         {/* Content input */}
         <GlassCard style={styles.card}>
+          {/* ✨ 修改：信箋也有「加點想法（選填）」的提示 */}
           <Text style={styles.label}>
-            {attachedDiary ? '加點想法（選填）' : '有什麼想分享的？'}
+            {attachedDiary || attachedLetter ? '加點想法（選填）' : '有什麼想分享的？'}
           </Text>
           <TextInput
             style={styles.textArea}
             value={postText}
             onChangeText={setPostText}
-            placeholder={attachedDiary ? '為這篇日記加上你的感想...' : '在這裡輸入你的分享...'}
+            placeholder={
+              attachedLetter ? '為這份信箋加上你的感想...'
+              : attachedDiary ? '為這篇日記加上你的感想...'
+              : '在這裡輸入你的分享...'
+            }
             placeholderTextColor="rgba(255,255,255,0.4)"
             multiline
             textAlignVertical="top"
           />
         </GlassCard>
 
-        {/* Image picker */}
+        {/* Image picker（原有，完全沒動） */}
         <GlassCard style={styles.card}>
           <Text style={styles.label}>新增圖片（選填）</Text>
           {imageUri ? (
@@ -359,7 +480,7 @@ export default function CreatePostScreen() {
           )}
         </GlassCard>
 
-        {/* Visibility */}
+        {/* Visibility（原有，完全沒動） */}
         <GlassCard style={styles.card}>
           <Text style={styles.label}>誰可以看見</Text>
           <View style={styles.optionRow}>
@@ -385,7 +506,7 @@ export default function CreatePostScreen() {
           </View>
         </GlassCard>
 
-        {/* Tags */}
+        {/* Tags（原有，完全沒動） */}
         <GlassCard style={styles.card}>
           <Text style={styles.label}>標籤</Text>
           {tags.length > 0 && (
@@ -566,7 +687,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  // 已附加的日記卡片
+  // 日記卡片樣式（原有）
   attachedDiaryCard: {
     borderWidth: 1,
     borderColor: 'rgba(100,180,255,0.4)',
@@ -574,7 +695,7 @@ const styles = StyleSheet.create({
     padding: 12,
     backgroundColor: 'rgba(0,80,180,0.15)',
   },
-  // 已附加的周回顧卡片
+  // 周回顧卡片樣式（原有）
   attachedSummaryCard: {
     borderWidth: 1,
     borderColor: 'rgba(180,140,255,0.4)',
@@ -611,5 +732,50 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: 'rgba(255,255,255,0.65)',
     lineHeight: 18,
+  },
+
+  // ✨ 新增：信箋卡片樣式（綠色系，和活水泉源主題一致）
+  attachedLetterCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(80,180,120,0.4)',       // 綠色邊框
+    borderRadius: 10,
+    padding: 12,
+    backgroundColor: 'rgba(0,80,40,0.25)',      // 深綠背景
+  },
+  letterPreviewRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'flex-start',
+  },
+  letterPreviewImage: {
+    width: 70,
+    height: 100,
+    borderRadius: 8,
+    flexShrink: 0,
+  },
+  letterPreviewImagePlaceholder: {
+    width: 70,
+    height: 100,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  letterPreviewText: {
+    flex: 1,
+    gap: 6,
+  },
+  letterQuestion: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
+    lineHeight: 18,
+  },
+  letterQuote: {
+    fontSize: 12,
+    color: 'rgba(180,230,180,0.85)',            // 淡綠色金句
+    fontStyle: 'italic',
+    lineHeight: 17,
   },
 });

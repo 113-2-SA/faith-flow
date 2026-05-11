@@ -1,179 +1,147 @@
-import React, { useCallback } from 'react';
-import { Stack, useRouter, useFocusEffect } from 'expo-router';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Stack } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CopilotProvider, CopilotStep, walkthroughable, useCopilot } from 'react-native-copilot';
+import { BasilicaMap } from "@/components/BasilicaMap";
 
-import { PilgrimageMap } from "@/components/PilgrimageMap";
-import { GlassCard } from "../components/GlassCard";
-import { VideoBackground } from "../components/VideoBackground";
+const TOUR_KEY = 'pilgrimage_tour_done_v1';
 
-const WalkthroughableView = walkthroughable(View);
-const PILGRIMAGE_TOUR_KEY = 'faith_flow_pilgrimage_tour_v1';
+const STEPS = [
+  { title: "🌍 朝聖之地", body: "探索世界教堂的靈修之旅，認識各地聖殿的歷史與聖經關聯。" },
+  { title: "🗺️ 地圖", body: "十字標記代表各地教堂，點擊標記或下方列表可查看詳細介紹。" },
+  { title: "🔍 搜尋", body: "輸入教堂名稱、位置或奉獻對象，即可快速定位教堂。" },
+  { title: "🏷️ 篩選", body: "依「聖殿、主教座堂、聖堂」類型分類瀏覽，縮小搜尋範圍。" },
+  { title: "📋 教堂列表", body: "點擊教堂可查看圖片、歷史介紹與 360° 全景互動體驗。" },
+  { title: "🎙️ 錄音祈禱", body: "選取教堂後，在詳細頁面點擊「錄音祈禱」，用語音記錄你對天主的心聲。" },
+];
 
-export default function PilgrimageTab() {
+function PilgrimageTour({ onDone }: { onDone: () => void }) {
+  const [step, setStep] = useState(0);
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+  }, [step, opacity]);
+
+  const goNext = useCallback(() => {
+    Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
+      if (step + 1 >= STEPS.length) {
+        onDone();
+      } else {
+        setStep((s) => s + 1);
+      }
+    });
+  }, [step, onDone, opacity]);
+
+  const current = STEPS[step];
+
   return (
-    <CopilotProvider
-      animated
-      overlay="view"
-      stopOnOutsideClick
-      backdropColor="transparent"
-      labels={{ skip: "略過", previous: "上一步", next: "下一步", finish: "完成" }}
-    >
-      <PilgrimageContent />
-    </CopilotProvider>
+    <Modal transparent animationType="fade" statusBarTranslucent>
+      <Pressable style={styles.tourOverlay} onPress={goNext}>
+        <Animated.View style={[styles.tourCard, { opacity }]}>
+          <Text style={styles.tourStep}>{step + 1} / {STEPS.length}</Text>
+          <Text style={styles.tourTitle}>{current.title}</Text>
+          <Text style={styles.tourBody}>{current.body}</Text>
+          <View style={styles.tourActions}>
+            <Pressable onPress={onDone} style={styles.tourSkip}>
+              <Text style={styles.tourSkipText}>略過</Text>
+            </Pressable>
+            <Pressable onPress={goNext} style={styles.tourNext}>
+              <Text style={styles.tourNextText}>
+                {step + 1 >= STEPS.length ? "完成" : "下一步"}
+              </Text>
+            </Pressable>
+          </View>
+        </Animated.View>
+      </Pressable>
+    </Modal>
   );
 }
 
-function PilgrimageContent() {
-  const router = useRouter();
-  const { start } = useCopilot();
+export default function PilgrimageTab() {
+  const [showTour, setShowTour] = useState(false);
 
-  // 首次進入自動啟動導覽
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-      AsyncStorage.getItem(PILGRIMAGE_TOUR_KEY).then((done) => {
-        if (!done && !cancelled) {
-          setTimeout(() => {
-            if (!cancelled) {
-              start('pilgrimage_map');
-              AsyncStorage.setItem(PILGRIMAGE_TOUR_KEY, 'true');
-            }
-          }, 1200);
-        }
-      });
-      return () => { cancelled = true; };
-    }, [start])
-  );
+  useEffect(() => {
+    AsyncStorage.getItem(TOUR_KEY).then((done) => {
+      if (!done) setTimeout(() => setShowTour(true), 800);
+    });
+  }, []);
+
+  const endTour = useCallback(() => {
+    setShowTour(false);
+    AsyncStorage.setItem(TOUR_KEY, 'true');
+  }, []);
 
   return (
-    <VideoBackground source={require("../assets/backgrounds/main.mp4")}>
+    <View style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-
-      {/* 透明導覽錨點：依序在畫面各功能區說明 */}
-      <CopilotStep
-        text="🌍 朝聖之地：探索世界教堂的靈修之旅，認識各地聖殿的歷史與聖經關聯。"
-        order={20}
-        name="pilgrimage_header"
-      >
-        <WalkthroughableView collapsable={false} style={styles.anchor} />
-      </CopilotStep>
-
-      <CopilotStep
-        text="地圖：十字標記代表各地教堂，點擊標記或下方列表可查看詳細介紹。"
-        order={21}
-        name="pilgrimage_map"
-      >
-        <WalkthroughableView collapsable={false} style={styles.anchor} />
-      </CopilotStep>
-
-      <CopilotStep
-        text="搜尋：輸入教堂名稱、位置或奉獻對象，即可快速定位教堂並自動移動地圖。"
-        order={22}
-        name="pilgrimage_search"
-      >
-        <WalkthroughableView collapsable={false} style={styles.anchor} />
-      </CopilotStep>
-
-      <CopilotStep
-        text="篩選：依「聖殿、主教座堂、聖堂」類型分類瀏覽，縮小搜尋範圍。"
-        order={23}
-        name="pilgrimage_filter"
-      >
-        <WalkthroughableView collapsable={false} style={styles.anchor} />
-      </CopilotStep>
-
-      <CopilotStep
-        text="教堂列表：點擊教堂可查看圖片、歷史介紹與 360° 全景互動體驗。"
-        order={24}
-        name="pilgrimage_list"
-      >
-        <WalkthroughableView collapsable={false} style={styles.anchor} />
-      </CopilotStep>
-
-      <CopilotStep
-        text="錄音祈禱：點此麥克風按鈕，用語音記錄你對天主的心聲，AI 轉文字後可存入祈禱日記。"
-        order={25}
-        name="pilgrimage_record"
-      >
-        <WalkthroughableView collapsable={false} style={styles.anchor} />
-      </CopilotStep>
-
-      {/* 主要內容 */}
-      <View style={styles.content}>
-        <GlassCard style={styles.mapCard}>
-          <PilgrimageMap />
-        </GlassCard>
-      </View>
-
-      {/* 錄音祈禱 FAB */}
-      <TouchableOpacity
-        style={styles.recordFab}
-        onPress={() => router.push('/pray')}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.recordFabIcon}>🎙</Text>
-      </TouchableOpacity>
-
-      {/* 重啟導覽 */}
-      <TouchableOpacity
-        style={styles.helpButton}
-        onPress={() => start('pilgrimage_map')}
-      >
-        <Text style={styles.helpButtonText}>?</Text>
-      </TouchableOpacity>
-    </VideoBackground>
+      <BasilicaMap />
+      {showTour && <PilgrimageTour onDone={endTour} />}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  anchor: {
-    height: 0,
-  },
-  content: {
+  tourOverlay: {
     flex: 1,
-    padding: 24,
-  },
-  mapCard: {
-    flex: 1,
-    minHeight: 520,
-  },
-  recordFab: {
-    position: 'absolute',
-    right: 24,
-    bottom: 24,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(102,126,234,0.75)',
-    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.55)',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.5)',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+  },
+  tourCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 28,
+    width: '100%',
+    maxWidth: 380,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 10,
   },
-  recordFabIcon: {
-    fontSize: 28,
+  tourStep: {
+    fontSize: 11,
+    color: 'rgba(0,0,0,0.35)',
+    marginBottom: 8,
+    letterSpacing: 0.5,
   },
-  helpButton: {
-    position: 'absolute',
-    right: 24,
-    bottom: 96,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  helpButtonText: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 16,
+  tourTitle: {
+    fontSize: 20,
     fontWeight: '700',
+    color: 'rgba(0,0,0,0.85)',
+    marginBottom: 10,
+  },
+  tourBody: {
+    fontSize: 14,
+    color: 'rgba(0,0,0,0.65)',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  tourActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  tourSkip: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  tourSkipText: {
+    fontSize: 14,
+    color: 'rgba(0,0,0,0.35)',
+  },
+  tourNext: {
+    backgroundColor: 'rgba(102,126,234,0.90)',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+  },
+  tourNextText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
   },
 });

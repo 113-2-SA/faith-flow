@@ -14,9 +14,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/authcontext';
 import { toLocaleDateCST } from '../../utils/dateUtils';
 import { API_BASE_URL } from '../../lib/api';
+import { VideoBackground } from '../../components/VideoBackground';
+import { GlassCard } from '../../components/GlassCard';
+
+// const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
 // ─── 型別定義 ─────────────────────────────────────────────────────────────
 interface Citation {
@@ -333,13 +338,14 @@ export default function ChatScreen() {
   };
 
   return (
+    <VideoBackground source={require('../../assets/backgrounds/main.mp4')}>
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={90}
     >
       {/* ── Header ── */}
-      <View style={styles.header}>
+      <GlassCard style={styles.header}>
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.headerTitle}>✝️ 有答大師</Text>
@@ -371,7 +377,7 @@ export default function ChatScreen() {
             </View>
           </View>
         )}
-      </View>
+      </GlassCard>
 
       {/* ── 訊息列表 ── */}
       <ScrollView ref={scrollRef} style={styles.messageList} contentContainerStyle={styles.messageListContent}
@@ -413,7 +419,7 @@ export default function ChatScreen() {
                         <Text style={styles.quoteBtnText}>引用</Text>
                       </TouchableOpacity>
                     </View>
-                    <Text style={{ color: '#333', fontSize: 14, lineHeight: 22 }}>{msg.companion_response}</Text>
+                    <Text style={{ color: 'rgba(255,255,255,0.90)', fontSize: 14, lineHeight: 22 }}>{msg.companion_response}</Text>
                   </View>
                 )}
 
@@ -426,10 +432,10 @@ export default function ChatScreen() {
                           <Text style={styles.quoteBtnText}>引用</Text>
                         </TouchableOpacity>
                       </View>
-                      <Text style={{ color: '#333', fontSize: 14, lineHeight: 22 }}>{msg.knowledge_blocks[0]}</Text>
+                      <Text style={{ color: 'rgba(255,255,255,0.90)', fontSize: 14, lineHeight: 22 }}>{msg.knowledge_blocks[0]}</Text>
                     </View>
                     {expandedAnswers.has(msg.id) && msg.knowledge_blocks.slice(1).map((block, i) => (
-<View key={i} style={styles.knowledgeBubble}><Text style={{ color: '#333', fontSize: 14, lineHeight: 22 }}>{block}</Text></View>                    ))}
+<View key={i} style={styles.knowledgeBubble}><Text style={{ color: 'rgba(255,255,255,0.90)', fontSize: 14, lineHeight: 22 }}>{block}</Text></View>                    ))}
                     {msg.knowledge_blocks.length > 1 && (
                       <TouchableOpacity style={styles.expandBtn} onPress={() => toggleAnswer(msg.id)}>
                         <Text style={styles.expandBtnText}>
@@ -441,7 +447,7 @@ export default function ChatScreen() {
                 ) : msg.knowledge_answer ? (
                   <View style={styles.knowledgeBubble}>
                     <View style={styles.bubbleHeader}><Text style={styles.knowledgeLabel}>📖 知識回答</Text></View>
-<Text style={{ color: '#333', fontSize: 14, lineHeight: 22 }}>{msg.knowledge_answer}</Text>                  </View>
+<Text style={{ color: 'rgba(255,255,255,0.90)', fontSize: 14, lineHeight: 22 }}>{msg.knowledge_answer}</Text>                  </View>
                 ) : null}
 
                 {msg.citations && msg.citations.length > 0 && (
@@ -468,7 +474,7 @@ export default function ChatScreen() {
 
         {loading && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color="#8B4513" />
+            <ActivityIndicator size="small" color="rgba(255,255,255,0.70)" />
             <Text style={styles.loadingText}>有答大師思考中⋯</Text>
           </View>
         )}
@@ -490,13 +496,17 @@ export default function ChatScreen() {
         <TextInput
           style={styles.input} value={input} onChangeText={setInput}
           placeholder={quotedContent ? '針對引用內容提問...' : '請輸入你的問題...'}
-          placeholderTextColor="#999" multiline maxLength={500}
+          placeholderTextColor="rgba(255,255,255,0.40)" multiline maxLength={500}
         />
         <TouchableOpacity
           style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
           onPress={sendMessage} disabled={!input.trim() || loading}
         >
-          <Text style={styles.sendBtnText}>送出</Text>
+          <MaterialCommunityIcons
+            name="send"
+            size={20}
+            color={(!input.trim() || loading) ? 'rgba(255,255,255,0.30)' : 'rgba(0,0,0,0.75)'}
+          />
         </TouchableOpacity>
       </View>
 
@@ -571,7 +581,7 @@ export default function ChatScreen() {
             </TouchableOpacity>
             <ScrollView style={styles.modalBody}>
               {convsLoading ? (
-                <ActivityIndicator color="#8B4513" style={{ marginTop: 20 }} />
+                <ActivityIndicator color="rgba(255,255,255,0.70)" style={{ marginTop: 20 }} />
               ) : conversations.length === 0 ? (
                 <Text style={styles.modalEmpty}>沒有歷史對話</Text>
               ) : (
@@ -614,11 +624,12 @@ export default function ChatScreen() {
         </View>
       </Modal>
     </KeyboardAvoidingView>
+    </VideoBackground>
   );
 }
 
 const markdownStyles = {
-  body: { color: '#333', fontSize: 14, lineHeight: 22 },
+  body: { color: 'rgba(255,255,255,0.90)', fontSize: 14, lineHeight: 22 },
   strong: { fontWeight: 'bold' as const, color: '#333' },
   em: { fontStyle: 'italic' as const },
   bullet_list: { marginVertical: 4 },
@@ -631,110 +642,110 @@ const markdownStyles = {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FAF7F2' },
-  header: { backgroundColor: '#8B4513', paddingTop: 50, paddingBottom: 16, paddingHorizontal: 20 },
+  container: { flex: 1 },
+  header: { paddingTop: 12, paddingBottom: 16, paddingHorizontal: 20, borderRadius: 0 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  headerTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
-  headerSub: { color: '#FFD700', fontSize: 13, marginTop: 2 },
+  headerTitle: { color: 'rgba(255,255,255,0.95)', fontSize: 20, fontWeight: 'bold' },
+  headerSub: { color: 'rgba(255,255,255,0.60)', fontSize: 13, marginTop: 2 },
   headerBtns: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  headerBtn: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
-  headerBtnText: { color: '#fff', fontSize: 18 },
+  headerBtn: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },
+  headerBtnText: { color: 'rgba(255,255,255,0.90)', fontSize: 18 },
 
   emotionContainer: { marginTop: 10 },
-  emotionLabel: { color: '#FFD700', fontSize: 11, fontWeight: '600', marginBottom: 4 },
+  emotionLabel: { color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '600', marginBottom: 4 },
   emotionBarBg: { height: 6, borderRadius: 3, overflow: 'visible', flexDirection: 'row', position: 'relative' },
   emotionBarHalf: { flex: 1, height: 6 },
   emotionIndicator: { position: 'absolute', top: -3, width: 12, height: 12, borderRadius: 6, backgroundColor: '#fff', marginLeft: -6, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 2, elevation: 3 },
   emotionLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 3 },
-  emotionEndLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 10 },
+  emotionEndLabel: { color: 'rgba(255,255,255,0.50)', fontSize: 10 },
 
   messageList: { flex: 1 },
   messageListContent: { padding: 16, paddingBottom: 8 },
   emptyState: { alignItems: 'center', marginTop: 60 },
   emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyText: { color: '#888', fontSize: 15, textAlign: 'center', lineHeight: 24 },
+  emptyText: { color: 'rgba(255,255,255,0.65)', fontSize: 15, textAlign: 'center', lineHeight: 24 },
 
   userMsgContainer: { alignItems: 'flex-end', marginBottom: 12 },
-  userBubble: { alignSelf: 'flex-end', backgroundColor: '#8B4513', borderRadius: 16, borderBottomRightRadius: 4, paddingHorizontal: 14, paddingVertical: 10, maxWidth: '80%' },
-  userText: { color: '#fff', fontSize: 15 },
-  userQuoteTag: { backgroundColor: '#F0E8E0', borderRadius: 8, borderLeftWidth: 3, borderLeftColor: '#8B4513', paddingHorizontal: 10, paddingVertical: 6, marginBottom: 4, maxWidth: '80%' },
-  userQuoteLabel: { color: '#8B4513', fontSize: 10, fontWeight: 'bold', marginBottom: 2 },
-  userQuoteText: { color: '#555', fontSize: 12, lineHeight: 18, fontStyle: 'italic' },
+  userBubble: { alignSelf: 'flex-end', backgroundColor: 'rgba(102,126,234,0.75)', borderRadius: 16, borderBottomRightRadius: 4, paddingHorizontal: 14, paddingVertical: 10, maxWidth: '80%' },
+  userText: { color: 'rgba(255,255,255,0.95)', fontSize: 15 },
+  userQuoteTag: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 8, borderLeftWidth: 3, borderLeftColor: 'rgba(255,255,255,0.55)', paddingHorizontal: 10, paddingVertical: 6, marginBottom: 4, maxWidth: '80%' },
+  userQuoteLabel: { color: 'rgba(255,255,255,0.70)', fontSize: 10, fontWeight: 'bold', marginBottom: 2 },
+  userQuoteText: { color: 'rgba(255,255,255,0.70)', fontSize: 12, lineHeight: 18, fontStyle: 'italic' },
 
   assistantContainer: { marginBottom: 16 },
   bubbleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  quoteBtn: { backgroundColor: '#F0E8E0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1, borderColor: '#8B4513' },
-  quoteBtnText: { color: '#8B4513', fontSize: 12, fontWeight: '600' },
-  companionBubble: { backgroundColor: '#EEF4FF', borderRadius: 12, borderLeftWidth: 3, borderLeftColor: '#5B8DEF', padding: 12, marginBottom: 8 },
-  companionLabel: { color: '#5B8DEF', fontSize: 12, fontWeight: 'bold' },
-  knowledgeBubble: { backgroundColor: '#fff', borderRadius: 12, borderLeftWidth: 3, borderLeftColor: '#8B4513', padding: 12, marginBottom: 8, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  knowledgeLabel: { color: '#8B4513', fontSize: 12, fontWeight: 'bold' },
-  expandBtn: { backgroundColor: '#FFF8F0', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 8, borderWidth: 1, borderColor: '#E8D5C0', alignItems: 'center' },
-  expandBtnText: { color: '#8B4513', fontSize: 13, fontWeight: '600' },
-  errorBubble: { backgroundColor: '#FFF0F0', borderRadius: 12, padding: 12, marginBottom: 8 },
-  errorText: { color: '#CC0000', fontSize: 14 },
+  quoteBtn: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(255,255,255,0.30)' },
+  quoteBtnText: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600' },
+  companionBubble: { backgroundColor: 'rgba(91,141,239,0.18)', borderRadius: 12, borderLeftWidth: 3, borderLeftColor: 'rgba(91,141,239,0.80)', padding: 12, marginBottom: 8 },
+  companionLabel: { color: 'rgba(140,190,255,0.95)', fontSize: 12, fontWeight: 'bold' },
+  knowledgeBubble: { backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 12, borderLeftWidth: 3, borderLeftColor: 'rgba(255,200,150,0.70)', padding: 12, marginBottom: 8 },
+  knowledgeLabel: { color: 'rgba(255,200,150,0.95)', fontSize: 12, fontWeight: 'bold' },
+  expandBtn: { backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)', alignItems: 'center' },
+  expandBtnText: { color: 'rgba(255,255,255,0.80)', fontSize: 13, fontWeight: '600' },
+  errorBubble: { backgroundColor: 'rgba(200,60,60,0.18)', borderRadius: 12, padding: 12, marginBottom: 8 },
+  errorText: { color: 'rgba(255,160,150,0.95)', fontSize: 14 },
   citationToggle: { paddingVertical: 6, paddingHorizontal: 4 },
-  citationToggleText: { color: '#8B4513', fontSize: 13 },
-  citationList: { backgroundColor: '#FFF8F0', borderRadius: 8, padding: 10, marginTop: 4 },
-  citationItem: { marginBottom: 10, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#EEE' },
-  citationTier: { color: '#8B4513', fontSize: 11, fontWeight: 'bold' },
-  citationTitle: { color: '#333', fontSize: 13, fontWeight: '600', marginTop: 2 },
-  citationMeta: { color: '#666', fontSize: 12, marginTop: 2 },
+  citationToggleText: { color: 'rgba(255,200,150,0.85)', fontSize: 13 },
+  citationList: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 8, padding: 10, marginTop: 4 },
+  citationItem: { marginBottom: 10, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)' },
+  citationTier: { color: 'rgba(255,200,150,0.85)', fontSize: 11, fontWeight: 'bold' },
+  citationTitle: { color: 'rgba(255,255,255,0.90)', fontSize: 13, fontWeight: '600', marginTop: 2 },
+  citationMeta: { color: 'rgba(255,255,255,0.60)', fontSize: 12, marginTop: 2 },
   loadingContainer: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 8 },
-  loadingText: { color: '#888', fontSize: 13 },
+  loadingText: { color: 'rgba(255,255,255,0.60)', fontSize: 13 },
 
-  quotePreview: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF8F0', borderTopWidth: 1, borderTopColor: '#E8D5C0', borderLeftWidth: 3, borderLeftColor: '#8B4513', paddingHorizontal: 12, paddingVertical: 8 },
+  quotePreview: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.38)', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.12)', borderLeftWidth: 3, borderLeftColor: 'rgba(102,126,234,0.80)', paddingHorizontal: 12, paddingVertical: 8 },
   quotePreviewContent: { flex: 1 },
-  quotePreviewLabel: { color: '#8B4513', fontSize: 11, fontWeight: 'bold', marginBottom: 2 },
-  quotePreviewText: { color: '#555', fontSize: 13, lineHeight: 18 },
+  quotePreviewLabel: { color: 'rgba(180,200,255,0.90)', fontSize: 11, fontWeight: 'bold', marginBottom: 2 },
+  quotePreviewText: { color: 'rgba(255,255,255,0.75)', fontSize: 13, lineHeight: 18 },
   quoteCancelBtn: { padding: 8 },
-  quoteCancelText: { color: '#888', fontSize: 16 },
+  quoteCancelText: { color: 'rgba(255,255,255,0.50)', fontSize: 16 },
 
-  inputRow: { flexDirection: 'row', padding: 12, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#EEE', gap: 8 },
-  input: { flex: 1, backgroundColor: '#F5F5F5', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, maxHeight: 100, color: '#333' },
-  sendBtn: { backgroundColor: '#8B4513', borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, justifyContent: 'center' },
-  sendBtnDisabled: { backgroundColor: '#CCC' },
-  sendBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+  inputRow: { flexDirection: 'row', padding: 12, backgroundColor: 'rgba(0,0,0,0.42)', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.12)', gap: 8, alignItems: 'center' },
+  input: { flex: 1, backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, maxHeight: 100, color: 'rgba(255,255,255,0.95)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)' },
+  sendBtn: { backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: 20, width: 42, height: 42, justifyContent: 'center', alignItems: 'center' },
+  sendBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.15)' },
+  sendBtnText: { color: 'rgba(0,0,0,0.75)', fontWeight: 'bold', fontSize: 15 },
 
   // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalContainer: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#EEE' },
-  modalTitle: { fontSize: 16, fontWeight: 'bold', color: '#333' },
-  modalClose: { fontSize: 20, color: '#888', padding: 4 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  modalContainer: { backgroundColor: 'rgba(18,28,52,0.96)', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%', borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)' },
+  modalTitle: { fontSize: 16, fontWeight: 'bold', color: 'rgba(255,255,255,0.90)' },
+  modalClose: { fontSize: 20, color: 'rgba(255,255,255,0.50)', padding: 4 },
   modalBody: { padding: 16 },
-  modalEmpty: { color: '#888', textAlign: 'center', marginTop: 20, fontSize: 14 },
+  modalEmpty: { color: 'rgba(255,255,255,0.45)', textAlign: 'center', marginTop: 20, fontSize: 14 },
 
   // 對話回顧
   historyItem: { marginBottom: 12 },
   historyUserRow: { alignItems: 'flex-end' },
   historyAssistantRow: { alignItems: 'flex-start' },
-  historyRoleLabel: { fontSize: 11, color: '#888', marginBottom: 4 },
-  historyUserBubble: { backgroundColor: '#8B4513', borderRadius: 12, padding: 10, maxWidth: '85%' },
-  historyUserText: { color: '#fff', fontSize: 13 },
-  historyCompanionBubble: { backgroundColor: '#EEF4FF', borderRadius: 12, borderLeftWidth: 3, borderLeftColor: '#5B8DEF', padding: 10, maxWidth: '85%', marginBottom: 6 },
-  historyKnowledgeBubble: { backgroundColor: '#FFF8F0', borderRadius: 12, borderLeftWidth: 3, borderLeftColor: '#8B4513', padding: 10, maxWidth: '85%' },
-  historyCompanionLabel: { color: '#5B8DEF', fontSize: 10, fontWeight: 'bold', marginBottom: 3 },
-  historyKnowledgeLabel: { color: '#8B4513', fontSize: 10, fontWeight: 'bold', marginBottom: 3 },
-  historyText: { color: '#333', fontSize: 13, lineHeight: 19 },
-  historyQuoteBtn: { marginTop: 6, alignSelf: 'flex-end', backgroundColor: '#F0E8E0', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: '#8B4513' },
-  historyQuoteBtnText: { color: '#8B4513', fontSize: 11, fontWeight: '600' },
+  historyRoleLabel: { fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 },
+  historyUserBubble: { backgroundColor: 'rgba(102,126,234,0.65)', borderRadius: 12, padding: 10, maxWidth: '85%' },
+  historyUserText: { color: 'rgba(255,255,255,0.95)', fontSize: 13 },
+  historyCompanionBubble: { backgroundColor: 'rgba(91,141,239,0.18)', borderRadius: 12, borderLeftWidth: 3, borderLeftColor: 'rgba(91,141,239,0.70)', padding: 10, maxWidth: '85%', marginBottom: 6 },
+  historyKnowledgeBubble: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12, borderLeftWidth: 3, borderLeftColor: 'rgba(255,200,150,0.65)', padding: 10, maxWidth: '85%' },
+  historyCompanionLabel: { color: 'rgba(140,190,255,0.90)', fontSize: 10, fontWeight: 'bold', marginBottom: 3 },
+  historyKnowledgeLabel: { color: 'rgba(255,200,150,0.90)', fontSize: 10, fontWeight: 'bold', marginBottom: 3 },
+  historyText: { color: 'rgba(255,255,255,0.85)', fontSize: 13, lineHeight: 19 },
+  historyQuoteBtn: { marginTop: 6, alignSelf: 'flex-end', backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },
+  historyQuoteBtnText: { color: 'rgba(255,255,255,0.80)', fontSize: 11, fontWeight: '600' },
 
   // 所有對話
-  newConvBtn: { margin: 16, backgroundColor: '#8B4513', borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
-  newConvBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
-  convItem: { borderBottomWidth: 1, borderBottomColor: '#F0F0F0', paddingVertical: 10 },
+  newConvBtn: { margin: 16, backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  newConvBtnText: { color: 'rgba(0,0,0,0.75)', fontWeight: 'bold', fontSize: 15 },
+  convItem: { borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.10)', paddingVertical: 10 },
   convRow: { flexDirection: 'row', alignItems: 'center' },
   convInfo: { flex: 1, paddingRight: 8 },
-  convTitle: { fontSize: 14, color: '#333', fontWeight: '500' },
-  convTitleActive: { color: '#8B4513', fontWeight: 'bold' },
-  convDate: { fontSize: 11, color: '#aaa', marginTop: 2 },
+  convTitle: { fontSize: 14, color: 'rgba(255,255,255,0.80)', fontWeight: '500' },
+  convTitleActive: { color: 'rgba(180,200,255,0.95)', fontWeight: 'bold' },
+  convDate: { fontSize: 11, color: 'rgba(255,255,255,0.40)', marginTop: 2 },
   convActions: { flexDirection: 'row', gap: 4 },
   convActionBtn: { padding: 6 },
   convActionText: { fontSize: 16 },
   convEditRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  convEditInput: { flex: 1, borderWidth: 1, borderColor: '#DDD', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, fontSize: 13 },
-  convSaveBtn: { backgroundColor: '#8B4513', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
-  convSaveBtnText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  convCancelText: { color: '#888', fontSize: 12 },
+  convEditInput: { flex: 1, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, fontSize: 13, color: 'rgba(255,255,255,0.90)', backgroundColor: 'rgba(255,255,255,0.08)' },
+  convSaveBtn: { backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
+  convSaveBtnText: { color: 'rgba(0,0,0,0.75)', fontSize: 12, fontWeight: '600' },
+  convCancelText: { color: 'rgba(255,255,255,0.50)', fontSize: 12 },
 });

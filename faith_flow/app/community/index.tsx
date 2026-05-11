@@ -1,90 +1,38 @@
-import { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  Image,
-  FlatList,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  ActivityIndicator,
-  RefreshControl,
-  Alert,
-} from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { useAuth } from '../context/authcontext';
-import { API_BASE_URL } from '../../lib/api';
-import { VideoBackground } from '../../components/VideoBackground';
-import { GlassCard } from '../../components/GlassCard';
-import { timeAgo } from '../../utils/dateUtils';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CopilotStep, walkthroughable, useCopilot } from 'react-native-copilot';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { HEADER_CONTENT_HEIGHT } from '../../components/AppShell';
+import { CopilotStep, useCopilot, walkthroughable } from 'react-native-copilot';
+import { GlassCard } from '../../components/GlassCard';
+import { PostCard, PostData, PostDiaryCard, PostSummaryCard, POST_TYPE_LABELS } from '../../components/PostCard';
+import { timeAgo } from '../../utils/dateUtils';
+import { VideoBackground } from '../../components/VideoBackground';
+import { API_BASE_URL } from '../../lib/api';
+import { useAuth } from '../context/authcontext';
 
 const WalkthroughableView = walkthroughable(View);
 const COMMUNITY_TOUR_KEY = 'faith_flow_community_tour_v1';
 
-
-
-interface DiaryCard {
-  diary_id: number;
-  diary_title: string;
-  diary_content: string;
-  diary_date: string;
-}
-
-interface SummaryCard {
-  summary_id: number;
-  summary_title: string;
-  summary_content: string;
-  bible_quote: string | null;
-  year: number;
-  week_number: number;
-  start_date?: string;
-  end_date?: string;
-}
-
-interface OriginalPost {
-  community_post_id: number;
-  post_text: string;
-  post_type?: string;
-  created_at: string;
-  original_author_name: string | null;
-  original_author_avatar: string | null;
-  diary_card?: DiaryCard;
-  summary_card?: SummaryCard;
-}
-
-interface Post {
-  community_post_id: number;
-  author_user_id: number;
-  post_text: string;
-  post_type: 'original' | 'diary' | 'letter' | 'shared' | 'normal' | 'summary';
-  visibility: 'public' | 'private' | 'friends';
-  username: string | null;
-  avatar_url: string | null;
-  tags: string[];
-  created_at: string;
-  post_pic?: string | null;
-  like_count?: number;
-  comment_count?: number;
-  is_liked?: boolean;
-  is_owner?: boolean;
-  original_post?: OriginalPost;
-  diary_card?: DiaryCard;
-  summary_card?: SummaryCard;
-}
-
-const POST_TYPE_LABELS: Record<string, string> = {
-  normal: '原創分享',
-  diary: '日記分享',
-  summary: '周回顧分享',
-  letter: '信箋',
-  shared: '轉發',
-};
+type Post = PostData;
 
 export default function CommunityFeedScreen() {
   const router = useRouter();
@@ -96,13 +44,11 @@ export default function CommunityFeedScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
-  const [selectedPostType, setSelectedPostType] = useState<string | null>(null);
   const [shareTarget, setShareTarget] = useState<Post | null>(null);
   const [shareCaption, setShareCaption] = useState('');
   const [sharing, setSharing] = useState(false);
-  const [diaryModalCard, setDiaryModalCard] = useState<DiaryCard | null>(null);
-  const [summaryModalCard, setSummaryModalCard] = useState<SummaryCard | null>(null);
+  const [diaryModalCard, setDiaryModalCard] = useState<PostDiaryCard | null>(null);
+  const [summaryModalCard, setSummaryModalCard] = useState<PostSummaryCard | null>(null);
   const LIMIT = 20;
 
   // 搜尋相關狀態
@@ -111,6 +57,9 @@ export default function CommunityFeedScreen() {
   const [searchResults, setSearchResults] = useState<Post[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [sortBy, setSortBy] = useState<'newest' | 'popular'>('newest');
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const searchWidth = useRef(new Animated.Value(0)).current;
+  const searchInputRef = useRef<TextInput>(null);
   const [reportMenuPostId, setReportMenuPostId] = useState<number | null>(null);
   const [reportModalPostId, setReportModalPostId] = useState<number | null>(null);
   const [reportReason, setReportReason] = useState('');
@@ -139,8 +88,8 @@ export default function CommunityFeedScreen() {
     try {
       const token = await currentUser.getIdToken();
       const currentOffset = reset ? 0 : offset;
-      const activeTag = tag !== undefined ? tag : selectedTag;
-      const activePostType = postType !== undefined ? postType : selectedPostType;
+      const activeTag = tag ?? null;
+      const activePostType = postType ?? null;
       const tagParam = activeTag ? `&tag=${encodeURIComponent(activeTag)}` : '';
       const typeParam = activePostType ? `&post_type=${encodeURIComponent(activePostType)}` : '';
       const res = await fetch(
@@ -171,21 +120,28 @@ export default function CommunityFeedScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     setOffset(0);
-    fetchPosts(true, selectedTag, selectedPostType);
+    fetchPosts(true);
   };
 
   const onTagPress = (tag: string) => {
-    const next = selectedTag === tag ? null : tag;
-    setSelectedTag(next);
-    setOffset(0);
-    fetchPosts(true, next, selectedPostType);
+    setSearchInput(tag);
+    setSearchMode(true);
+    if (!searchExpanded) {
+      setSearchExpanded(true);
+      Animated.timing(searchWidth, { toValue: 240, duration: 220, useNativeDriver: false }).start();
+    }
+    searchPosts(tag, []);
   };
 
   const onPostTypePress = (postType: string) => {
-    const next = selectedPostType === postType ? null : postType;
-    setSelectedPostType(next);
-    setOffset(0);
-    fetchPosts(true, selectedTag, next);
+    const label = POST_TYPE_LABELS[postType] ?? postType;
+    setSearchInput(label);
+    setSearchMode(true);
+    if (!searchExpanded) {
+      setSearchExpanded(true);
+      Animated.timing(searchWidth, { toValue: 240, duration: 220, useNativeDriver: false }).start();
+    }
+    searchPosts(label, []);
   };
 
   const onLoadMore = () => {
@@ -211,7 +167,10 @@ export default function CommunityFeedScreen() {
       );
       const data = await response.json();
       if (data.ok) {
-        setSearchResults(data.data);
+        setSearchResults((data.data as any[]).map(p => ({
+          ...p,
+          avatar_url: p.avatar_url ?? p.avatar ?? null,
+        })));
       } else {
         Alert.alert('錯誤', data.error || '搜尋失敗');
       }
@@ -235,30 +194,35 @@ export default function CommunityFeedScreen() {
     setSearchResults([]);
   };
 
+  const expandSearch = () => {
+    setSearchExpanded(true);
+    Animated.timing(searchWidth, { toValue: 240, duration: 220, useNativeDriver: false })
+      .start(() => searchInputRef.current?.focus());
+  };
+
+  const collapseSearch = () => {
+    clearSearch();
+    Animated.timing(searchWidth, { toValue: 0, duration: 180, useNativeDriver: false })
+      .start(() => setSearchExpanded(false));
+  };
+
   const deletePost = async (postId: number) => {
     if (!currentUser) return;
-    Alert.alert('刪除貼文', '確定要刪除這篇貼文嗎？', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '刪除', style: 'destructive', onPress: async () => {
-          try {
-            const token = await currentUser.getIdToken();
-            const res = await fetch(`${API_BASE_URL}/api/post/${postId}`, {
-              method: 'DELETE',
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            const data = await res.json();
-            if (data.ok) {
-              setPosts((prev) => prev.filter((p) => p.community_post_id !== postId));
-            } else {
-              Alert.alert('錯誤', data.error ?? '刪除失敗');
-            }
-          } catch {
-            Alert.alert('錯誤', '網路連線失敗');
-          }
-        },
-      },
-    ]);
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${API_BASE_URL}/api/post/${postId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setPosts((prev) => prev.filter((p) => p.community_post_id !== postId));
+      } else {
+        Alert.alert('錯誤', data.error ?? '刪除失敗');
+      }
+    } catch {
+      Alert.alert('錯誤', '網路連線失敗');
+    }
   };
 
   const submitReport = async () => {
@@ -300,7 +264,7 @@ export default function CommunityFeedScreen() {
       if (data.ok ?? data.success) {
         setShareTarget(null);
         setShareCaption('');
-        fetchPosts(true, selectedTag);
+        fetchPosts(true, null);
       } else {
         Alert.alert('錯誤', data.error ?? '轉發失敗');
       }
@@ -359,309 +323,83 @@ export default function CommunityFeedScreen() {
   };
 
   const renderPost = ({ item }: { item: Post }) => (
-    <TouchableOpacity
-      activeOpacity={0.7}
+    <PostCard
+      post={item}
       onPress={() => router.push(`./community/post/${item.community_post_id}`)}
-    >
-      <GlassCard style={styles.postCard}>
-        {/* Header */}
-        <View style={styles.postHeader}>
-          <TouchableOpacity
-            onPress={(e) => { e.stopPropagation(); router.push(`/user/${item.author_user_id}` as never); }}
-          >
-            {item.avatar_url ? (
-              <Image source={{ uri: item.avatar_url }} style={styles.avatarImage} />
-            ) : (
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {item.username ? item.username[0] : '?'}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          <View style={styles.postMeta}>
-            <View style={styles.authorRow}>
-              <TouchableOpacity onPress={(e) => { e.stopPropagation(); router.push(`/user/${item.author_user_id}` as never); }}>
-                <Text style={styles.authorName}>{item.username ?? '匿名'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                  onPress={() => {
-                    if (item.is_owner) {
-                      Alert.alert('操作', '', [
-                        { text: '編輯', onPress: () => router.push(`/community/edit/${item.community_post_id}` as never) },
-                        { text: '刪除', style: 'destructive', onPress: () => deletePost(item.community_post_id) },
-                        { text: '取消', style: 'cancel' },
-                      ]);
-                    } else {
-                      setReportMenuPostId(item.community_post_id);
-                    }
-                  }}
-                  style={styles.postMenuBtn}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Text style={styles.postMenuIcon}>⋯</Text>
-                </TouchableOpacity>
-              {item.post_type !== 'original' && POST_TYPE_LABELS[item.post_type] && (
-                <TouchableOpacity onPress={() => onPostTypePress(item.post_type)}>
-                  <Text style={[styles.categoryLabel, selectedPostType === item.post_type && styles.categoryLabelActive]}>
-                    {' > '}{POST_TYPE_LABELS[item.post_type]}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {/* Tags inline after username */}
-              {item.tags && item.tags.length > 0 && (
-                <>
-                  {item.tags.map((t, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      onPress={(e) => { e.stopPropagation(); onTagPress(t); }}
-                    >
-                      <Text style={[styles.inlineTag, selectedTag === t && styles.inlineTagActive]}>
-                        {' > #'}{t}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </>
-              )}
-            </View>
-            <Text style={styles.timeText}>{timeAgo(item.created_at)}</Text>
-          </View>
-        </View>
-
-        {/* Caption (for shared posts) */}
-        {item.post_text ? <Text style={styles.postText}>{item.post_text}</Text> : null}
-
-        {/* Post image */}
-        {item.post_pic ? (
-          <Image source={{ uri: item.post_pic }} style={styles.postImage} resizeMode="contain" />
-        ) : null}
-
-        {/* Diary card attachment */}
-        {item.diary_card && (
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={(e) => { e.stopPropagation(); setDiaryModalCard(item.diary_card!); }}
-            style={styles.diaryCard}
-          >
-            <View style={styles.diaryCardHeader}>
-              <Text style={styles.diaryCardIcon}>📖</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.diaryCardDate}>{item.diary_card.diary_date}</Text>
-                <Text style={styles.diaryCardTitle} numberOfLines={1}>
-                  {item.diary_card.diary_title}
-                </Text>
-              </View>
-            </View>
-            <Text style={styles.diaryCardPreview} numberOfLines={2}>
-              {item.diary_card.diary_content.slice(0, 30)}
-              {item.diary_card.diary_content.length > 30 ? '...' : ''}
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Summary card attachment */}
-        {item.summary_card && (
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={(e) => { e.stopPropagation(); setSummaryModalCard(item.summary_card!); }}
-            style={styles.summaryCard}
-          >
-            <View style={styles.diaryCardHeader}>
-              <Text style={styles.diaryCardIcon}>✨</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.diaryCardDate}>
-                  {item.summary_card.year} 年 第 {item.summary_card.week_number} 週回顧
-                </Text>
-                <Text style={styles.diaryCardTitle} numberOfLines={1}>
-                  {item.summary_card.summary_title}
-                </Text>
-              </View>
-            </View>
-            <Text style={styles.diaryCardPreview} numberOfLines={2}>
-              {item.summary_card.summary_content.slice(0, 60)}
-              {item.summary_card.summary_content.length > 60 ? '...' : ''}
-            </Text>
-            {item.summary_card.bible_quote ? (
-              <Text style={styles.summaryCardBible} numberOfLines={1}>
-                📖 {item.summary_card.bible_quote}
-              </Text>
-            ) : null}
-          </TouchableOpacity>
-        )}
-
-        {/* Embedded original post */}
-        {item.post_type === 'shared' && item.original_post && (
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={(e) => {
-              e.stopPropagation();
-              router.push(`./community/post/${item.original_post!.community_post_id}`);
-            }}
-            style={styles.quotedCard}
-          >
-            <View style={styles.quotedHeader}>
-              {item.original_post.original_author_avatar ? (
-                <Image source={{ uri: item.original_post.original_author_avatar }} style={styles.quotedAvatar} />
-              ) : (
-                <View style={styles.quotedAvatarPlaceholder}>
-                  <Text style={styles.quotedAvatarText}>
-                    {item.original_post.original_author_name?.[0] ?? '?'}
-                  </Text>
-                </View>
-              )}
-              <Text style={styles.quotedAuthor}>
-                {item.original_post.original_author_name ?? '匿名'}
-              </Text>
-              <Text style={styles.quotedTime}> · {timeAgo(item.original_post.created_at)}</Text>
-            </View>
-            {item.original_post.post_text ? (
-              <Text style={styles.quotedText} numberOfLines={3}>
-                {item.original_post.post_text}
-              </Text>
-            ) : null}
-            {item.original_post.diary_card && (
-              <View style={[styles.quotedCard, { marginBottom: 0, marginTop: 6 }]}>
-                <View style={{ flexDirection: 'row', gap: 6, alignItems: 'flex-start' }}>
-                  <Text style={{ fontSize: 14 }}>📖</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.quotedAuthor} numberOfLines={1}>
-                      {item.original_post.diary_card.diary_title}
-                    </Text>
-                    <Text style={styles.quotedText} numberOfLines={1}>
-                      {item.original_post.diary_card.diary_content.slice(0, 30)}
-                      {item.original_post.diary_card.diary_content.length > 30 ? '...' : ''}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            )}
-          </TouchableOpacity>
-        )}
-
-        {/* Actions */}
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={(e) => {
-              e.stopPropagation();
-              toggleLike(item.community_post_id, !!item.is_liked);
-            }}
-          >
-            <Text style={styles.actionIcon}>{item.is_liked ? '🤍' : '🙏'}</Text>
-            <Text style={styles.actionText}>{item.like_count ?? 0}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={(e) => {
-              e.stopPropagation();
-              router.push(`./community/post/${item.community_post_id}`);
-            }}
-          >
-            <Text style={styles.actionIcon}>💬</Text>
-            <Text style={styles.actionText}>{item.comment_count ?? 0}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={(e) => {
-              e.stopPropagation();
-              setShareTarget(item);
-              setShareCaption('');
-            }}
-          >
-            <Text style={styles.actionIcon}>🔄</Text>
-          </TouchableOpacity>
-        </View>
-      </GlassCard>
-    </TouchableOpacity>
+      onLike={() => toggleLike(item.community_post_id, !!item.is_liked)}
+      onComment={() => router.push(`./community/post/${item.community_post_id}`)}
+      onShare={() => { setShareTarget(item); setShareCaption(''); }}
+      onEdit={() => router.push(`/community/edit/${item.community_post_id}` as never)}
+      onDelete={() => deletePost(item.community_post_id)}
+      onReport={!item.is_owner ? () => setReportMenuPostId(item.community_post_id) : undefined}
+      onTagPress={onTagPress}
+      onPostTypePress={onPostTypePress}
+      onAvatarPress={() => router.push(`/user/${item.author_user_id}` as never)}
+      onDiaryCardPress={setDiaryModalCard}
+      onSummaryCardPress={setSummaryModalCard}
+      onOriginalPostPress={(postId) => router.push(`./community/post/${postId}`)}
+    />
   );
 
   return (
     <VideoBackground source={require('../../assets/backgrounds/main.mp4')}>
       <View style={styles.container}>
-        {/* Top bar */}
+        {/* CopilotStep 佔位 */}
         <CopilotStep
-          text="心靈營火：這是信仰分享的社群空間，你可以在這裡閱讀他人的祈禱日記與週回顧，互相鼓勵。"
+          text="心靈營火：這是信仰分享的社群空間，你可以搜尋、閱讀他人的祈禱日記與週回顧，互相鼓勵。"
           order={10}
           name="community_topbar"
         >
-          <WalkthroughableView collapsable={false}>
-            <GlassCard style={styles.topBar}>
-              <Text style={styles.topBarTitle}>心靈營火</Text>
-            </GlassCard>
-          </WalkthroughableView>
+          <WalkthroughableView collapsable={false} style={{ height: 0 }} />
         </CopilotStep>
 
-        {/* Search bar */}
-        <CopilotStep
-          text="搜尋貼文：輸入關鍵字可搜尋社群內容，點貼文上的 # 標籤可快速篩選同主題分享。"
-          order={11}
-          name="community_search"
-        >
-          <WalkthroughableView collapsable={false}>
-            <View style={styles.searchBar}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="搜尋貼文..."
-            placeholderTextColor="rgba(255,255,255,0.4)"
-            value={searchInput}
-            onChangeText={setSearchInput}
-            onSubmitEditing={handleSearch}
-            returnKeyType="search"
-          />
-          {searchMode ? (
-            <TouchableOpacity style={styles.searchBtn} onPress={clearSearch}>
-              <Text style={styles.searchBtnText}>✕</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.searchBtn} onPress={handleSearch}>
-              <Text style={styles.searchBtnText}>🔍</Text>
-            </TouchableOpacity>
-          )}
-            </View>
-          </WalkthroughableView>
-        </CopilotStep>
+        {/* 搜尋鈕：與朝聖之地相同，右上角浮動，按下展開 TextInput */}
+        <View style={styles.searchRow}>
+          <Animated.View style={{ width: searchWidth, overflow: 'hidden', marginRight: 8 }}>
+            <TextInput
+              ref={searchInputRef}
+              style={styles.searchInput}
+              placeholder="搜尋貼文..."
+              placeholderTextColor="rgba(255,255,255,0.5)"
+              value={searchInput}
+              onChangeText={setSearchInput}
+              onSubmitEditing={handleSearch}
+              returnKeyType="search"
+              underlineColorAndroid="transparent"
+              cursorColor="#ffffff"
+              selectionColor="rgba(255,255,255,0.5)"
+            />
+          </Animated.View>
+          <Pressable
+            onPress={searchExpanded ? collapseSearch : expandSearch}
+            style={styles.searchBtn}
+          >
+            <MaterialCommunityIcons name="magnify" size={26} color="rgba(255,255,255,0.95)" />
+          </Pressable>
+        </View>
 
-        {/* Sort tabs (only in search mode) */}
+        {/* Sort tabs (only in search mode) — right-aligned GlassCards */}
         {searchMode && (
           <View style={styles.sortRow}>
             {(['newest', 'popular'] as const).map((s) => (
               <TouchableOpacity
                 key={s}
-                style={[styles.sortBtn, sortBy === s && styles.sortBtnActive]}
-                onPress={() => {
-                  setSortBy(s);
-                  searchPosts(searchInput.trim(), [], s);
-                }}
+                onPress={() => { setSortBy(s); searchPosts(searchInput.trim(), [], s); }}
+                style={styles.sortBtnWrap}
               >
-                <Text style={[styles.sortBtnText, sortBy === s && styles.sortBtnTextActive]}>
-                  {s === 'newest' ? '最新' : '熱門'}
-                </Text>
+                <GlassCard
+                  style={styles.sortBtn}
+                  glassColor={sortBy === s ? 'rgba(0,0,0,0.32)' : undefined}
+                >
+                  <Text style={[styles.sortBtnText, sortBy === s && styles.sortBtnTextActive]}>
+                    {s === 'newest' ? '最新' : '熱門'}
+                  </Text>
+                </GlassCard>
               </TouchableOpacity>
             ))}
           </View>
         )}
 
-        {/* Active post type filter */}
-        {!searchMode && selectedPostType && (
-          <TouchableOpacity
-            style={[styles.filterBar, styles.filterBarType]}
-            onPress={() => onPostTypePress(selectedPostType)}
-          >
-            <Text style={[styles.filterBarText, styles.filterBarTypeText]}>{POST_TYPE_LABELS[selectedPostType]}</Text>
-            <Text style={[styles.filterBarClose, styles.filterBarTypeText]}>✕</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Active tag filter */}
-        {!searchMode && selectedTag && (
-          <TouchableOpacity
-            style={styles.filterBar}
-            onPress={() => onTagPress(selectedTag)}
-          >
-            <Text style={styles.filterBarText}>#{selectedTag}</Text>
-            <Text style={styles.filterBarClose}>✕</Text>
-          </TouchableOpacity>
-        )}
 
         {/* 步驟 12：貼文互動提示 */}
         <CopilotStep
@@ -679,10 +417,11 @@ export default function CommunityFeedScreen() {
           </View>
         ) : (
           <FlatList
-            data={searchMode ? searchResults : (selectedTag ? posts.filter(p => p.tags?.includes(selectedTag)) : posts)}
+            data={searchMode ? searchResults : posts}
             renderItem={renderPost}
             keyExtractor={(item) => item.community_post_id.toString()}
             contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -722,7 +461,7 @@ export default function CommunityFeedScreen() {
               style={styles.fab}
               onPress={() => router.push('./community/create')}
             >
-              <Text style={styles.fabText}>+</Text>
+              <Text style={styles.fabText}>＋</Text>
             </TouchableOpacity>
           </WalkthroughableView>
         </CopilotStep>
@@ -980,181 +719,41 @@ export default function CommunityFeedScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topBar: {
-    margin: 16,
-    marginBottom: 0,
-    paddingVertical: 12,
-  },
-  topBarTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.95)',
-    textAlign: 'center',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.9)',
-  },
-  listContent: {
-    padding: 16,
-    paddingBottom: 100,
-  },
-  postCard: {
-    marginBottom: 16,
-  },
-  postHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  avatarImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
-  },
-  avatarText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.95)',
-  },
-  postMeta: { flex: 1 },
-  authorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 2,
-    flexWrap: 'wrap',
-  },
-  authorName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.95)',
-  },
-  categoryLabel: {
-    fontSize: 14,
-    color: 'rgba(135,206,250,0.9)',
-    fontWeight: '500',
-  },
-  categoryLabelActive: {
-    color: 'rgba(255,215,0,0.95)',
-    fontWeight: '700',
-  },
-  inlineTag: {
-    fontSize: 14,
-    color: 'rgba(173,216,230,0.9)',
-    fontWeight: '500',
-  },
-  inlineTagActive: {
-    color: 'rgba(255,215,0,0.95)',
-  },
-  timeText: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.6)',
-  },
-  tagsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 8,
-  },
-  tag: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 10,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    marginRight: 6,
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
-  },
-  tagText: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.85)',
-  },
-  postText: {
-    fontSize: 15,
-    color: 'rgba(255,255,255,0.9)',
-    lineHeight: 22,
-    marginBottom: 12,
-  },
-  postImage: {
-    width: '100%',
-    aspectRatio: 4 / 3,
-    maxHeight: 300,
-    borderRadius: 10,
-    marginBottom: 12,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-  },
-  actions: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.15)',
-    paddingTop: 10,
-    gap: 8,
-  },
-  actionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 4,
-  },
-  actionIcon: { fontSize: 18 },
-  actionText: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  emptyCard: {
-    marginTop: 60,
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyText: {
-    fontSize: 15,
-    color: 'rgba(255,255,255,0.8)',
-    textAlign: 'center',
-  },
-  tourActionHint: {
-    marginHorizontal: 16,
-    marginBottom: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  tourActionText: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
-    textAlign: 'center',
-    letterSpacing: 2,
-  },
-  fabWrapper: {
+  searchRow: {
     position: 'absolute',
-    right: 24,
-    bottom: 24,
+    top: -(HEADER_CONTENT_HEIGHT - 10),
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    zIndex: 500,
   },
+  searchInput: {
+    width: 240,
+    height: 48,
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.95)',
+    borderBottomWidth: 1.5,
+    borderBottomColor: 'rgba(255,255,255,0.85)',
+    paddingHorizontal: 4,
+    paddingVertical: 0,
+    fontFamily: 'NotoSerifTC_400Regular',
+    ...Platform.select({ web: { outlineStyle: 'none' as any } }),
+  },
+  searchBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { marginTop: 12, fontSize: 16, color: 'rgba(255,255,255,0.9)' },
+  listContent: { padding: 16, paddingBottom: 100 },
+  emptyCard: { marginTop: 60, alignItems: 'center', paddingVertical: 40 },
+  emptyIcon: { fontSize: 48, marginBottom: 12 },
+  emptyText: { fontSize: 15, color: 'rgba(255,255,255,0.8)', textAlign: 'center' },
+  fabWrapper: { position: 'absolute', right: 24, bottom: 24 },
   helpButton: {
     position: 'absolute',
     right: 24,
@@ -1166,232 +765,72 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  helpButtonText: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 16,
-    fontWeight: '700',
-  },
+  helpButtonText: { color: 'rgba(255,255,255,0.85)', fontSize: 16, fontWeight: '700' },
   fab: {
-    right: 0,
-    bottom: 0,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(0,122,255,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.5)',
+    right: 0, bottom: 0,
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.90)',
+    justifyContent: 'center', alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowOpacity: 0.3, shadowRadius: 4,
     elevation: 8,
   },
   fabText: {
-    fontSize: 32,
-    color: 'rgba(255,255,255,0.95)',
-    fontWeight: '300',
+    fontSize: 28, lineHeight: 28,
+    color: 'rgba(20,50,90,0.85)',
+    fontWeight: '400', textAlign: 'center',
+    includeFontPadding: false,
   },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    marginTop: 8,
-    gap: 8,
-  },
-  searchInput: {
-    flex: 1,
-    height: 38,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 19,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
-    paddingHorizontal: 14,
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.95)',
-  },
-  searchBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
-  },
-  searchBtnText: {
-    fontSize: 16,
-  },
-  sortRow: {
-    flexDirection: 'row',
-    marginHorizontal: 16,
-    marginTop: 8,
-    gap: 8,
-  },
-  sortBtn: {
-    paddingVertical: 4,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  sortBtnActive: {
-    backgroundColor: 'rgba(0,122,255,0.5)',
-    borderColor: 'rgba(0,122,255,0.7)',
-  },
-  sortBtnText: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
-  },
-  sortBtnTextActive: {
-    color: 'rgba(255,255,255,0.95)',
-    fontWeight: '600',
-  },
+  sortRow: { flexDirection: 'row', justifyContent: 'flex-end', marginHorizontal: 16, marginTop: 6, gap: 6 },
+  sortBtnWrap: { borderRadius: 10, overflow: 'hidden' },
+  sortBtn: { padding: 0 },
+  sortBtnText: { fontSize: 12, paddingVertical: 5, paddingHorizontal: 12, color: 'rgba(255,255,255,0.75)' },
+  sortBtnTextActive: { color: 'rgba(255,255,255,0.98)', fontWeight: '700' },
   filterBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginHorizontal: 16,
-    marginTop: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginHorizontal: 16, marginTop: 8,
+    paddingVertical: 6, paddingHorizontal: 14,
     backgroundColor: 'rgba(255,215,0,0.15)',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,215,0,0.4)',
+    borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,215,0,0.4)',
   },
-  filterBarType: {
-    backgroundColor: 'rgba(135,206,250,0.15)',
-    borderColor: 'rgba(135,206,250,0.4)',
-  },
-  filterBarTypeText: {
-    color: 'rgba(135,206,250,0.95)',
-  },
-  filterBarText: {
-    fontSize: 14,
-    color: 'rgba(255,215,0,0.95)',
-    fontWeight: '600',
-  },
-  filterBarClose: {
-    fontSize: 14,
-    color: 'rgba(255,215,0,0.7)',
-    paddingLeft: 8,
-  },
-  postMenuBtn: {
-    marginLeft: 'auto',
-    paddingHorizontal: 6,
-  },
-  postMenuIcon: {
-    fontSize: 18,
-    color: 'rgba(255,255,255,0.6)',
-  },
+  filterBarType: { backgroundColor: 'rgba(135,206,250,0.15)', borderColor: 'rgba(135,206,250,0.4)' },
+  filterBarTypeText: { color: 'rgba(135,206,250,0.95)' },
+  filterBarText: { fontSize: 14, color: 'rgba(255,215,0,0.95)', fontWeight: '600' },
+  filterBarClose: { fontSize: 14, color: 'rgba(255,215,0,0.7)', paddingLeft: 8 },
 
-  // Summary card attachment
-  summaryCard: {
-    borderWidth: 1,
-    borderColor: 'rgba(180,140,255,0.35)',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 12,
-    backgroundColor: 'rgba(80,0,180,0.12)',
-  },
-  summaryCardBible: {
-    fontSize: 12,
-    color: 'rgba(200,170,255,0.85)',
-    fontStyle: 'italic',
-    marginTop: 4,
-  },
   summaryFloatBible: {
-    fontSize: 14,
-    color: 'rgba(200,170,255,0.9)',
-    fontStyle: 'italic',
-    marginTop: 16,
-    lineHeight: 22,
+    fontSize: 14, color: 'rgba(200,170,255,0.9)',
+    fontStyle: 'italic', marginTop: 16, lineHeight: 22,
   },
 
-  // Diary card attachment
-  diaryCard: {
-    borderWidth: 1,
-    borderColor: 'rgba(100,180,255,0.35)',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 12,
-    backgroundColor: 'rgba(0,80,180,0.12)',
-  },
-  diaryCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginBottom: 4,
-  },
-  diaryCardIcon: { fontSize: 16 },
-  diaryCardDate: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.5)',
-    marginBottom: 2,
-  },
-  diaryCardTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.9)',
-  },
-  diaryCardPreview: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.65)',
-    lineHeight: 18,
-  },
-
-  // Quoted / embedded original post
+  // Shared styles for the share-modal preview (mirrors PostCard attachment styles)
   quotedCard: {
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 12,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 10, padding: 10, marginBottom: 12,
+    backgroundColor: 'rgba(0,0,0,0.20)',
   },
-  quotedHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  quotedAvatar: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    marginRight: 6,
-  },
+  quotedHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  quotedAvatar: { width: 20, height: 20, borderRadius: 10, marginRight: 6 },
   quotedAvatarPlaceholder: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 20, height: 20, borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.25)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 6,
+    justifyContent: 'center', alignItems: 'center', marginRight: 6,
   },
-  quotedAvatarText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.9)',
+  quotedAvatarText: { fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.9)' },
+  quotedAuthor: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.85)' },
+  quotedTime: { fontSize: 12, color: 'rgba(255,255,255,0.45)' },
+  quotedText: { fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 20 },
+  diaryCard: {
+    borderWidth: 1, borderColor: 'rgba(100,180,255,0.35)',
+    borderRadius: 10, padding: 10, marginBottom: 12,
+    backgroundColor: 'rgba(0,0,0,0.20)',
   },
-  quotedAuthor: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.85)',
-  },
-  quotedTime: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.45)',
-  },
-  quotedText: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.75)',
-    lineHeight: 20,
-  },
+  diaryCardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
+  diaryCardIcon: { fontSize: 16 },
+  diaryCardDate: { fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 2 },
+  diaryCardTitle: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.9)' },
+  diaryCardPreview: { fontSize: 13, color: 'rgba(255,255,255,0.65)', lineHeight: 18 },
 
   // Diary floating card modal
   diaryOverlay: {
@@ -1489,6 +928,7 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 12,
     textAlignVertical: 'top',
+    ...Platform.select({ web: { outlineStyle: 'none' as any } }),
   },
   modalButtons: {
     flexDirection: 'row',
@@ -1596,5 +1036,56 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#FF3B30',
     fontWeight: '700',
+  },
+
+  // ✨ Letter card
+  letterCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(80,180,120,0.4)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+    backgroundColor: 'rgba(0,60,30,0.25)',
+  },
+  letterCardRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'flex-start',
+  },
+  letterCardImage: {
+    width: 70,
+    height: 100,
+    borderRadius: 8,
+    flexShrink: 0,
+  },
+  letterCardImagePlaceholder: {
+    width: 70,
+    height: 100,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  letterCardText: {
+    flex: 1,
+    gap: 5,
+  },
+  letterCardQuestion: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
+    lineHeight: 18,
+  },
+  letterCardPreview: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.65)',
+    lineHeight: 17,
+  },
+  letterCardQuote: {
+    fontSize: 12,
+    color: 'rgba(180,230,180,0.85)',
+    fontStyle: 'italic',
+    lineHeight: 17,
   },
 });

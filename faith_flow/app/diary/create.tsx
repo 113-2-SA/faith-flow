@@ -7,7 +7,8 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { auth } from '../../lib/firebase';
@@ -216,6 +217,8 @@ export default function CreateDiaryScreen() {
   );
 }
 
+const webOutline = Platform.OS === 'web' ? { outlineStyle: 'none' as any } : {};
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },
   content: { padding: 20 },
@@ -228,6 +231,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     borderWidth: 1,
     borderColor: '#DDD',
+    ...webOutline,
   },
   textArea: { height: 150, textAlignVertical: 'top' },
   tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 },
