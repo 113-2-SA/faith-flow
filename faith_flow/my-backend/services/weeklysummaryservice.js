@@ -320,8 +320,8 @@ ${diaries.map((d, i) => `
    * 調用 AI API
    */
   async callAI(prompt) {
-    const { Mistral } = require('@mistralai/mistralai');
-    const client = new Mistral({
+    const MistralClient = require('@mistralai/mistralai').default;
+    const client = new MistralClient({
       apiKey: process.env.MISTRAL_API_KEY
     });
 

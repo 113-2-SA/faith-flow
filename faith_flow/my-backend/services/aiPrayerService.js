@@ -6,12 +6,12 @@
 //   Step 2: findSimilar   → 用 pgvector 找相似日記（cosine similarity > 0.75）
 //   Step 3: analyzeTheme  → 深度主題分析，寫入 prayer_clusters 表
 
-const { Mistral } = require('@mistralai/mistralai');
+const MistralClient = require('@mistralai/mistralai').default;
 const axios = require('axios');
 const pool = require('../config/database');
 const { parseJsonFromLLM } = require('../utils/parseJsonFromLLM');
 
-const mistral = new Mistral({ apiKey: process.env.MISTRAL_API_KEY });
+const mistral = new MistralClient({ apiKey: process.env.MISTRAL_API_KEY });
 
 // 回傳 embedding 向量陣列，供 findSimilar 直接使用（避免重複讀 DB）
 async function processDiary(diaryId, content, userId, title = '', tags = []) {
