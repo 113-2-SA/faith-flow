@@ -232,12 +232,7 @@ export function BasilicaMap() {
           </View>
 
           {sheetOpen && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterContent}
-              style={styles.filterScroll}
-            >
+            <View style={styles.filterRow}>
               {(["all", "major", "cathedral", "chapel"] as FilterType[]).map((type) => (
                 <Pressable key={type} onPress={() => setFilterType(type)} style={styles.filterBtnWrap}>
                   <GlassCard
@@ -250,7 +245,7 @@ export function BasilicaMap() {
                   </GlassCard>
                 </Pressable>
               ))}
-            </ScrollView>
+            </View>
           )}
 
           {selectedBasilica ? (
@@ -314,6 +309,12 @@ export function BasilicaMap() {
               <Pressable onPress={() => router.push("/pray" as any)}>
                 <GlassCard style={styles.detailActionCard}>
                   <Text style={styles.recordBtnText}>🎙 錄音祈禱</Text>
+                </GlassCard>
+              </Pressable>
+
+              <Pressable onPress={() => { setSelectedId(null); closeSheet(); }} style={styles.backToMapBtn}>
+                <GlassCard style={styles.backToMapCard} glassColor="rgba(255,255,255,0.08)">
+                  <Text style={styles.backToMapText}>🗺️ 返回地圖</Text>
                 </GlassCard>
               </Pressable>
 
@@ -416,10 +417,9 @@ const styles = StyleSheet.create({
   handleArea: { height: HANDLE_H, alignItems: "center", justifyContent: "center", paddingTop: 10, paddingHorizontal: 16 },
   dragBar: { width: 40, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.45)", marginBottom: 12 },
   handleHint: { fontSize: 15, fontWeight: "700", color: "rgba(255,255,255,0.88)", letterSpacing: 0.5 },
-  filterContent: { gap: 8, paddingHorizontal: 2 },
-  filterBtnWrap: { borderRadius: 10, overflow: "hidden" },
+  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 10, paddingVertical: 3 },
+  filterBtnWrap: { borderRadius: 10, overflow: "hidden", alignSelf: "flex-start" },
   filterBtn: { padding: 0 },
-  filterScroll: { paddingHorizontal: 10, paddingVertical: 3, height: 44 },
   filterText: { color: "rgba(255,255,255,0.80)", fontSize: 13, paddingHorizontal: 14, paddingVertical: 5 },
   filterTextActive: { color: "rgba(255,255,255,1)", fontWeight: "700" },
   panelScroll: { flex: 1, paddingHorizontal: 10 },
@@ -438,11 +438,14 @@ const styles = StyleSheet.create({
   panoramaBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.95)", textAlign: "center" },
   recordBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.95)", textAlign: "center" },
   listItemWrap: { marginBottom: 8 },
-  listItemCard: { paddingVertical: 10, paddingHorizontal: 14 },
-  listRecordCard: { paddingVertical: 10, paddingHorizontal: 14, marginBottom: 0 },
+  listItemCard: {},
+  listRecordCard: {},
   listName: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.95)" },
   listSub: { fontSize: 11, color: "rgba(255,255,255,0.60)", marginTop: 3 },
   moreBtn: { paddingVertical: 12, alignItems: "center" },
   moreBtnText: { fontSize: 13, color: "rgba(255,255,255,0.70)" },
   statusText: { textAlign: "center", color: "rgba(255,255,255,0.55)", fontSize: 14, marginTop: 20 },
+  backToMapBtn: { marginTop: 8, marginBottom: 0 },
+  backToMapCard: { paddingVertical: 10, paddingHorizontal: 14 },
+  backToMapText: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.70)", textAlign: "center" },
 });
