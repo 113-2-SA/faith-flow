@@ -250,12 +250,7 @@ export function BasilicaMap() {
 
           {/* 篩選 tabs（展開時顯示，可點擊，不被 gestureOverlay 遮蓋） */}
           {sheetOpen && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterContent}
-              style={styles.filterScroll}
-            >
+            <View style={styles.filterRow}>
               {(["all", "major", "cathedral", "chapel"] as FilterType[]).map((type) => (
                 <Pressable key={type} onPress={() => setFilterType(type)} style={styles.filterBtnWrap}>
                   <GlassCard
@@ -268,7 +263,7 @@ export function BasilicaMap() {
                   </GlassCard>
                 </Pressable>
               ))}
-            </ScrollView>
+            </View>
           )}
 
           {selectedBasilica ? (
@@ -503,10 +498,9 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSerifTC_400Regular",
     letterSpacing: 0.5,
   },
-  filterContent: { gap: 8, paddingHorizontal: 2 },
-  filterBtnWrap: { borderRadius: 10, overflow: "hidden" },
+  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 10, paddingVertical: 3 },
+  filterBtnWrap: { borderRadius: 10, overflow: "hidden", alignSelf: "flex-start" },
   filterBtn: { padding: 0 },
-  filterScroll: { paddingHorizontal: 10, paddingVertical: 3, height: 44 },
   filterText: {
     color: "rgba(255,255,255,0.80)", fontSize: 13,
     fontFamily: "NotoSerifTC_400Regular",
