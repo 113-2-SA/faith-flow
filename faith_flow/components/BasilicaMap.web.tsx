@@ -232,11 +232,11 @@ export function BasilicaMap() {
       {/* ── Bottom sheet ── */}
       <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetY }] }]}>
 
-        {/* 玻璃背景層（純視覺，absolute fill） */}
-        <GlassCard style={styles.sheetBgGlass} />
-
-        {/* 版面配置層（純 flex column，不依賴 GlassCard 雙層 View） */}
+        {/* 版面配置層（absolute fill，確保 web 上有明確高度） */}
         <View style={styles.sheetLayout}>
+
+          {/* 玻璃背景層（純視覺，absolute fill，positioned relative to sheetLayout） */}
+          <GlassCard style={styles.sheetBgGlass} />
 
           {/* Drag handle（純視覺，不接受事件） */}
           <View style={styles.handleArea} pointerEvents="none">
@@ -469,7 +469,8 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   sheetLayout: {
-    flex: 1,
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
     flexDirection: "column",
     overflow: "hidden",
     borderTopLeftRadius: 22,
