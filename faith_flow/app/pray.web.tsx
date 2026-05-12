@@ -1,6 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Audio } from "expo-av";
-import * as FileSystem from "expo-file-system/legacy";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as Location from "expo-location";
 import {
   ActivityIndicator,
@@ -20,6 +18,7 @@ type TranscriptMsg = {
   type: "transcript";
   transcript: string;
   is_final?: boolean;
+  speech_final?: boolean;
 };
 
 const getAuthToken = async (): Promise<string> => {
@@ -28,7 +27,7 @@ const getAuthToken = async (): Promise<string> => {
   return await user.getIdToken();
 };
 
-type WsStatus = "idle" | "connecting" | "open" | "transcribing" | "closed" | "error";
+type WsStatus = "idle" | "connecting" | "open" | "closed" | "error";
 type LocationPermState = "idle" | "asking" | "granted" | "denied";
 type PreviewData = {
   suggestedTitle: string;
@@ -39,6 +38,21 @@ type PreviewData = {
 
 const WS_URL = API_BASE_URL.replace(/^http/, "ws") + "/ws/transcribe";
 const API_URL = API_BASE_URL;
+
+function pickMimeType(): string {
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/ogg;codecs=opus",
+    "audio/ogg",
+  ];
+  for (const t of candidates) {
+    const MR: any = (window as any).MediaRecorder;
+    if (MR && typeof MR.isTypeSupported === "function" && MR.isTypeSupported(t))
+      return t;
+  }
+  return "";
+}
 
 function LocationConsentCard({ onGrant, onDeny }: { onGrant: () => void; onDeny: () => void }) {
   return (
@@ -68,13 +82,14 @@ function LocationConsentCard({ onGrant, onDeny }: { onGrant: () => void; onDeny:
 
 export default function Pray() {
   const [locationPerm, setLocationPerm] = useState<LocationPermState>("idle");
-  const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
   const [lang, setLang] = useState<"zh-TW" | "en-US">("zh-TW");
   const [hasMicPermission, setHasMicPermission] = useState<boolean | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [wsStatus, setWsStatus] = useState<WsStatus>("idle");
   const [error, setError] = useState<string>("");
   const [finalText, setFinalText] = useState("");
+  const [interimText, setInterimText] = useState("");
   const [showCross, setShowCross] = useState(false);
   const [recordSaved, setRecordSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -82,26 +97,18 @@ export default function Pray() {
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const mimeType = useMemo(() => pickMimeType(), []);
 
-  const combinedText = finalText.trim();
-
-  // 啟動時請求麥克風權限
-  useEffect(() => {
-    Audio.requestPermissionsAsync().then(({ status }) => {
-      setHasMicPermission(status === "granted");
-    });
-  }, []);
-
-  // 離開頁面時清理錄音
-  useEffect(() => {
-    return () => {
-      if (recordingRef.current) {
-        recordingRef.current.stopAndUnloadAsync().catch(() => {});
-        recordingRef.current = null;
-      }
-    };
-  }, []);
+  const combinedText = useMemo(() => {
+    const a = finalText.trim();
+    const b = interimText.trim();
+    if (!a && !b) return "";
+    if (a && b) return `${a} ${b}`;
+    return a || b;
+  }, [finalText, interimText]);
 
   const fetchLocation = async (): Promise<{ latitude: number; longitude: number } | null> => {
     try {
@@ -125,13 +132,43 @@ export default function Pray() {
 
   const requestMic = async () => {
     setError("");
-    const { status } = await Audio.requestPermissionsAsync();
-    if (status === "granted") {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((t) => t.stop());
       setHasMicPermission(true);
-    } else {
+    } catch {
       setHasMicPermission(false);
-      setError("麥克風權限被拒絕，請至設定開啟。");
+      setError("麥克風權限被拒絕或裝置不可用。");
     }
+  };
+
+  const openWs = (): Promise<WebSocket> => {
+    setError("");
+    setWsStatus("connecting");
+    return new Promise((resolve, reject) => {
+      try {
+        const ws = new WebSocket(`${WS_URL}?lang=${lang}`);
+        ws.binaryType = "arraybuffer";
+        ws.onopen = () => { setWsStatus("open"); resolve(ws); };
+        ws.onclose = (ev) => { setWsStatus("closed"); };
+        ws.onerror = () => { setWsStatus("error"); reject(new Error("WebSocket 連線失敗")); };
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(String(event.data)) as TranscriptMsg;
+            if (msg?.type === "transcript" && typeof msg.transcript === "string") {
+              const t = msg.transcript.trim();
+              if (!t) return;
+              if (msg.is_final) { setFinalText((prev) => (prev ? prev + "，" + t : t)); setInterimText(""); }
+              else { setInterimText(t); }
+            }
+          } catch {
+            const t = String(event.data || "").trim();
+            if (t) setFinalText((prev) => (prev ? prev + " " + t : t));
+          }
+        };
+        socketRef.current = ws;
+      } catch (e) { reject(e); }
+    });
   };
 
   const startRecording = async () => {
@@ -139,105 +176,47 @@ export default function Pray() {
     setShowCross(false);
     setRecordSaved(false);
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+      const ws = await openWs();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      recordingRef.current = recording;
-      setIsRecording(true);
-      setWsStatus("open");
+      streamRef.current = stream;
+      const options: MediaRecorderOptions = mimeType ? { mimeType } : {};
+      const recorder = new MediaRecorder(stream, options);
+      recorderRef.current = recorder;
+      recorder.onstart = () => setIsRecording(true);
+      recorder.onerror = (_ev) => setError((_ev as any)?.error?.message || "MediaRecorder 錯誤");
+      recorder.ondataavailable = async (ev: BlobEvent) => {
+        if (!ev.data || ev.data.size === 0) return;
+        if (ws.readyState !== WebSocket.OPEN) return;
+        ws.send(await ev.data.arrayBuffer());
+      };
+      recorder.start(250);
+      setInterimText("");
     } catch (e) {
-      setError("啟動錄音失敗：" + (e as Error)?.message);
+      setError((e as Error)?.message || "啟動錄音失敗");
+      await stopRecording();
     }
   };
 
-  // 停止錄音後，將音訊檔送往後端 WebSocket 進行轉錄
   const stopRecording = async () => {
-    const recording = recordingRef.current;
-    if (!recording) return;
-
+    const rec = recorderRef.current;
+    if (rec && rec.state !== "inactive") rec.stop();
+    recorderRef.current = null;
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    const ws = socketRef.current;
+    if (ws && ws.readyState <= WebSocket.OPEN) ws.close();
+    socketRef.current = null;
     setIsRecording(false);
-    setWsStatus("transcribing");
-
-    try {
-      await recording.stopAndUnloadAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-      const uri = recording.getURI();
-      recordingRef.current = null;
-
-      if (!uri) throw new Error("無法取得錄音檔案");
-      await sendAudioForTranscription(uri);
-    } catch (e) {
-      setError("錄音處理失敗：" + (e as Error)?.message);
-      setWsStatus("error");
-    } finally {
-      setShowCross(true);
-    }
-  };
-
-  // 讀取音訊檔案，透過 WebSocket 送給後端轉錄
-  // 送完音訊後等待 is_final 結果才關閉，避免後端 Deepgram 還沒連上就被終止
-  const sendAudioForTranscription = (uri: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      const ws = new WebSocket(`${WS_URL}?lang=${lang}`);
-      let finishTimer: ReturnType<typeof setTimeout> | null = null;
-
-      const finish = () => {
-        if (finishTimer) clearTimeout(finishTimer);
-        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-          ws.close();
-        }
-      };
-
-      ws.onopen = async () => {
-        try {
-          const base64 = await FileSystem.readAsStringAsync(uri, {
-            encoding: "base64" as any,
-          });
-          const binaryStr = atob(base64);
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) {
-            bytes[i] = binaryStr.charCodeAt(i);
-          }
-          ws.send(bytes.buffer as ArrayBuffer);
-          // 送完後等 Deepgram 回傳，15 秒內無結果則視為逾時
-          finishTimer = setTimeout(finish, 15000);
-        } catch (err) {
-          reject(err);
-          finish();
-        }
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(String(event.data)) as TranscriptMsg;
-          if (msg?.type === "transcript" && msg.transcript) {
-            const t = msg.transcript.trim();
-            if (t) setFinalText((prev) => (prev ? prev + "，" + t : t));
-            // 收到最終結果才關閉，讓後端有時間完成轉錄
-            if (msg.is_final) finish();
-          }
-        } catch {}
-      };
-
-      ws.onclose = () => {
-        setWsStatus("closed");
-        resolve();
-      };
-
-      ws.onerror = () => {
-        setWsStatus("error");
-        setError("WebSocket 連線失敗，請確認後端伺服器正在運行。");
-        reject(new Error("WebSocket error"));
-      };
-    });
+    setWsStatus("closed");
+    setInterimText("");
+    setShowCross(true);
   };
 
   const loadPreview = async () => {
-    if (!combinedText) { setError("沒有可預覽的內容"); return; }
+    const textToPreview = combinedText.trim();
+    if (!textToPreview) { setError("沒有可預覽的內容"); return; }
     setIsLoadingPreview(true);
     setError("");
     try {
@@ -245,7 +224,7 @@ export default function Pray() {
       const response = await fetch(`${API_URL}/api/diary/preview-prayer`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ transcript: combinedText }),
+        body: JSON.stringify({ transcript: textToPreview }),
       });
       const result = await response.json();
       if (result.ok) setPreviewData(result.data);
@@ -266,16 +245,18 @@ export default function Pray() {
       const response = await fetch(`${API_URL}/api/diary/from-prayer`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ transcript: combinedText, collectId: null }),
+        body: JSON.stringify({ transcript: combinedText.trim(), collectId: null }),
       });
       const result = await response.json();
       if (result.ok) {
-        setRecordSaved(true);
         setSaveSuccess(true);
         setTimeout(() => {
-          setFinalText(""); setPreviewData(null);
-          setSaveSuccess(false); setShowCross(false); setRecordSaved(false);
+          setFinalText(""); setInterimText(""); setPreviewData(null);
+          setSaveSuccess(false); setShowCross(false);
         }, 3000);
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification("✨ 祈禱已記錄", { body: `標題：${result.data.diary_title}` });
+        }
       } else {
         setError(result.error || "儲存失敗");
       }
@@ -286,8 +267,22 @@ export default function Pray() {
     }
   };
 
+  useEffect(() => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setHasMicPermission(false);
+      setError("此瀏覽器不支援麥克風。");
+    }
+  }, []);
+
+  useEffect(() => { return () => { void stopRecording(); }; }, []);
+
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
   const canPray = locationPerm === "granted" || locationPerm === "denied";
-  const isTranscribing = wsStatus === "transcribing";
 
   return (
     <VideoBackground source={require("../assets/backgrounds/main.mp4")}>
@@ -316,11 +311,13 @@ export default function Pray() {
         {canPray && (
           <>
             <GlassCard style={styles.controlCard}>
-              {hasMicPermission === false && (
-                <TouchableOpacity onPress={requestMic} style={styles.outlineBtn}>
-                  <Text style={styles.outlineBtnText}>🎙 允許麥克風</Text>
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                onPress={requestMic}
+                disabled={isRecording}
+                style={[styles.outlineBtn, isRecording && styles.btnDisabled]}
+              >
+                <Text style={styles.outlineBtnText}>允許麥克風</Text>
+              </TouchableOpacity>
 
               <View style={styles.langRow}>
                 <Text style={styles.langLabel}>語言：</Text>
@@ -328,7 +325,7 @@ export default function Pray() {
                   <TouchableOpacity
                     key={l}
                     onPress={() => setLang(l)}
-                    disabled={isRecording || isTranscribing}
+                    disabled={isRecording}
                     style={[styles.langBtn, lang === l && styles.langBtnActive]}
                   >
                     <Text style={[styles.langBtnText, lang === l && styles.langBtnTextActive]}>
@@ -338,19 +335,14 @@ export default function Pray() {
                 ))}
               </View>
 
-              {isTranscribing ? (
-                <View style={styles.recordBtn}>
-                  <ActivityIndicator color="rgba(0,0,0,0.6)" size="small" />
-                  <Text style={styles.recordBtnText}>轉錄中，請稍候…</Text>
-                </View>
-              ) : !isRecording ? (
+              {!isRecording ? (
                 <TouchableOpacity
                   onPress={startRecording}
                   disabled={hasMicPermission === false}
                   style={[styles.recordBtn, hasMicPermission === false && styles.btnDisabled]}
                 >
                   <MaterialCommunityIcons name="microphone" size={20} color="rgba(0,0,0,0.75)" />
-                  <Text style={styles.recordBtnText}>開始祈禱（錄音）</Text>
+                  <Text style={styles.recordBtnText}>開始祈禱（錄音轉錄）</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity onPress={stopRecording} style={[styles.recordBtn, styles.recordBtnActive]}>
@@ -360,17 +352,15 @@ export default function Pray() {
               )}
 
               <View style={styles.wsRow}>
-                <Text style={styles.wsText}>
-                  狀態：{isRecording ? "🔴 錄音中" : isTranscribing ? "🔄 轉錄中" : wsStatus === "closed" ? "✅ 完成" : wsStatus === "error" ? "❌ 錯誤" : "待機"}
-                </Text>
+                <Text style={styles.wsText}>WS：{wsStatus} | 錄音：{isRecording ? "進行中" : "未開始"}</Text>
               </View>
             </GlassCard>
 
             <GlassCard style={styles.controlCard}>
               <TouchableOpacity
                 onPress={loadPreview}
-                disabled={isRecording || isTranscribing || !combinedText || isLoadingPreview}
-                style={[styles.outlineBtn, (isRecording || isTranscribing || !combinedText || isLoadingPreview) && styles.btnDisabled]}
+                disabled={isRecording || !combinedText.trim() || isLoadingPreview}
+                style={[styles.outlineBtn, (isRecording || !combinedText.trim() || isLoadingPreview) && styles.btnDisabled]}
               >
                 <Text style={styles.outlineBtnText}>{isLoadingPreview ? "⏳ 生成中..." : "👁️ 預覽日記"}</Text>
               </TouchableOpacity>
@@ -387,12 +377,11 @@ export default function Pray() {
 
               <TouchableOpacity
                 onPress={() => {
-                  setFinalText(""); setError("");
-                  setShowCross(false); setPreviewData(null);
-                  setSaveSuccess(false); setWsStatus("idle");
+                  setFinalText(""); setInterimText(""); setError("");
+                  setShowCross(false); setPreviewData(null); setSaveSuccess(false);
                 }}
-                disabled={isRecording || isTranscribing}
-                style={[styles.outlineBtn, (isRecording || isTranscribing) && styles.btnDisabled]}
+                disabled={isRecording}
+                style={[styles.outlineBtn, isRecording && styles.btnDisabled]}
               >
                 <Text style={styles.outlineBtnText}>清除</Text>
               </TouchableOpacity>
@@ -407,13 +396,6 @@ export default function Pray() {
             {!!error && (
               <GlassCard style={styles.errorCard}>
                 <Text style={styles.errorText}>{error}</Text>
-              </GlassCard>
-            )}
-
-            {!!combinedText && (
-              <GlassCard style={styles.transcriptCard}>
-                <Text style={styles.fieldLabel}>轉錄內容</Text>
-                <Text style={styles.transcriptText}>{combinedText}</Text>
               </GlassCard>
             )}
 
@@ -511,16 +493,12 @@ const styles = StyleSheet.create({
   recordBtnText: { fontSize: 16, fontWeight: "700", color: "rgba(0,0,0,0.75)" },
   recordBtnTextActive: { color: "rgba(255,100,80,0.95)" },
 
-  wsRow: { alignItems: "center" },
-  wsText: { fontSize: 12, color: "rgba(255,255,255,0.55)" },
+  wsRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  wsText: { fontSize: 13, color: "rgba(255,255,255,0.65)" },
 
   outlineBtn: { backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 20, paddingVertical: 10, paddingHorizontal: 18, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.30)" },
   outlineBtnText: { color: "rgba(255,255,255,0.90)", fontSize: 14, fontWeight: "600" },
   btnDisabled: { opacity: 0.4 },
-
-  transcriptCard: { marginBottom: 12 },
-  fieldLabel: { fontSize: 11, color: "rgba(255,255,255,0.55)", marginBottom: 6, fontWeight: "600", letterSpacing: 0.5 },
-  transcriptText: { fontSize: 15, color: "rgba(255,255,255,0.90)", lineHeight: 22 },
 
   previewCard: { marginBottom: 12 },
   previewTitle: { fontSize: 16, fontWeight: "700", color: "rgba(255,255,255,0.95)", marginBottom: 12 },
