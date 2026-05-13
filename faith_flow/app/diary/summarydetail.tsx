@@ -69,9 +69,7 @@ export default function WeeklySummaryDetailScreen() {
       setFillingAudio(true);
       const response = await generateAudioForWeek(year, weekNumber);
       if (response.ok) {
-        Alert.alert('完成', '語音已生成', [
-          { text: '確定', onPress: loadSummary },
-        ]);
+        await loadSummary();
       } else {
         Alert.alert('錯誤', response.error || '語音生成失敗');
       }
@@ -295,28 +293,21 @@ export default function WeeklySummaryDetailScreen() {
           </BlurView>
         )}
 
-        {/* 生成／重新生成語音 */}
-        <TouchableOpacity onPress={handleFillAudio} disabled={fillingAudio} style={[styles.glassCard, styles.audioButton]}>
-          {fillingAudio ? (
+        {/* 語音按鈕：未生成 → 生成；已生成 → 播放/停止 */}
+        <TouchableOpacity
+          onPress={hasAudio ? handlePlayAudio : handleFillAudio}
+          disabled={fillingAudio || audioLoading}
+          style={[styles.glassCard, styles.audioButton]}
+        >
+          {(fillingAudio || audioLoading) ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
             <Text style={styles.audioButtonText}>
-              {hasAudio ? '🔄 重新生成語音' : '🎙 生成語音'}
-            </Text>
-          )}
-        </TouchableOpacity>
-
-        {/* 語音播放 */}
-        <TouchableOpacity
-          onPress={handlePlayAudio}
-          disabled={audioLoading || !hasAudio}
-          style={[styles.glassCard, styles.audioButton, !hasAudio && styles.audioButtonDisabled]}
-        >
-          {audioLoading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={[styles.audioButtonText, !hasAudio && styles.audioButtonTextDisabled]}>
-              {isPlaying ? '⏹ 停止語音' : '▶ 播放語音回顧'}
+              {!hasAudio
+                ? '🎙 生成語音'
+                : isPlaying
+                ? '⏹ 停止播放'
+                : '▶ 播放語音回顧'}
             </Text>
           )}
         </TouchableOpacity>
@@ -572,11 +563,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-  },
-  audioButtonDisabled: {
-    opacity: 0.4,
-  },
-  audioButtonTextDisabled: {
-    color: 'rgba(255, 255, 255, 0.5)',
   },
 });

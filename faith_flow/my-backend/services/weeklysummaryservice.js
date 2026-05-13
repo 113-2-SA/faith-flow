@@ -1,10 +1,6 @@
 const DateUtils = require('../utils/dateutils');
 const pool = require('../config/database');
-const axios = require('axios');
-const https = require('https');
-
-// 自訂 https agent（Windows Node.js SSL 相容性修正）
-const tlsAgent = new https.Agent({ rejectUnauthorized: false });
+const ttsService = require('./ttsService');
 
 class WeeklySummaryService {
   constructor() {}
@@ -45,19 +41,19 @@ ${diaries.map((d, i) => `
 ### ${this.getWeekdayName(d.diary_date)} (${d.diary_date})
 標題: ${d.diary_title}
 內容: ${d.diary_content}
-聖經金句: ${d.bible_quote || '無'}
+天主教聖經金句: ${d.bible_quote || '無'}
 `).join('\n')}
 
 請用繁體中文生成:
 1. 回顧標題 (簡短有意義，10-20字)
 2. 總結內容 (200-300字，語氣自然像朋友說話，溫暖但口語化，不要用文言文或宗教術語，提及這周的成長、感恩或反思)
-3. 挑選一句最適合這周主題的聖經金句
+3. 挑選一句最適合這周主題的天主教聖經金句
 
 請以 JSON 格式回傳，不要有任何 markdown 標記: 
 {
   "title": "標題",
   "content": "內容", 
-  "bible_quote": "聖經金句"
+  "bible_quote": "天主教聖經金句"
 }
     `;
 
@@ -69,65 +65,25 @@ ${diaries.map((d, i) => `
   }
 
   /**
-   * 🆕 使用 ElevenLabs 生成語音並上傳到 R2
+   * 使用 edge-tts 生成語音
    */
   async generateAndUploadAudio(summaryData) {
-    // 測試模式：使用最小有效 MP3 buffer 驗證流程
     if (process.env.AUDIO_TEST_MODE === 'true') {
       console.log('🧪 測試模式：使用最小 MP3 buffer');
-      // 最小有效 MP3 frame（靜音）
-      const minimalMp3 = Buffer.from(
+      return Buffer.from(
         'fffb9000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
         'hex'
       );
-      return minimalMp3;
     }
 
-    try {
-      const textToSpeak = `
-        ${summaryData.title}。
-        ${summaryData.content}。
-        ${summaryData.bible_quote ? `本週金句：${summaryData.bible_quote}` : ''}
-      `.trim();
+    const textToSpeak = [
+      summaryData.title,
+      summaryData.content,
+      summaryData.bible_quote ? `本週金句：${summaryData.bible_quote}` : '',
+    ].filter(Boolean).join('。');
 
-      console.log('🎙️ 正在使用 ElevenLabs 生成語音...');
-      console.log(`📝 文字長度: ${textToSpeak.length} 字元`);
-
-      // const voiceId = 'Xb7hH8MSUJpSbSDYk0k2'; // Sarah (免費)
-      const voiceId = 'bhJUNIXWQQ94l8eI2VUf'; // Sarah (免費)
-      const response = await axios.post(
-        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-        {
-          text: textToSpeak,
-          model_id: 'eleven_multilingual_v2',
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-            style: 0.5,
-            use_speaker_boost: true,
-          },
-        },
-        {
-          headers: {
-            'xi-api-key': process.env.ELEVENLABS_API_KEY,
-            'Content-Type': 'application/json',
-            Accept: 'audio/mpeg',
-          },
-          responseType: 'arraybuffer',
-          httpsAgent: tlsAgent,
-        }
-      );
-
-      const audioBuffer = Buffer.from(response.data);
-      console.log('✅ 語音生成完成，將存入 PostgreSQL');
-      return audioBuffer;
-
-    } catch (error) {
-      console.error('❌ ElevenLabs 語音生成失敗:', error.message);
-      if (error.response?.status === 401) console.warn('⚠️ API Key 無效');
-      if (error.response?.status === 429) console.warn('⚠️ ElevenLabs 額度不足');
-      return null;
-    }
+    console.log(`🎙️ 正在使用 edge-tts 生成語音，文字長度: ${textToSpeak.length} 字元`);
+    return ttsService.generateAudio(textToSpeak);
   }
 
   /**
@@ -138,21 +94,17 @@ ${diaries.map((d, i) => `
     const startDate = DateUtils.getWeekStartDate(year, weekNumber);
     const endDate = DateUtils.getWeekEndDate(year, weekNumber);
 
-    // 🆕 生成語音並上傳到 R2
-    const audioUrl = await this.generateAndUploadAudio(summaryData);
-
     const query = `
-      INSERT INTO "weekly_summary" 
-        ("user_id", "year", "week_number", "summary_title", "summary_content", 
+      INSERT INTO "weekly_summary"
+        ("user_id", "year", "week_number", "summary_title", "summary_content",
          "bible_quote", "diary_count", "start_date", "end_date", "is_auto_generated", "audio_url")
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      ON CONFLICT ("user_id", "year", "week_number") 
-      DO UPDATE SET 
+      ON CONFLICT ("user_id", "year", "week_number")
+      DO UPDATE SET
         "summary_title" = EXCLUDED."summary_title",
         "summary_content" = EXCLUDED."summary_content",
         "bible_quote" = EXCLUDED."bible_quote",
         "diary_count" = EXCLUDED."diary_count",
-        "audio_url" = EXCLUDED."audio_url",
         "generated_at" = CURRENT_TIMESTAMP,
         "is_auto_generated" = EXCLUDED."is_auto_generated"
       RETURNING *
@@ -169,7 +121,7 @@ ${diaries.map((d, i) => `
       startDate,
       endDate,
       isAuto,
-      audioUrl  // 🆕 儲存 R2 的 URL
+      null,
     ]);
 
     return result.rows[0];
@@ -275,29 +227,6 @@ ${diaries.map((d, i) => `
       [audioBuffer, row.summary_id]
     );
     return row.summary_id;
-  }
-
-  /**
-   * 🆕 檢查 ElevenLabs 剩餘額度
-   */
-  async checkElevenLabsQuota() {
-    try {
-      const user = await this.elevenLabsClient.user.get();
-      const subscription = user.subscription;
-      
-      console.log('💳 ElevenLabs 額度資訊:');
-      console.log(`   已使用: ${subscription.character_count} / ${subscription.character_limit} 字元`);
-      console.log(`   剩餘: ${subscription.character_limit - subscription.character_count} 字元`);
-      
-      return {
-        used: subscription.character_count,
-        limit: subscription.character_limit,
-        remaining: subscription.character_limit - subscription.character_count
-      };
-    } catch (error) {
-      console.error('❌ 無法取得額度資訊:', error.message);
-      return null;
-    }
   }
 
   /**
