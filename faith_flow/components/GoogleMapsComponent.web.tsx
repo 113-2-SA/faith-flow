@@ -118,7 +118,8 @@ export default function GoogleMapsComponent({
               title={basilica.name}
               onClick={() => onMarkerPress(basilica.id)}
               icon={{
-                path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
+                // pin 尖端在路徑原點 (0,0)，無需設定 anchor
+                path: "M0 -20C-3.87 -20-7 -16.87-7 -13c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
                 fillColor: "#ffffff",
                 fillOpacity: 0.95,
                 strokeColor: "rgba(100,120,240,0.8)",

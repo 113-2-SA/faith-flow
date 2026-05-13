@@ -52,7 +52,7 @@ function makeHtml(markers: Basilica[], prayerMarkers: PrayerRecord[]): string {
 
     function churchIcon(scale) {
       return {
-        path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
+        path: "M0 -20C-3.87 -20-7 -16.87-7 -13c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
         fillColor: "#ffffff", fillOpacity: 0.95,
         strokeColor: "rgba(100,120,240,0.8)", strokeWeight: 1.5, scale,
       };
@@ -170,7 +170,3 @@ export default function GoogleMapsComponent({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  fallback: { justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.55)" },
-});

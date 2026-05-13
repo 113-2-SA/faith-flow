@@ -298,13 +298,11 @@ export function BasilicaMap() {
                 </Pressable>
               ) : null}
 
-              {selectedBasilica.panoramaId ? (
-                <Pressable onPress={() => setShowPanorama(true)}>
-                  <GlassCard style={styles.detailActionCard}>
-                    <Text style={styles.panoramaBtnText}>🌐 進入 360° 全景</Text>
-                  </GlassCard>
-                </Pressable>
-              ) : null}
+              <Pressable onPress={() => setShowPanorama(true)}>
+                <GlassCard style={styles.detailActionCard}>
+                  <Text style={styles.panoramaBtnText}>🌐 進入 360° 全景</Text>
+                </GlassCard>
+              </Pressable>
 
               <Pressable onPress={() => router.push("/pray" as any)}>
                 <GlassCard style={styles.detailActionCard}>
@@ -376,9 +374,9 @@ export function BasilicaMap() {
           onClose={() => setShowVideo(false)}
         />
       )}
-      {showPanorama && selectedBasilica?.panoramaId && (
+      {showPanorama && selectedBasilica && (
         <ChurchPanoramaViewer
-          panoramaId={selectedBasilica.panoramaId}
+          coordinates={selectedBasilica.coordinates}
           basilicaName={selectedBasilica.name}
           onClose={() => setShowPanorama(false)}
           heading={selectedBasilica.panoramaHeading}
@@ -417,7 +415,7 @@ const styles = StyleSheet.create({
   handleArea: { height: HANDLE_H, alignItems: "center", justifyContent: "center", paddingTop: 10, paddingHorizontal: 16 },
   dragBar: { width: 40, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.45)", marginBottom: 12 },
   handleHint: { fontSize: 15, fontWeight: "700", color: "rgba(255,255,255,0.88)", letterSpacing: 0.5 },
-  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 10, paddingVertical: 3 },
+  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 10, paddingTop: 3, paddingBottom: 8 },
   filterBtnWrap: { borderRadius: 10, overflow: "hidden", alignSelf: "flex-start" },
   filterBtn: { padding: 0 },
   filterText: { color: "rgba(255,255,255,0.80)", fontSize: 13, paddingHorizontal: 14, paddingVertical: 5 },

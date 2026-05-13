@@ -316,13 +316,11 @@ export function BasilicaMap() {
                 </Pressable>
               ) : null}
 
-              {selectedBasilica.panoramaId ? (
-                <Pressable onPress={() => setShowPanorama(true)}>
-                  <GlassCard style={styles.detailActionCard}>
-                    <Text style={styles.panoramaBtnText}>🌐 進入 360° 全景</Text>
-                  </GlassCard>
-                </Pressable>
-              ) : null}
+              <Pressable onPress={() => setShowPanorama(true)}>
+                <GlassCard style={styles.detailActionCard}>
+                  <Text style={styles.panoramaBtnText}>🌐 進入 360° 全景</Text>
+                </GlassCard>
+              </Pressable>
 
               <Pressable onPress={() => router.push("/pray" as any)}>
                 <GlassCard style={styles.detailActionCard}>
@@ -397,9 +395,9 @@ export function BasilicaMap() {
         />
       )}
 
-      {showPanorama && selectedBasilica?.panoramaId && (
+      {showPanorama && selectedBasilica && (
         <ChurchPanoramaViewer
-          panoramaId={selectedBasilica.panoramaId}
+          coordinates={selectedBasilica.coordinates}
           basilicaName={selectedBasilica.name}
           onClose={() => setShowPanorama(false)}
           heading={selectedBasilica.panoramaHeading}
@@ -498,7 +496,7 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSerifTC_400Regular",
     letterSpacing: 0.5,
   },
-  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 10, paddingVertical: 3 },
+  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 10, paddingTop: 3, paddingBottom: 8 },
   filterBtnWrap: { borderRadius: 10, overflow: "hidden", alignSelf: "flex-start" },
   filterBtn: { padding: 0 },
   filterText: {
