@@ -41,19 +41,19 @@ ${diaries.map((d, i) => `
 ### ${this.getWeekdayName(d.diary_date)} (${d.diary_date})
 標題: ${d.diary_title}
 內容: ${d.diary_content}
-天主教聖經金句: ${d.bible_quote || '無'}
+天主教聖經福音: ${d.bible_quote || '無'}
 `).join('\n')}
 
 請用繁體中文生成:
 1. 回顧標題 (簡短有意義，10-20字)
 2. 總結內容 (200-300字，語氣自然像朋友說話，溫暖但口語化，不要用文言文或宗教術語，提及這周的成長、感恩或反思)
-3. 挑選一句最適合這周主題的天主教聖經金句
+3. 挑選一句最適合這周主題的天主教聖經福音
 
 請以 JSON 格式回傳，不要有任何 markdown 標記: 
 {
   "title": "標題",
   "content": "內容", 
-  "bible_quote": "天主教聖經金句"
+  "bible_quote": "天主教聖經福音"
 }
     `;
 
