@@ -15,7 +15,7 @@ import { LiturgicalInfo } from "../components/LiturgicalInfo";
 import { GlassCard } from "../components/GlassCard";
 import { PrayerNudgeModal } from "../components/PrayerNudgeModal";
 import { DiaryHandle } from "../components/DiarySheet";
-import { getPendingNudge, NudgeData } from "./api/nudgeApi";
+import { getPendingNudge, NudgeData } from "../lib/nudgeApi";
 
 function todayStr() {
   const t = new Date();

@@ -142,7 +142,7 @@ export default function CreateDiaryScreen() {
 
         {/* 經文 */}
         <View style={styles.section}>
-          <Text style={styles.label}>靈感金句</Text>
+          <Text style={styles.label}>靈感福音</Text>
           <TextInput
             style={styles.input}
             value={bible_quote}

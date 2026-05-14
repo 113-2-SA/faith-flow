@@ -13,7 +13,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { getWeeklySummary, deleteWeeklySummary, generateAudioForWeek, getAudioUrl } from '../api/weeklysummaryapi';
+import { getWeeklySummary, deleteWeeklySummary, generateAudioForWeek, getAudioUrl } from '../../lib/weeklysummaryapi';
 import { VideoBackground } from '@/components/VideoBackground';
 import { Audio } from 'expo-av';
 
@@ -282,12 +282,12 @@ export default function WeeklySummaryDetailScreen() {
           <Text style={styles.summaryContent}>{summary.summary_content}</Text>
         </BlurView>
 
-        {/* 聖經金句 */}
+        {/* 聖經福音 */}
         {summary.bible_quote && (
           <BlurView intensity={80} tint="light" style={[styles.glassCard, styles.bibleCard]}>
             <View style={styles.bibleHeader}>
               <Text style={styles.bibleIcon}>📖</Text>
-              <Text style={styles.sectionTitle}>本週金句</Text>
+              <Text style={styles.sectionTitle}>本週福音</Text>
             </View>
             <Text style={styles.bibleQuote}>{summary.bible_quote}</Text>
           </BlurView>
@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.95)',
   },
 
-  // 聖經金句
+  // 聖經福音
   bibleCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },

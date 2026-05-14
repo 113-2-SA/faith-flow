@@ -21,7 +21,7 @@ import {
   markNudgeShown,
   recordNudgeAction,
   submitNudgeFeedback,
-} from '../app/api/nudgeApi';
+} from '../lib/nudgeApi';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 

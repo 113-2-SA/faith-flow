@@ -1,5 +1,5 @@
-import { API_BASE_URL } from '../../lib/api';
-import { auth } from '../../lib/firebase';
+import { API_BASE_URL } from './api';
+import { auth } from './firebase';
 
 // 獲取 Firebase Token
 async function getAuthToken(): Promise<string | null> {

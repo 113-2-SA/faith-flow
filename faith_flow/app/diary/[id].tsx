@@ -259,15 +259,15 @@ export default function DiaryDetailScreen() {
               <Text style={styles.title}>{diary.diary_title}</Text>
             )}
 
-            {/* 靈感金句 */}
+            {/* 靈感福音 */}
             {isEditing ? (
               <>
-                <Text style={styles.fieldLabel}>靈感金句</Text>
+                <Text style={styles.fieldLabel}>靈感福音</Text>
                 <TextInput
                   style={styles.input}
                   value={editBibleQuote}
                   onChangeText={setEditBibleQuote}
-                  placeholder="輸入經文或金句"
+                  placeholder="輸入經文或福音"
                   placeholderTextColor="rgba(255,255,255,0.35)"
                   multiline
                 />

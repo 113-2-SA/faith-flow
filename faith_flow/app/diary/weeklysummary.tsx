@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   ScrollView,
@@ -12,12 +12,12 @@ import {
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { getWeeklySummaries, generateWeeklySummary } from '../api/weeklysummaryapi';
+import { getWeeklySummaries, generateWeeklySummary } from '../../lib/weeklysummaryapi';
 import { VideoBackground } from '@/components/VideoBackground';
 
 interface WeeklySummary {
-  summaryID: number;
-  userID: number;
+  summary_id: number;
+  user_id: number;
   year: number;
   week_number: number;
   summary_title: string;
@@ -39,6 +39,7 @@ export default function WeeklySummaryScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
   const limit = 10;
+  const loadingRef = useRef(false);
 
   const getLastWeek = () => {
     const lastWeek = new Date();
@@ -75,38 +76,31 @@ export default function WeeklySummaryScreen() {
   }, []);
 
   const loadSummaries = async (isRefresh = false) => {
-    if (loading && !isRefresh) return;
+    if (loadingRef.current && !isRefresh) return;
+    loadingRef.current = true;
 
     try {
       const currentOffset = isRefresh ? 0 : offset;
-      
-      console.log('🔍 開始載入周回顧...', { currentOffset, limit }); // 除錯日誌
-      
       const response = await getWeeklySummaries({
         limit,
         offset: currentOffset,
       });
 
-      console.log('📦 收到回應:', response); // 除錯日誌
-
-      if (response.ok) {
+      if (response.ok && Array.isArray(response.data)) {
+        const data: WeeklySummary[] = response.data;
         if (isRefresh) {
-          setSummaries(response.data);
-          setOffset(response.data.length);
+          setSummaries(data);
+          setOffset(data.length);
         } else {
-          setSummaries([...summaries, ...response.data]);
-          setOffset(currentOffset + response.data.length);
+          setSummaries((prev) => [...prev, ...data]);
+          setOffset(currentOffset + data.length);
         }
-
-        setHasMore(response.data.length === limit);
-        console.log('✅ 載入成功，共', response.data.length, '筆'); // 除錯日誌
-      } else {
-        console.error('❌ 載入失敗:', response.error);
-        // 不顯示 Alert，靜默處理
+        setHasMore(data.length === limit);
       }
     } catch (error) {
-      console.error('❌ 載入錯誤:', error);
+      if (__DEV__) console.error('loadSummaries error:', (error as Error)?.message);
     } finally {
+      loadingRef.current = false;
       setLoading(false);
       setRefreshing(false);
     }
@@ -137,7 +131,7 @@ export default function WeeklySummaryScreen() {
   const renderSummaryCard = (summary: WeeklySummary) => {
     return (
       <TouchableOpacity
-        key={summary.summaryID}
+        key={`${summary.year}-${summary.week_number}`}
         onPress={() =>
           router.push(
             `/diary/summarydetail?year=${summary.year}&weekNumber=${summary.week_number}`
@@ -163,7 +157,7 @@ export default function WeeklySummaryScreen() {
             {summary.summary_content}
           </Text>
 
-          {/* 聖經金句預覽 */}
+          {/* 聖經福音預覽 */}
           {summary.bible_quote && (
             <View style={styles.bibleQuotePreview}>
               <Text style={styles.bibleIcon}>📖</Text>
