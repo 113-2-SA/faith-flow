@@ -232,8 +232,11 @@ export function BasilicaMap() {
       {/* ── Bottom sheet ── */}
       <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetY }] }]}>
 
-        {/* GlassCard 提供主題玻璃背景（跟隨 GlassTheme） */}
-        <GlassCard style={styles.sheetGlass}>
+        {/* 版面配置層（absolute fill，確保 web 上有明確高度） */}
+        <View style={styles.sheetLayout}>
+
+          {/* 玻璃背景層（純視覺，absolute fill，positioned relative to sheetLayout） */}
+          <GlassCard style={styles.sheetBgGlass} />
 
           {/* Drag handle（純視覺，不接受事件） */}
           <View style={styles.handleArea} pointerEvents="none">
@@ -247,12 +250,7 @@ export function BasilicaMap() {
 
           {/* 篩選 tabs（展開時顯示，可點擊，不被 gestureOverlay 遮蓋） */}
           {sheetOpen && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterContent}
-              style={styles.filterScroll}
-            >
+            <View style={styles.filterRow}>
               {(["all", "major", "cathedral", "chapel"] as FilterType[]).map((type) => (
                 <Pressable key={type} onPress={() => setFilterType(type)} style={styles.filterBtnWrap}>
                   <GlassCard
@@ -265,7 +263,7 @@ export function BasilicaMap() {
                   </GlassCard>
                 </Pressable>
               ))}
-            </ScrollView>
+            </View>
           )}
 
           {selectedBasilica ? (
@@ -318,17 +316,21 @@ export function BasilicaMap() {
                 </Pressable>
               ) : null}
 
-              {selectedBasilica.panoramaId ? (
-                <Pressable onPress={() => setShowPanorama(true)}>
-                  <GlassCard style={styles.detailActionCard}>
-                    <Text style={styles.panoramaBtnText}>🌐 進入 360° 全景</Text>
-                  </GlassCard>
-                </Pressable>
-              ) : null}
+              <Pressable onPress={() => setShowPanorama(true)}>
+                <GlassCard style={styles.detailActionCard}>
+                  <Text style={styles.panoramaBtnText}>🌐 進入 360° 全景</Text>
+                </GlassCard>
+              </Pressable>
 
               <Pressable onPress={() => router.push("/pray" as any)}>
                 <GlassCard style={styles.detailActionCard}>
                   <Text style={styles.recordBtnText}>🎙 錄音祈禱</Text>
+                </GlassCard>
+              </Pressable>
+
+              <Pressable onPress={() => { setSelectedId(null); closeSheet(); }} style={styles.backToMapBtn}>
+                <GlassCard style={styles.backToMapCard} glassColor="rgba(255,255,255,0.08)">
+                  <Text style={styles.backToMapText}>🗺️ 返回地圖</Text>
                 </GlassCard>
               </Pressable>
 
@@ -371,7 +373,7 @@ export function BasilicaMap() {
               )}
             </ScrollView>
           )}
-        </GlassCard>
+        </View>
 
         {/* 手勢捕捉層：蓋住 handle 區，讓 filter tabs 在下方可正常點擊 */}
         <View style={styles.gestureOverlay} {...panResponder.panHandlers} />
@@ -393,9 +395,9 @@ export function BasilicaMap() {
         />
       )}
 
-      {showPanorama && selectedBasilica?.panoramaId && (
+      {showPanorama && selectedBasilica && (
         <ChurchPanoramaViewer
-          panoramaId={selectedBasilica.panoramaId}
+          coordinates={selectedBasilica.coordinates}
           basilicaName={selectedBasilica.name}
           onClose={() => setShowPanorama(false)}
           heading={selectedBasilica.panoramaHeading}
@@ -451,6 +453,22 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 22,
     padding: 0,
   },
+  sheetBgGlass: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    borderRadius: 0,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    padding: 0,
+  },
+  sheetLayout: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    flexDirection: "column",
+    overflow: "hidden",
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+  },
   // 手勢捕捉層，蓋住 handle 高度，讓 content 區的 filter tabs 可點擊
   gestureOverlay: {
     position: "absolute",
@@ -478,10 +496,9 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSerifTC_400Regular",
     letterSpacing: 0.5,
   },
-  filterContent: { gap: 8, paddingHorizontal: 2 },
-  filterBtnWrap: { borderRadius: 10, overflow: "hidden" },
+  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 10, paddingTop: 3, paddingBottom: 8 },
+  filterBtnWrap: { borderRadius: 10, overflow: "hidden", alignSelf: "flex-start" },
   filterBtn: { padding: 0 },
-  filterScroll: { paddingHorizontal: 10, paddingVertical: 3, height: 44 },
   filterText: {
     color: "rgba(255,255,255,0.80)", fontSize: 13,
     fontFamily: "NotoSerifTC_400Regular",
@@ -515,11 +532,14 @@ const styles = StyleSheet.create({
 
   // ── List ───────────────────────────────────────────────────────
   listItemWrap: { marginBottom: 8 },
-  listItemCard: { paddingVertical: 10, paddingHorizontal: 14 },
-  listRecordCard: { paddingVertical: 10, paddingHorizontal: 14, marginBottom: 0 },
+  listItemCard: {},
+  listRecordCard: {},
   listName: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.95)", fontFamily: "NotoSerifTC_400Regular" },
   listSub: { fontSize: 11, color: "rgba(255,255,255,0.60)", marginTop: 3, fontFamily: "NotoSerifTC_400Regular" },
   moreBtn: { paddingVertical: 12, alignItems: "center" },
   moreBtnText: { fontSize: 13, color: "rgba(255,255,255,0.70)", fontFamily: "NotoSerifTC_400Regular" },
   statusText: { textAlign: "center", color: "rgba(255,255,255,0.55)", fontSize: 14, marginTop: 20, fontFamily: "NotoSerifTC_400Regular" },
+  backToMapBtn: { marginTop: 8, marginBottom: 0 },
+  backToMapCard: { paddingVertical: 10, paddingHorizontal: 14 },
+  backToMapText: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.70)", textAlign: "center", fontFamily: "NotoSerifTC_400Regular" },
 });

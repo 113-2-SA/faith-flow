@@ -286,25 +286,19 @@ export function PilgrimageMap() {
                     </View>
                   </Pressable>
                 ) : null}
-                {selectedBasilica.panoramaId ? (
-                  <Pressable
-                    onPress={() => setShowPanorama(true)}
-                    style={({ pressed }) => [styles.actionBtn, styles.panoramaBtn, pressed && styles.panoramaBtnPressed]}
-                  >
-                    <View style={styles.actionBtnInner}>
-                      <Text style={styles.actionBtnIcon}>🌐</Text>
-                      <View>
-                        <ThemedText style={styles.actionBtnLabel}>進入 360° 全景</ThemedText>
-                        <ThemedText style={[styles.actionBtnSub, { color: "rgba(102,126,234,0.9)" }]}>互動式環景體驗</ThemedText>
-                      </View>
-                      <Text style={[styles.actionBtnArrow, { color: "rgba(102,126,234,0.8)" }]}>›</Text>
+                <Pressable
+                  onPress={() => setShowPanorama(true)}
+                  style={({ pressed }) => [styles.actionBtn, styles.panoramaBtn, pressed && styles.panoramaBtnPressed]}
+                >
+                  <View style={styles.actionBtnInner}>
+                    <Text style={styles.actionBtnIcon}>🌐</Text>
+                    <View>
+                      <ThemedText style={styles.actionBtnLabel}>進入 360° 全景</ThemedText>
+                      <ThemedText style={[styles.actionBtnSub, { color: "rgba(102,126,234,0.9)" }]}>互動式環景體驗</ThemedText>
                     </View>
-                  </Pressable>
-                ) : (
-                  <View style={styles.noPanoramaHint}>
-                    <ThemedText style={styles.noPanoramaText}>此教堂暫無全景資料</ThemedText>
+                    <Text style={[styles.actionBtnArrow, { color: "rgba(102,126,234,0.8)" }]}>›</Text>
                   </View>
-                )}
+                </Pressable>
               </GlassCard>
             </View>
           ) : (
@@ -423,8 +417,8 @@ export function PilgrimageMap() {
       {showVideo && selectedBasilica?.videoUrl && (
         <ChurchVideoViewer videoUrl={selectedBasilica.videoUrl} basilicaName={selectedBasilica.name} onClose={() => setShowVideo(false)} />
       )}
-      {showPanorama && selectedBasilica?.panoramaId && (
-        <ChurchPanoramaViewer panoramaId={selectedBasilica.panoramaId} basilicaName={selectedBasilica.name} onClose={() => setShowPanorama(false)} heading={selectedBasilica.panoramaHeading} />
+      {showPanorama && selectedBasilica && (
+        <ChurchPanoramaViewer coordinates={selectedBasilica.coordinates} basilicaName={selectedBasilica.name} onClose={() => setShowPanorama(false)} heading={selectedBasilica.panoramaHeading} />
       )}
     </View>
   );

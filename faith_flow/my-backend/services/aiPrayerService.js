@@ -6,7 +6,6 @@
 //   Step 2: findSimilar   → 用 pgvector 找相似日記（cosine similarity > 0.75）
 //   Step 3: analyzeTheme  → 深度主題分析，寫入 prayer_clusters 表
 
-
 const axios = require('axios');
 const pool = require('../config/database');
 const { parseJsonFromLLM } = require('../utils/parseJsonFromLLM');

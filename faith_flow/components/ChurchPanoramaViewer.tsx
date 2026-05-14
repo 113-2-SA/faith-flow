@@ -5,16 +5,16 @@ import { ThemedText } from "./themed-text";
 import { GOOGLE_MAPS_API_KEY } from "../config/mapConfig";
 
 type Props = {
-  panoramaId: string;
+  coordinates: [number, number]; // [lat, lng]
   basilicaName: string;
   onClose: () => void;
   heading?: number;
 };
 
-export function ChurchPanoramaViewer({ panoramaId, basilicaName, onClose, heading = 0 }: Props) {
+export function ChurchPanoramaViewer({ coordinates, basilicaName, onClose, heading = 0 }: Props) {
   const embedUrl =
     `https://www.google.com/maps/embed/v1/streetview` +
-    `?key=${GOOGLE_MAPS_API_KEY}&pano=${panoramaId}&heading=${heading}&pitch=0&fov=90`;
+    `?key=${GOOGLE_MAPS_API_KEY}&location=${coordinates[0]},${coordinates[1]}&heading=${heading}&pitch=0&fov=90`;
 
   return (
     <Modal visible={true} transparent={true} animationType="fade" onRequestClose={onClose}>
