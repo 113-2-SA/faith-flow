@@ -6,12 +6,15 @@
 //   Step 2: findSimilar   → 用 pgvector 找相似日記（cosine similarity > 0.75）
 //   Step 3: analyzeTheme  → 深度主題分析，寫入 prayer_clusters 表
 
-const MistralClient = require('@mistralai/mistralai').default;
 const axios = require('axios');
 const pool = require('../config/database');
 const { parseJsonFromLLM } = require('../utils/parseJsonFromLLM');
 
-const mistral = new MistralClient({ apiKey: process.env.MISTRAL_API_KEY });
+// Mistral 改用動態 import 載入（因為新版套件是 ESM，不支援 require）
+async function getMistralClient() {
+  const { Mistral } = await import('@mistralai/mistralai');
+  return new Mistral({ apiKey: process.env.MISTRAL_API_KEY });
+}
 
 // 回傳 embedding 向量陣列，供 findSimilar 直接使用（避免重複讀 DB）
 async function processDiary(diaryId, content, userId, title = '', tags = []) {
@@ -20,7 +23,8 @@ async function processDiary(diaryId, content, userId, title = '', tags = []) {
   // 標題和標籤一起納入 embedding，讓主題語意更精確
   const tagStr = Array.isArray(tags) && tags.length > 0 ? tags.join(' ') : '';
   const embeddingInput = [title, tagStr, content].filter(Boolean).join('\n');
-
+  
+  const mistral = await getMistralClient();
   const [embedRes, emotionRes] = await Promise.all([
     axios.post(
       'https://api.jina.ai/v1/embeddings',
@@ -113,7 +117,7 @@ async function analyzeTheme(diaryIds, userId) {
   const titlesSnippet = diaries
     .map((d, i) => `${i + 1}. 「${d.diary_title}」— ${d.diary_content.substring(0, 60)}`)
     .join('\n');
-
+  const mistral = await getMistralClient();
   const coherenceRes = await mistral.chat.complete({
     model: 'mistral-small-latest',
     maxTokens: 10,
