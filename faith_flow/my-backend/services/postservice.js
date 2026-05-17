@@ -211,11 +211,20 @@ class PostService {
                     d.diary_id      as diary_card_id,
                     d.diary_title   as diary_card_title,
                     d.diary_content as diary_card_content,
-                    d.diary_date    as diary_card_date
+                    d.diary_date    as diary_card_date,
+                    l.summary_text  as letter_card_summary,
+                    aq.question_text as letter_card_question,
+                    aq.image_url    as letter_card_image_url,
+                    ud.letter_quote as letter_card_quote,
+                    ud.letter_quote_source as letter_card_quote_source
                 FROM community_post_shares s
                 JOIN community_posts p ON s.original_post_id = p.community_post_id
                 LEFT JOIN "user" u ON p.author_user_id = u."userID"
                 LEFT JOIN diary d ON p.post_type = 'diary' AND p.diary_id = d.diary_id
+                LEFT JOIN letters l ON p.post_type = 'letter' AND p.letter_id = l.letter_id
+                LEFT JOIN user_draws ud ON ud.summary = l.summary_text AND ud.is_completed = true
+                LEFT JOIN weekly_cards wc ON wc.weekly_cards_id = ud.weekly_card_id
+                LEFT JOIN ai_questions aq ON aq.ai_question_id = wc.ai_question_id
                 WHERE s.shared_post_id = $1
                 AND s.deleted_at IS NULL
                 AND p.deleted_at IS NULL
@@ -237,6 +246,15 @@ class PostService {
                             diary_title:   orig.diary_card_title,
                             diary_content: orig.diary_card_content,
                             diary_date:    orig.diary_card_date,
+                        }
+                    } : {}),
+                    ...(orig.letter_card_summary ? {
+                        letter_card: {
+                            summary_text: orig.letter_card_summary,
+                            question:     orig.letter_card_question,
+                            image_url:    orig.letter_card_image_url,
+                            quote:        orig.letter_card_quote,
+                            quote_source: orig.letter_card_quote_source,
                         }
                     } : {})
                 };
@@ -349,6 +367,11 @@ class PostService {
                 , ows."bible_quote"     as orig_summary_card_bible_quote
                 , ows."year"            as orig_summary_card_year
                 , ows."week_number"     as orig_summary_card_week_number
+                , ol.summary_text          as orig_letter_card_summary
+                , olaq.question_text       as orig_letter_card_question
+                , olaq.image_url           as orig_letter_card_image_url
+                , oud.letter_quote         as orig_letter_card_quote
+                , oud.letter_quote_source  as orig_letter_card_quote_source
             FROM community_posts p
             LEFT JOIN "user" u ON p.author_user_id = u."userID"
             LEFT JOIN diary d ON p.post_type = 'diary' AND p.diary_id = d.diary_id
@@ -364,6 +387,10 @@ class PostService {
             LEFT JOIN "user" ou ON op.author_user_id = ou."userID"
             LEFT JOIN diary od ON op.post_type = 'diary' AND op.diary_id = od.diary_id
             LEFT JOIN "weekly_summary" ows ON op.post_type = 'summary' AND op.summary_id = ows."summary_id"
+            LEFT JOIN letters ol ON op.post_type = 'letter' AND op.letter_id = ol.letter_id
+            LEFT JOIN user_draws oud ON oud.summary = ol.summary_text AND oud.is_completed = true
+            LEFT JOIN weekly_cards owc ON owc.weekly_cards_id = oud.weekly_card_id
+            LEFT JOIN ai_questions olaq ON olaq.ai_question_id = owc.ai_question_id
             WHERE ${conditions.join(' AND ')}
             ORDER BY p.created_at DESC
             LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -451,6 +478,15 @@ class PostService {
                             year:            row.orig_summary_card_year,
                             week_number:     row.orig_summary_card_week_number,
                         }
+                    } : {}),
+                    ...(row.orig_letter_card_summary ? {
+                        letter_card: {
+                            summary_text: row.orig_letter_card_summary,
+                            question:     row.orig_letter_card_question,
+                            image_url:    row.orig_letter_card_image_url,
+                            quote:        row.orig_letter_card_quote,
+                            quote_source: row.orig_letter_card_quote_source,
+                        }
                     } : {})
                 };
             }
@@ -471,6 +507,11 @@ class PostService {
             delete post.orig_summary_card_bible_quote;
             delete post.orig_summary_card_year;
             delete post.orig_summary_card_week_number;
+            delete post.orig_letter_card_summary;
+            delete post.orig_letter_card_question;
+            delete post.orig_letter_card_image_url;
+            delete post.orig_letter_card_quote;
+            delete post.orig_letter_card_quote_source;
             return post;
         });
     }

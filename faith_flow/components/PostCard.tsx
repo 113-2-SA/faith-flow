@@ -52,6 +52,7 @@ export interface PostOriginalPost {
   original_author_avatar: string | null;
   diary_card?: PostDiaryCard;
   summary_card?: PostSummaryCard;
+  letter_card?: PostLetterCard;
 }
 
 export interface PostData {
@@ -488,6 +489,37 @@ export function PostCard({
                     {post.original_post.diary_card.diary_content.slice(0, 30)}
                     {post.original_post.diary_card.diary_content.length > 30 ? '...' : ''}
                   </Text>
+                </View>
+              </View>
+            </View>
+          )}
+          {post.original_post.letter_card && (
+            <View style={[styles.letterCard, { marginTop: 6 }]}>
+              <View style={styles.letterRow}>
+                {post.original_post.letter_card.image_url ? (
+                  <Image source={{ uri: post.original_post.letter_card.image_url }} style={styles.letterImg} resizeMode="cover" />
+                ) : (
+                  <View style={styles.letterImgPlaceholder}>
+                    <Text style={{ fontSize: 18 }}>🖼️</Text>
+                  </View>
+                )}
+                <View style={{ flex: 1, gap: 4 }}>
+                  {post.original_post.letter_card.question ? (
+                    <Text style={styles.letterQuestion} numberOfLines={2}>
+                      {post.original_post.letter_card.question}
+                    </Text>
+                  ) : null}
+                  {post.original_post.letter_card.summary_text ? (
+                    <Text style={styles.letterPreview} numberOfLines={2}>
+                      {post.original_post.letter_card.summary_text.slice(0, 50)}
+                      {post.original_post.letter_card.summary_text.length > 50 ? '...' : ''}
+                    </Text>
+                  ) : null}
+                  {post.original_post.letter_card.quote ? (
+                    <Text style={styles.letterQuote} numberOfLines={1}>
+                      「{post.original_post.letter_card.quote}」
+                    </Text>
+                  ) : null}
                 </View>
               </View>
             </View>
