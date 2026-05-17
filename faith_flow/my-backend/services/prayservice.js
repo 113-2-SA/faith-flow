@@ -1,21 +1,22 @@
 // ==================== services/prayerService.js ====================
-// ⚠️ 注意：@mistralai/mistralai 新版只支援 ESM，
-// 因此改用 dynamic import() 在每次呼叫時動態載入，
-// 這樣就不會在 require 階段報錯。
+const axios = require('axios');
 const pool = require("../config/database");
 const { parseJsonFromLLM } = require('../utils/parseJsonFromLLM');
 
 class PrayerService {
-  constructor() {
-    // 把 API key 存起來，等實際呼叫時再建立 Mistral 實例
-    this.mistralApiKey = process.env.MISTRAL_API_KEY;
-  }
-
-  // 🔧 helper：動態載入 Mistral 並建立實例
-  // 因為 ESM 模組不能用 require()，所以改用 async import()
-  async getMistralClient() {
-    const { Mistral } = await import('@mistralai/mistralai');
-    return new Mistral({ apiKey: this.mistralApiKey });
+  async callMistral(messages, maxTokens = 1000) {
+    const res = await axios.post(
+      'https://api.mistral.ai/v1/chat/completions',
+      { model: 'mistral-small-latest', messages, max_tokens: maxTokens },
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.MISTRAL_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 30000,
+      }
+    );
+    return res.data.choices[0].message.content;
   }
 
   //* ⭐ 主要方法：將祈禱轉換為日記
@@ -36,19 +37,7 @@ ${prayerText}
 }`;
 
     try {
-      // 每次呼叫時動態取得 mistral 實例
-      const mistral = await this.getMistralClient();
-
-      const message = await mistral.chat.complete({
-        model: 'mistral-small-latest',
-        maxTokens: 1000,
-        messages: [{
-          role: 'user',
-          content: prompt
-        }]
-      });
-
-      const responseText = message.choices[0].message.content;
+      const responseText = await this.callMistral([{ role: 'user', content: prompt }], 1000);
       console.log('🤖 [prayerService] Mistral 回應:', responseText);
       
       const result = parseJsonFromLLM(responseText);
@@ -91,19 +80,7 @@ ${prayerText}
 「將你們的一切掛慮都託給他，因為他必關照你們。」（伯多祿前書 5:7）`;
 
     try {
-      // 每次呼叫時動態取得 mistral 實例
-      const mistral = await this.getMistralClient();
-
-      const message = await mistral.chat.complete({
-        model: 'mistral-small-latest',
-        maxTokens: 500,
-        messages: [{
-          role: 'user',
-          content: prompt
-        }]
-      });
-
-      const quote = message.choices[0].message.content.trim();
+      const quote = (await this.callMistral([{ role: 'user', content: prompt }], 500)).trim();
       console.log('✅ [prayerService] 聖經經文生成成功:', quote);
       return quote;
     } catch (error) {

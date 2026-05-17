@@ -151,6 +151,20 @@ class WeeklySummaryController {
   }
 
   /**
+   * 補齊當前用戶所有有日記但尚未生成回顧的週
+   */
+  async generateAllMissing(req, res) {
+    try {
+      const userID = req.userId;
+      const results = await this.service.generateAllMissingWeeks(userID);
+      res.json({ ok: true, data: results });
+    } catch (error) {
+      console.error('補齊週回顧失敗:', error);
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  }
+
+  /**
    * 手動觸發自動生成（僅管理員）
    */
   async manualTrigger(req, res) {

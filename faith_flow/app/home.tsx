@@ -56,7 +56,7 @@ export default function Home() {
   }, []);
 
   const handleStartConversation = () => {
-    router.push('/pilgrimage'); // 導向對話頁面（依你實際的路由調整）
+    router.push('/chat'); // 導向對話頁面（依你實際的路由調整）
   };
 
   return (
