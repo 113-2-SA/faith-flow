@@ -14,8 +14,8 @@ class PrayerService {
   // 🔧 helper：動態載入 Mistral 並建立實例
   // 因為 ESM 模組不能用 require()，所以改用 async import()
   async getMistralClient() {
-    const { Mistral } = await import('@mistralai/mistralai');
-    return new Mistral({ apiKey: this.mistralApiKey });
+    const MistralClient = (await import('@mistralai/mistralai')).default;
+    return new MistralClient({ apiKey: this.mistralApiKey });
   }
 
   //* ⭐ 主要方法：將祈禱轉換為日記
@@ -39,7 +39,7 @@ ${prayerText}
       // 每次呼叫時動態取得 mistral 實例
       const mistral = await this.getMistralClient();
 
-      const message = await mistral.chat.complete({
+      const message = await mistral.chat({
         model: 'mistral-small-latest',
         maxTokens: 1000,
         messages: [{
@@ -94,7 +94,7 @@ ${prayerText}
       // 每次呼叫時動態取得 mistral 實例
       const mistral = await this.getMistralClient();
 
-      const message = await mistral.chat.complete({
+      const message = await mistral.chat({
         model: 'mistral-small-latest',
         maxTokens: 500,
         messages: [{

@@ -25,6 +25,7 @@ interface GoogleMapsComponentProps {
   selectedId: string | null;
   autoFitBounds?: boolean;
   prayerMarkers?: PrayerRecord[];
+  locationToPan?: { lat: number; lng: number } | null;
 }
 
 const MAP_CONTAINER_STYLE: React.CSSProperties = {
@@ -51,6 +52,7 @@ export default function GoogleMapsComponent({
   selectedId,
   autoFitBounds,
   prayerMarkers = [],
+  locationToPan,
 }: GoogleMapsComponentProps) {
   // useJsApiLoader is a singleton — won't re-inject the script on remount
   const { isLoaded, loadError } = useJsApiLoader({
@@ -73,6 +75,13 @@ export default function GoogleMapsComponent({
       }, 350);
     }
   }, [selectedId, markers, isLoaded]);
+
+  useEffect(() => {
+    if (locationToPan && mapRef.current) {
+      mapRef.current.panTo(locationToPan);
+      mapRef.current.setZoom(16);
+    }
+  }, [locationToPan]);
 
   useEffect(() => {
     if (!isLoaded || !autoFitBounds || !mapRef.current || markers.length === 0) return;
@@ -129,7 +138,7 @@ export default function GoogleMapsComponent({
             />
           </React.Fragment>
         ))}
-        {prayerMarkers.map((p) => (
+        {prayerMarkers.filter((p) => p.latitude != null && p.longitude != null && !isNaN(p.latitude) && !isNaN(p.longitude)).map((p) => (
           <Marker
             key={`prayer-${p.id}`}
             position={{ lat: p.latitude, lng: p.longitude }}

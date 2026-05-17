@@ -122,6 +122,7 @@ export default function DrawCardChatScreen() {
 
   return (
     <VideoBackground source={require("../../assets/backgrounds/main.mp4")}>
+      <View style={styles.darkOverlay} pointerEvents="none" />
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -215,6 +216,10 @@ export default function DrawCardChatScreen() {
 }
 
 const styles = StyleSheet.create({
+  darkOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
   container: { flex: 1 },
   header: {
     flexDirection: "row",

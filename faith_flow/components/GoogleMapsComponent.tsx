@@ -25,6 +25,7 @@ interface GoogleMapsComponentProps {
   selectedId: string | null;
   autoFitBounds?: boolean;
   prayerMarkers?: PrayerRecord[];
+  locationToPan?: { lat: number; lng: number } | null;
 }
 
 const API_KEY = MAP_CONFIG.apiKey;
@@ -129,6 +130,7 @@ export default function GoogleMapsComponent({
   selectedId,
   autoFitBounds,
   prayerMarkers = [],
+  locationToPan,
 }: GoogleMapsComponentProps) {
   const webViewRef = useRef<WebView>(null);
   const prevSelectedId = useRef<string | null>(null);
@@ -151,6 +153,14 @@ export default function GoogleMapsComponent({
       webViewRef.current?.injectJavaScript(`fitBounds(${coords}); true;`);
     }
   }, [markers, autoFitBounds]);
+
+  useEffect(() => {
+    if (locationToPan) {
+      webViewRef.current?.injectJavaScript(
+        `map.panTo({lat: ${locationToPan.lat}, lng: ${locationToPan.lng}}); map.setZoom(16); true;`
+      );
+    }
+  }, [locationToPan]);
 
   return (
     <View style={StyleSheet.absoluteFill}>

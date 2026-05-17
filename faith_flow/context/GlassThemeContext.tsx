@@ -8,6 +8,7 @@ export interface GlassTheme {
   angle: number;
   borderOpacity: number;
   borderR: number; borderG: number; borderB: number;
+  overlayColor?: string;
 }
 
 // #B3CADA → #75859B → #415367, CSS 60° (lower-left to upper-right), blur 15, border #C2D4FF@50%
@@ -28,8 +29,8 @@ interface GlassThemeCtx {
 
 const Ctx = createContext<GlassThemeCtx | null>(null);
 
-export function GlassThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<GlassTheme>(DEFAULT_GLASS);
+export function GlassThemeProvider({ children, initialTheme }: { children: React.ReactNode; initialTheme?: Partial<GlassTheme> }) {
+  const [theme, setTheme] = useState<GlassTheme>({ ...DEFAULT_GLASS, ...initialTheme });
   const update = (partial: Partial<GlassTheme>) =>
     setTheme(prev => ({ ...prev, ...partial }));
   return <Ctx.Provider value={{ theme, update }}>{children}</Ctx.Provider>;

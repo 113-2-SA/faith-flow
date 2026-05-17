@@ -120,7 +120,22 @@ export function DiaryHandle({ open, date, openInCreateMode, onDragOpen, onClose 
   // ── 新增表單 ─────────────────────────────────────────────────────
   const [diary_title, setDiaryTitle] = useState("");
   const [diary_content, setDiaryContent] = useState("");
+  const [bible_quote, setBibleQuote] = useState("");
+  const [tagInput, setTagInput] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+
+  const handleAddTag = () => {
+    const t = tagInput.trim();
+    if (t && !tags.includes(t)) {
+      setTags([...tags, t]);
+      setTagInput("");
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(tags.filter((tag) => tag !== tagToRemove));
+  };
 
   const handleSubmit = async () => {
     if (!user || !diary_title.trim()) return;
@@ -137,12 +152,17 @@ export function DiaryHandle({ open, date, openInCreateMode, onDragOpen, onClose 
           diary_date: date,
           diary_title: diary_title.trim(),
           diary_content: diary_content.trim(),
+          bible_quote: bible_quote.trim() || null,
+          tags: tags.length > 0 ? tags : null,
         }),
       });
       const data = await res.json();
       if (data.ok) {
         setDiaryTitle("");
         setDiaryContent("");
+        setBibleQuote("");
+        setTagInput("");
+        setTags([]);
         await fetchDiaries();
         setMode("list");
       }
@@ -291,6 +311,44 @@ export function DiaryHandle({ open, date, openInCreateMode, onDragOpen, onClose 
                 editable={open}
               />
             </ScrollView>
+            <TextInput
+              style={[styles.bibleInput, webOutline]}
+              placeholder="「求祢指教我們怎樣數算自己的日子，好叫我們得著智慧的心。」（詩 90:12）"
+              placeholderTextColor="rgba(0,0,0,0.28)"
+              value={bible_quote}
+              onChangeText={setBibleQuote}
+              multiline
+              editable={open}
+            />
+
+            <View style={styles.tagsSection}>
+              {tags.length > 0 && (
+                <View style={styles.tagsContainer}>
+                  {tags.map((tag, index) => (
+                    <Pressable key={`${tag}-${index}`} style={styles.tagChip} onPress={() => handleRemoveTag(tag)}>
+                      <Text selectable={false} style={styles.tagChipText}>{tag}</Text>
+                      <Text selectable={false} style={styles.tagChipRemove}> ✕</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+              <View style={styles.tagInputRow}>
+                <TextInput
+                  style={[styles.tagInput, webOutline]}
+                  value={tagInput}
+                  onChangeText={setTagInput}
+                  placeholder="新增標籤"
+                  placeholderTextColor="rgba(0,0,0,0.28)"
+                  onSubmitEditing={handleAddTag}
+                  returnKeyType="done"
+                  editable={open}
+                />
+                <Pressable style={styles.addTagBtn} onPress={handleAddTag}>
+                  <Text selectable={false} style={styles.addTagBtnText}>新增</Text>
+                </Pressable>
+              </View>
+            </View>
+
             <View style={styles.submitRow}>
               <Pressable
                 onPress={handleSubmit}
@@ -443,6 +501,50 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: "rgba(0,0,0,0.08)", marginVertical: 10 },
   contentScroll: { flex: 1 },
   contentInput: { fontSize: 16, color: "rgba(0,0,0,0.78)", lineHeight: 26, minHeight: 200, fontFamily: "NotoSerifTC_400Regular", ...webOutline },
+  bibleInput: {
+    fontSize: 14,
+    color: "rgba(0,0,0,0.78)",
+    fontStyle: "italic",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.10)",
+    paddingVertical: 6,
+    marginTop: 4,
+    marginBottom: 4,
+    fontFamily: "NotoSerifTC_400Regular",
+    minHeight: 40,
+  },
+  tagsSection: { marginTop: 8, marginBottom: 4 },
+  tagsContainer: { flexDirection: "row", flexWrap: "wrap", marginBottom: 8 },
+  tagChip: {
+    flexDirection: "row",
+    backgroundColor: "rgba(0,0,0,0.06)",
+    borderRadius: 16,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    marginRight: 8,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.12)",
+  },
+  tagChipText: { color: "rgba(0,0,0,0.60)", fontSize: 13, fontFamily: "NotoSerifTC_400Regular" },
+  tagChipRemove: { color: "rgba(0,0,0,0.35)", fontSize: 13, fontWeight: "600" },
+  tagInputRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  tagInput: {
+    flex: 1,
+    fontSize: 15,
+    color: "rgba(0,0,0,0.78)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.12)",
+    paddingVertical: 6,
+    fontFamily: "NotoSerifTC_400Regular",
+  },
+  addTagBtn: {
+    backgroundColor: "rgba(0,0,0,0.82)",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  addTagBtnText: { color: "#fff", fontSize: 14, fontWeight: "600" },
   submitRow: { alignItems: "flex-end", paddingTop: 12 },
   submitBtn: {
     width: 52,

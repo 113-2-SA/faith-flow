@@ -12,8 +12,8 @@ const { parseJsonFromLLM } = require('../utils/parseJsonFromLLM');
 
 // Mistral 改用動態 import 載入（因為新版套件是 ESM，不支援 require）
 async function getMistralClient() {
-  const { Mistral } = await import('@mistralai/mistralai');
-  return new Mistral({ apiKey: process.env.MISTRAL_API_KEY });
+  const MistralClient = (await import('@mistralai/mistralai')).default;
+  return new MistralClient({ apiKey: process.env.MISTRAL_API_KEY });
 }
 
 // 回傳 embedding 向量陣列，供 findSimilar 直接使用（避免重複讀 DB）
@@ -31,7 +31,7 @@ async function processDiary(diaryId, content, userId, title = '', tags = []) {
       { model: 'jina-embeddings-v3', input: [embeddingInput], task: 'text-matching' },
       { headers: { Authorization: `Bearer ${process.env.JINA_API_KEY}`, 'Content-Type': 'application/json' } }
     ),
-    mistral.chat.complete({
+    mistral.chat({
       model: 'mistral-small-latest',
       maxTokens: 200,
       messages: [{
@@ -118,7 +118,7 @@ async function analyzeTheme(diaryIds, userId) {
     .map((d, i) => `${i + 1}. 「${d.diary_title}」— ${d.diary_content.substring(0, 60)}`)
     .join('\n');
   const mistral = await getMistralClient();
-  const coherenceRes = await mistral.chat.complete({
+  const coherenceRes = await mistral.chat({
     model: 'mistral-small-latest',
     maxTokens: 10,
     messages: [{
@@ -137,7 +137,7 @@ async function analyzeTheme(diaryIds, userId) {
     `【日記 ${i + 1}】${d.diary_date}\n標題：${d.diary_title}\n${d.diary_content}`
   ).join('\n\n---\n\n');
 
-  const analysisRes = await mistral.chat.complete({
+  const analysisRes = await mistral.chat({
     model: 'mistral-small-latest',
     maxTokens: 800,
     messages: [{

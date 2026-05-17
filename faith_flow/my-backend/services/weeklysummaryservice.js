@@ -254,7 +254,7 @@ ${diaries.map((d, i) => `
       apiKey: process.env.MISTRAL_API_KEY
     });
 
-    const response = await client.chat.complete({
+    const response = await client.chat({
       model: 'mistral-large-latest',
       messages: [{
         role: 'user',

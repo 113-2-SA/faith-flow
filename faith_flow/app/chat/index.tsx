@@ -339,6 +339,7 @@ export default function ChatScreen() {
 
   return (
     <VideoBackground source={require('../../assets/backgrounds/main.mp4')}>
+      <View style={styles.darkOverlay} pointerEvents="none" />
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -385,7 +386,7 @@ export default function ChatScreen() {
         {messages.length === 0 && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>🕊️</Text>
-            <Text style={styles.emptyText}>有什麼信仰上的問題嗎？{'\n'}我來幫你找答案。</Text>
+            <Text style={styles.emptyText}>讓我傾聽你的煩惱，{'\n'}解答你的疑惑。</Text>
           </View>
         )}
 
@@ -642,6 +643,10 @@ const markdownStyles = {
 };
 
 const styles = StyleSheet.create({
+  darkOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
   container: { flex: 1 },
   header: { paddingTop: 12, paddingBottom: 16, paddingHorizontal: 20, borderRadius: 0 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },

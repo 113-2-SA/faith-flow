@@ -1,8 +1,10 @@
-import React, { useMemo, useState, useEffect, useRef, lazy, Suspense } from "react";
+import React, { useMemo, useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Dimensions,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,17 +12,20 @@ import {
   TextInput,
   View,
 } from "react-native";
+import * as Location from "expo-location";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { ChurchPanoramaViewer } from "./ChurchPanoramaViewer";
 import { ChurchImageViewer } from "./ChurchImageViewer";
 import { ChurchVideoViewer } from "./ChurchVideoViewer";
 import { GlassCard } from "./GlassCard";
-import { db } from "../lib/firebase";
+import { db, auth } from "../lib/firebase";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { loadPrayers, PrayerRecord } from "../lib/prayerStore";
 
+// Bundler auto-resolves to GoogleMapsComponent.web on web
 const GoogleMapsComponent = lazy(() => import("./GoogleMapsComponent"));
 
 export type Basilica = {
@@ -71,6 +76,8 @@ export function BasilicaMap() {
   const [showVideo, setShowVideo] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [prayerRecords, setPrayerRecords] = useState<PrayerRecord[]>([]);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locating, setLocating] = useState(false);
 
   const searchWidth = useRef(new Animated.Value(0)).current;
   const sheetY = useRef(new Animated.Value(COLLAPSED_Y)).current;
@@ -113,6 +120,20 @@ export function BasilicaMap() {
     })
   ).current;
 
+  const handleLocate = async () => {
+    setLocating(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") return;
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+    } catch {
+      /* ignore */
+    } finally {
+      setLocating(false);
+    }
+  };
+
   const expandSearch = () => {
     setSearchExpanded(true);
     Animated.timing(searchWidth, { toValue: 240, duration: 220, useNativeDriver: false })
@@ -126,7 +147,11 @@ export function BasilicaMap() {
   };
 
   useEffect(() => { setShowPanorama(false); setShowImages(false); setShowVideo(false); }, [selectedId]);
-  useEffect(() => { loadPrayers().then(setPrayerRecords).catch(() => {}); }, []);
+
+  useFocusEffect(useCallback(() => {
+    const user = auth.currentUser;
+    if (user) loadPrayers().then(setPrayerRecords).catch(() => {});
+  }, []));
 
   useEffect(() => {
     const fetchData = async () => {
@@ -194,13 +219,20 @@ export function BasilicaMap() {
               selectedId={selectedId}
               autoFitBounds={searchText.trim() !== "" || filterType !== "all"}
               prayerMarkers={prayerRecords}
+              locationToPan={userLocation}
             />
           )}
         </Suspense>
       </View>
 
       <View
-        style={[styles.headerBlur, { height: headerH }]}
+        style={[
+          styles.headerBlur,
+          { height: headerH },
+          Platform.OS === "web"
+            ? ({ backdropFilter: "blur(11px)", WebkitBackdropFilter: "blur(11px)" } as any)
+            : null,
+        ]}
         pointerEvents="none"
       />
 
@@ -208,7 +240,7 @@ export function BasilicaMap() {
         <Animated.View style={{ width: searchWidth, overflow: "hidden", marginRight: 8 }}>
           <TextInput
             ref={searchInputRef}
-            style={styles.searchInput}
+            style={[styles.searchInput, Platform.OS === "web" ? ({ outline: "none" } as any) : null]}
             placeholder="教堂名稱、位置、奉獻對象"
             placeholderTextColor="rgba(255,255,255,0.5)"
             value={searchText}
@@ -220,8 +252,19 @@ export function BasilicaMap() {
         </Pressable>
       </View>
 
+      <Pressable
+        onPress={handleLocate}
+        disabled={locating}
+        style={[styles.locateBtn, { top: headerTop + 58 }]}
+      >
+        {locating
+          ? <ActivityIndicator size="small" color="rgba(255,255,255,0.95)" />
+          : <MaterialCommunityIcons name="crosshairs-gps" size={24} color="rgba(255,255,255,0.95)" />
+        }
+      </Pressable>
+
       <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetY }] }]}>
-        <GlassCard style={styles.sheetGlass}>
+        <GlassCard style={styles.sheetGlass} glassColor="rgba(0,0,0,0.55)" blurTint="dark">
           <View style={styles.handleArea} pointerEvents="none">
             <View style={styles.dragBar} />
             <Text style={styles.handleHint} selectable={false}>
@@ -237,7 +280,8 @@ export function BasilicaMap() {
                 <Pressable key={type} onPress={() => setFilterType(type)} style={styles.filterBtnWrap}>
                   <GlassCard
                     style={styles.filterBtn}
-                    glassColor={filterType === type ? "rgba(102,126,234,0.35)" : undefined}
+                    glassColor={filterType === type ? "rgba(102,126,234,0.55)" : "rgba(0,0,0,0.45)"}
+                    blurTint="dark"
                   >
                     <Text style={[styles.filterText, filterType === type && styles.filterTextActive]}>
                       {FILTER_LABELS[type]}
@@ -260,7 +304,7 @@ export function BasilicaMap() {
                 </Pressable>
               </View>
 
-              <GlassCard style={styles.detailCard}>
+              <GlassCard style={styles.detailCard} glassColor="rgba(0,0,0,0.45)" blurTint="dark">
                 <Text style={styles.metaText}>📍 {selectedBasilica.location}</Text>
                 <Text style={styles.metaText}>
                   ⏰ {selectedBasilica.founded} 年建立　✝️ {selectedBasilica.dedication}
@@ -271,47 +315,47 @@ export function BasilicaMap() {
               </GlassCard>
 
               {selectedBasilica.significance ? (
-                <GlassCard style={styles.detailCard}>
+                <GlassCard style={styles.detailCard} glassColor="rgba(0,0,0,0.45)" blurTint="dark">
                   <Text style={styles.sectionTitle}>宗教意義</Text>
                   <Text style={styles.bodyText}>{selectedBasilica.significance}</Text>
                 </GlassCard>
               ) : null}
 
               {selectedBasilica.description ? (
-                <GlassCard style={styles.detailCard}>
+                <GlassCard style={styles.detailCard} glassColor="rgba(0,0,0,0.45)" blurTint="dark">
                   <Text style={styles.sectionTitle}>介紹</Text>
                   <Text style={styles.bodyText}>{selectedBasilica.description}</Text>
                 </GlassCard>
               ) : null}
 
               <Pressable onPress={() => setShowImages(true)}>
-                <GlassCard style={styles.detailActionCard}>
+                <GlassCard style={styles.detailActionCard} glassColor="rgba(0,0,0,0.45)" blurTint="dark">
                   <Text style={styles.imageBtnText}>🖼️ 查看圖片</Text>
                 </GlassCard>
               </Pressable>
 
               {selectedBasilica.videoUrl ? (
                 <Pressable onPress={() => setShowVideo(true)}>
-                  <GlassCard style={styles.detailActionCard}>
+                  <GlassCard style={styles.detailActionCard} glassColor="rgba(0,0,0,0.45)" blurTint="dark">
                     <Text style={styles.videoBtnText}>🎬 查看影片</Text>
                   </GlassCard>
                 </Pressable>
               ) : null}
 
               <Pressable onPress={() => setShowPanorama(true)}>
-                <GlassCard style={styles.detailActionCard}>
+                <GlassCard style={styles.detailActionCard} glassColor="rgba(0,0,0,0.45)" blurTint="dark">
                   <Text style={styles.panoramaBtnText}>🌐 進入 360° 全景</Text>
                 </GlassCard>
               </Pressable>
 
               <Pressable onPress={() => router.push("/pray" as any)}>
-                <GlassCard style={styles.detailActionCard}>
+                <GlassCard style={styles.detailActionCard} glassColor="rgba(0,0,0,0.45)" blurTint="dark">
                   <Text style={styles.recordBtnText}>🎙 錄音祈禱</Text>
                 </GlassCard>
               </Pressable>
 
               <Pressable onPress={() => { setSelectedId(null); closeSheet(); }} style={styles.backToMapBtn}>
-                <GlassCard style={styles.backToMapCard} glassColor="rgba(255,255,255,0.08)">
+                <GlassCard style={styles.backToMapCard} glassColor="rgba(0,0,0,0.40)" blurTint="dark">
                   <Text style={styles.backToMapText}>🗺️ 返回地圖</Text>
                 </GlassCard>
               </Pressable>
@@ -329,7 +373,7 @@ export function BasilicaMap() {
               ) : (
                 <>
                   <Pressable onPress={() => router.push("/pray" as any)} style={styles.listItemWrap}>
-                    <GlassCard style={styles.listRecordCard} glassColor="rgba(102,126,234,0.18)">
+                    <GlassCard style={styles.listRecordCard} glassColor="rgba(102,126,234,0.45)" blurTint="dark">
                       <Text style={styles.recordBtnText}>🎙 錄音祈禱</Text>
                     </GlassCard>
                   </Pressable>
@@ -339,7 +383,7 @@ export function BasilicaMap() {
                       onPress={() => setSelectedId(b.id)}
                       style={styles.listItemWrap}
                     >
-                      <GlassCard style={styles.listItemCard}>
+                      <GlassCard style={styles.listItemCard} glassColor="rgba(0,0,0,0.45)" blurTint="dark">
                         <Text style={styles.listName}>{b.name}</Text>
                         <Text style={styles.listSub}>📍 {b.location}　{b.founded} 年</Text>
                       </GlassCard>
@@ -404,6 +448,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4, paddingVertical: 0,
   },
   searchBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: "transparent", alignItems: "center", justifyContent: "center" },
+  locateBtn: {
+    position: "absolute", right: 16,
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: "rgba(0,0,0,0.42)",
+    alignItems: "center", justifyContent: "center",
+    zIndex: 500,
+  },
   sheet: {
     position: "absolute", bottom: 0, left: 0, right: 0,
     height: SHEET_H, zIndex: 400,
