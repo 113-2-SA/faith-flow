@@ -1,9 +1,11 @@
 // app/chat/index.tsx
 // 有答大師 - 聊天介面（含引用回覆 + 情緒指標 + 對話管理）
 
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -14,12 +16,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useAuth } from '../context/authcontext';
-import { toLocaleDateCST } from '../../utils/dateUtils';
-import { API_BASE_URL } from '../../lib/api';
-import { VideoBackground } from '../../components/VideoBackground';
 import { GlassCard } from '../../components/GlassCard';
+import { VideoBackground } from '../../components/VideoBackground';
+import { API_BASE_URL } from '../../lib/api';
+import { toLocaleDateCST } from '../../utils/dateUtils';
+import { useAuth } from '../context/authcontext';
 
 // const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -128,7 +129,7 @@ export default function ChatScreen() {
         setShowAllConvsModal(false);
       }
     } catch (err) {
-      window.alert('建立新對話失敗');
+      Alert.alert('錯誤', '建立新對話失敗');
     }
   };
 
@@ -157,7 +158,7 @@ export default function ChatScreen() {
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 100);
       }
     } catch (err) {
-      window.alert('載入對話失敗');
+      Alert.alert('錯誤', '載入對話失敗');
     }
   };
 
@@ -179,27 +180,38 @@ export default function ChatScreen() {
         setEditingTitle('');
       }
     } catch (err) {
-      window.alert('修改標題失敗');
+      Alert.alert('錯誤', '修改標題失敗');
     }
   };
 
-  const deleteConversation = async (convId: string) => {
-    const confirmed = window.confirm('確定要刪除這個對話嗎？');
-    if (!confirmed) return;
-    try {
-      const token = await getToken();
-      await fetch(`${API_BASE_URL}/api/chat/${convId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      setConversations(prev => prev.filter(c => c.conversation_id !== convId));
-      if (currentConversationId === convId) {
-        setCurrentConversationId(null);
-        setMessages([]);
-      }
-    } catch (err) {
-      window.alert('刪除失敗');
-    }
+  const deleteConversation = (convId: string) => {
+    Alert.alert(
+      '刪除對話',
+      '確定要刪除這個對話嗎？',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '刪除',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const token = await getToken();
+              await fetch(`${API_BASE_URL}/api/chat/${convId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` },
+              });
+              setConversations(prev => prev.filter(c => c.conversation_id !== convId));
+              if (currentConversationId === convId) {
+                setCurrentConversationId(null);
+                setMessages([]);
+              }
+            } catch (err) {
+              Alert.alert('錯誤', '刪除失敗');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const toggleCitations = useCallback((id: string) => {
@@ -265,65 +277,81 @@ export default function ChatScreen() {
         body.quoted_type = currentQuote.type;
       }
 
-      const res = await fetch(`${API_BASE_URL}/api/chat/stream`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(body),
-      });
+  // ── 平台判斷：網頁用 SSE 串流，手機用非串流 JSON endpoint ──
+      if (Platform.OS === 'web') {
+        // 網頁版：SSE 串流
+        const res = await fetch(`${API_BASE_URL}/api/chat/stream`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error('伺服器錯誤');
 
-      if (!res.ok) throw new Error('伺服器錯誤');
+        const reader = res.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
 
-      const reader = res.body!.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const chunk = line.slice(6).trim();
-          if (!chunk || chunk === '[DONE]') continue;
-          try {
-            const parsed = JSON.parse(chunk);
-            if (parsed.type === 'start') {
-              if (parsed.conversationId) setCurrentConversationId(parsed.conversationId);
-            } else if (parsed.type === 'knowledge_chunk') {
-              setMessages(prev => prev.map(msg =>
-                msg.id === assistantId ? { ...msg, knowledge_answer: (msg.knowledge_answer || '') + parsed.text } : msg
-              ));
-            } else if (parsed.type === 'companion') {
-              setMessages(prev => prev.map(msg =>
-                msg.id === assistantId ? { ...msg, companion_response: parsed.text } : msg
-              ));
-            } else if (parsed.type === 'citations') {
-              setMessages(prev => prev.map(msg =>
-                msg.id === assistantId ? { ...msg, citations: parsed.data } : msg
-              ));
-            } else if (parsed.type === 'title') {
-              setConversations(prev =>
-                prev.map(c => c.conversation_id === currentConversationId
-                  ? { ...c, title: parsed.title }
-                  : c
-                )
-              );
-            } else if (parsed.type === 'emotion') {
-              setEmotionScore(prev => updateEmotionScore(prev ?? 50, parsed.score));
-            } else if (parsed.type === 'done') {
-              setMessages(prev => prev.map(msg => {
-                if (msg.id !== assistantId) return msg;
-                return { ...msg, knowledge_blocks: parseMarkdownBlocks(msg.knowledge_answer || '') };
-              }));
-              setLoading(false);
-            } else if (parsed.type === 'error') {
-              throw new Error(parsed.message);
-            }
-          } catch (e) { /* skip */ }
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const chunk = line.slice(6).trim();
+            if (!chunk || chunk === '[DONE]') continue;
+            try {
+              const parsed = JSON.parse(chunk);
+              if (parsed.type === 'start') {
+                if (parsed.conversationId) setCurrentConversationId(parsed.conversationId);
+              } else if (parsed.type === 'knowledge_chunk') {
+                setMessages(prev => prev.map(msg =>
+                  msg.id === assistantId ? { ...msg, knowledge_answer: (msg.knowledge_answer || '') + parsed.text } : msg
+                ));
+              } else if (parsed.type === 'companion') {
+                setMessages(prev => prev.map(msg =>
+                  msg.id === assistantId ? { ...msg, companion_response: parsed.text } : msg
+                ));
+              } else if (parsed.type === 'citations') {
+                setMessages(prev => prev.map(msg =>
+                  msg.id === assistantId ? { ...msg, citations: parsed.data } : msg
+                ));
+              } else if (parsed.type === 'emotion') {
+                setEmotionScore(prev => updateEmotionScore(prev ?? 50, parsed.score));
+              } else if (parsed.type === 'done') {
+                if (parsed.conversationId) setCurrentConversationId(parsed.conversationId);
+              } else if (parsed.type === 'error') {
+                setMessages(prev => prev.map(msg =>
+                  msg.id === assistantId ? { ...msg, error: parsed.message } : msg
+                ));
+              }
+            } catch { /* 略過無法解析的 chunk */ }
+          }
         }
+
+      } else {
+        // 手機版：使用非串流 JSON endpoint，避免 SSE 長時間連線 timeout
+        const res = await fetch(`${API_BASE_URL}/api/chat/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error('伺服器錯誤');
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || '有答大師暫時無法回應');
+        if (data.data.conversationId) setCurrentConversationId(data.data.conversationId);
+        setMessages(prev => prev.map(msg =>
+          msg.id === assistantId ? {
+            ...msg,
+            knowledge_answer: data.data.knowledge_answer || '',
+            knowledge_blocks: parseMarkdownBlocks(data.data.knowledge_answer || ''),
+            companion_response: data.data.companion_response || undefined,
+            citations: data.data.citations || [],
+          } : msg
+        ));
+        setEmotionScore(prev => updateEmotionScore(prev ?? 50, data.data.emotion_score ?? 50));
       }
     } catch (err: any) {
       setMessages(prev => prev.map(msg =>

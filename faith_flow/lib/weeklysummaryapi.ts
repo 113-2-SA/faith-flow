@@ -67,6 +67,23 @@ export async function getWeeklySummary(
   }
 }
 
+// 補齊所有有日記但尚未生成回顧的週
+export async function generateAllMissingWeeklySummaries(): Promise<ApiResponse> {
+  try {
+    const token = await getAuthToken();
+    if (!token) return { ok: false, error: '未登入' };
+
+    const res = await fetch(`${API_BASE_URL}/api/weekly-summary/generate-all`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return await res.json();
+  } catch (error) {
+    console.error('補齊週回顧失敗:', error);
+    return { ok: false, error: '網路錯誤' };
+  }
+}
+
 // 生成新的周回顧
 export async function generateWeeklySummary(
   year: number,

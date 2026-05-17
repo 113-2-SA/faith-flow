@@ -9,7 +9,10 @@ import {
   RefreshControl,
   Alert,
   TextInput,
+  Modal,
+  ScrollView,
 } from 'react-native';
+import { getWeeklySummaries } from '../../lib/weeklysummaryapi';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../context/authcontext';
 import { VideoBackground } from '../../components/VideoBackground';
@@ -44,6 +47,34 @@ export default function DiaryListScreen() {
   const [searchText, setSearchText] = useState('');
   const [activeKeyword, setActiveKeyword] = useState('');
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 福音 Modal 狀態
+  const [gospelModalVisible, setGospelModalVisible] = useState(false);
+  const [gospelSummaries, setGospelSummaries] = useState<{ year: number; week_number: number; start_date: string; end_date: string; bible_quote: string }[]>([]);
+  const [gospelLoading, setGospelLoading] = useState(false);
+
+  const formatDate = (dateString: string) => {
+    const [, month, day] = dateString.split('-');
+    return `${parseInt(month)}/${parseInt(day)}`;
+  };
+
+  const handleOpenGospelModal = async () => {
+    setGospelModalVisible(true);
+    if (gospelSummaries.length > 0) return;
+    setGospelLoading(true);
+    try {
+      const response = await getWeeklySummaries({ limit: 100, offset: 0 });
+      if (response.ok && Array.isArray(response.data)) {
+        setGospelSummaries(
+          response.data.filter((s: any) => s.bible_quote)
+        );
+      }
+    } catch {
+      // silent fail
+    } finally {
+      setGospelLoading(false);
+    }
+  };
 
   // 取得日記
   const fetchDiaries = async (date?: string, keyword?: string) => {
@@ -171,21 +202,26 @@ export default function DiaryListScreen() {
           )}
 
           {/* 週統整入口 */}
-          <TouchableOpacity
-            style={styles.weeklyBtn}
-            onPress={() => router.push('/diary/weeklysummary')}
-          >
-            <GlassCard style={styles.weeklyCard}>
-              <View style={styles.weeklyRow}>
-                <Text style={styles.weeklyIcon}>✨</Text>
-                <View style={styles.weeklyText}>
-                  <Text style={styles.weeklyTitle}>週統整</Text>
-                  <Text style={styles.weeklySub}>查看 AI 自動生成的每週祈禱回顧</Text>
+          <View style={styles.weeklyButtonRow}>
+            <TouchableOpacity
+              style={styles.weeklyBtn}
+              onPress={() => router.push('/diary/weeklysummary')}
+            >
+              <GlassCard style={styles.weeklyCard}>
+                <View style={styles.weeklyRow}>
+                  <Text style={styles.weeklyIcon}>✨</Text>
+                  <View style={styles.weeklyText}>
+                    <Text style={styles.weeklyTitle}>週統整</Text>
+                    <Text style={styles.weeklySub}>查看 AI 自動生成的每週祈禱回顧</Text>
+                  </View>
+                  <Text style={styles.weeklyArrow}>›</Text>
                 </View>
-                <Text style={styles.weeklyArrow}>›</Text>
-              </View>
-            </GlassCard>
-          </TouchableOpacity>
+              </GlassCard>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.gospelButton} onPress={handleOpenGospelModal}>
+              <Text style={styles.gospelButtonText}>📖</Text>
+            </TouchableOpacity>
+          </View>
 
           {/* 搜尋欄 */}
           <GlassCard style={styles.searchCard}>
@@ -266,6 +302,43 @@ export default function DiaryListScreen() {
           <Text style={styles.fabText}>+</Text>
         </TouchableOpacity>
       </View>
+
+      <Modal
+        visible={gospelModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setGospelModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>📖 各週福音回顧</Text>
+              <TouchableOpacity onPress={() => setGospelModalVisible(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            {gospelLoading ? (
+              <ActivityIndicator size="large" color="rgba(255,255,255,0.8)" style={{ marginVertical: 40 }} />
+            ) : (
+              <ScrollView style={styles.gospelList} showsVerticalScrollIndicator={false}>
+                {gospelSummaries.length === 0 ? (
+                  <Text style={styles.gospelEmpty}>還沒有週回顧包含福音金句</Text>
+                ) : (
+                  gospelSummaries.map((s) => (
+                    <View key={`${s.year}-${s.week_number}`} style={styles.gospelItem}>
+                      <Text style={styles.gospelWeekLabel}>
+                        {s.year} 年 第 {s.week_number} 週　{formatDate(s.start_date)} - {formatDate(s.end_date)}
+                      </Text>
+                      <Text style={styles.gospelQuote}>「{s.bible_quote}」</Text>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </VideoBackground>
   );
 }
@@ -332,9 +405,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: 'rgba(255,255,255,0.95)',
   },
-  weeklyBtn: {
+  weeklyButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginHorizontal: 16,
     marginBottom: 8,
+    gap: 8,
+  },
+  weeklyBtn: {
+    flex: 1,
   },
   weeklyCard: {
     paddingVertical: 12,
@@ -365,6 +444,83 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: 'rgba(255,255,255,0.5)',
     fontWeight: '300',
+  },
+  gospelButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gospelButtonText: {
+    fontSize: 22,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#1a2a35',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 20,
+    paddingBottom: 40,
+    maxHeight: '75%',
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  modalClose: {
+    fontSize: 22,
+    color: 'rgba(255,255,255,0.6)',
+    lineHeight: 26,
+  },
+  gospelList: {
+    paddingHorizontal: 20,
+  },
+  gospelItem: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+  },
+  gospelWeekLabel: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.5)',
+    marginBottom: 4,
+  },
+  gospelQuote: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+    fontStyle: 'italic',
+    lineHeight: 20,
+  },
+  gospelEmpty: {
+    textAlign: 'center',
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 14,
+    paddingVertical: 40,
   },
   searchCard: {
     marginHorizontal: 16,

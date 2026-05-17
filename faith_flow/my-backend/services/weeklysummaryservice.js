@@ -1,6 +1,7 @@
 const DateUtils = require('../utils/dateutils');
 const pool = require('../config/database');
 const ttsService = require('./ttsService');
+const axios = require('axios');
 
 class WeeklySummaryService {
   constructor() {}
@@ -128,6 +129,61 @@ ${diaries.map((d, i) => `
   }
 
   /**
+   * 為指定用戶補齊所有有日記但尚未生成回顧的週
+   */
+  async generateAllMissingWeeks(user_id) {
+    const current = DateUtils.getCurrentWeek();
+
+    // 取得該用戶所有日記日期
+    const datesResult = await pool.query(
+      `SELECT DISTINCT diary_date FROM diary WHERE user_id = $1 ORDER BY diary_date ASC`,
+      [user_id]
+    );
+
+    // 將日期對應到 year+weekNumber，去重
+    const weekMap = new Map();
+    for (const row of datesResult.rows) {
+      const date = new Date(row.diary_date);
+      const year = date.getFullYear();
+      const weekNumber = DateUtils.getWeekNumberSunday(date);
+      // 跳過當週（尚未結束）
+      if (year === current.year && weekNumber === current.weekNumber) continue;
+      const key = `${year}-${weekNumber}`;
+      if (!weekMap.has(key)) weekMap.set(key, { year, weekNumber });
+    }
+
+    // 取得已生成的週
+    const existingResult = await pool.query(
+      `SELECT "year", "week_number" FROM "weekly_summary" WHERE "user_id" = $1`,
+      [user_id]
+    );
+    const existingSet = new Set(existingResult.rows.map(r => `${r.year}-${r.week_number}`));
+
+    // 找出缺少回顧的週，由舊到新
+    const missingWeeks = [...weekMap.values()]
+      .filter(w => !existingSet.has(`${w.year}-${w.weekNumber}`))
+      .sort((a, b) => a.year - b.year || a.weekNumber - b.weekNumber);
+
+    const results = { generated: [], failed: [], total: missingWeeks.length };
+
+    for (const { year, weekNumber } of missingWeeks) {
+      try {
+        const diaries = await this.getDiariesByWeek(user_id, year, weekNumber);
+        if (diaries.length === 0) continue;
+        const summaryData = await this.generateSummary(diaries);
+        await this.saveWeeklySummary(user_id, year, weekNumber, summaryData, diaries, false);
+        results.generated.push({ year, weekNumber });
+        await this.sleep(1500);
+      } catch (error) {
+        console.error(`❌ 第 ${year}/${weekNumber} 週生成失敗:`, error.message);
+        results.failed.push({ year, weekNumber, error: error.message });
+      }
+    }
+
+    return results;
+  }
+
+  /**
    * 自動為所有活躍用戶生成上周回顧
    */
   async autoGenerateWeeklySummaries() {
@@ -249,20 +305,21 @@ ${diaries.map((d, i) => `
    * 調用 AI API
    */
   async callAI(prompt) {
-    const MistralClient = require('@mistralai/mistralai').default;
-    const client = new MistralClient({
-      apiKey: process.env.MISTRAL_API_KEY
-    });
-
-    const response = await client.chat({
-      model: 'mistral-large-latest',
-      messages: [{
-        role: 'user',
-        content: prompt
-      }]
-    });
-
-    return response.choices[0].message.content;
+    const res = await axios.post(
+      'https://api.mistral.ai/v1/chat/completions',
+      {
+        model: 'mistral-large-latest',
+        messages: [{ role: 'user', content: prompt }],
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.MISTRAL_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 60000,
+      }
+    );
+    return res.data.choices[0].message.content;
   }
 }
 

@@ -8,11 +8,12 @@ import {
   ActivityIndicator,
   StyleSheet,
   Alert,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { getWeeklySummaries, generateWeeklySummary } from '../../lib/weeklysummaryapi';
+import { getWeeklySummaries, generateAllMissingWeeklySummaries } from '../../lib/weeklysummaryapi';
 import { VideoBackground } from '@/components/VideoBackground';
 
 interface WeeklySummary {
@@ -36,33 +37,30 @@ export default function WeeklySummaryScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [gospelModalVisible, setGospelModalVisible] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
   const limit = 10;
   const loadingRef = useRef(false);
 
-  const getLastWeek = () => {
-    const lastWeek = new Date();
-    lastWeek.setDate(lastWeek.getDate() - 7);
-    const year = lastWeek.getFullYear();
-    const startOfYear = new Date(year, 0, 1);
-    const firstSunday = new Date(startOfYear);
-    firstSunday.setDate(1 + (7 - startOfYear.getDay()) % 7);
-    const weekNumber = Math.ceil(((lastWeek.getTime() - firstSunday.getTime()) / 86400000 + 1) / 7);
-    return { year, weekNumber };
-  };
-
-  const handleGenerateLastWeek = async () => {
-    const { year, weekNumber } = getLastWeek();
+  const handleGenerateAll = async () => {
     setGenerating(true);
     try {
-      const response = await generateWeeklySummary(year, weekNumber);
+      const response = await generateAllMissingWeeklySummaries();
       if (response.ok) {
-        Alert.alert('完成', `第 ${weekNumber} 週的回顧已生成`, [
-          { text: '確定', onPress: () => onRefresh() },
-        ]);
+        const { generated, failed, total } = response.data;
+        if (total === 0) {
+          Alert.alert('已是最新', '所有有日記的週都已有回顧了');
+        } else {
+          const msg = [
+            `共掃描到 ${total} 週缺少回顧`,
+            `✅ 成功生成 ${generated.length} 週`,
+            failed.length > 0 ? `❌ 失敗 ${failed.length} 週` : null,
+          ].filter(Boolean).join('\n');
+          Alert.alert('完成', msg, [{ text: '確定', onPress: () => onRefresh() }]);
+        }
       } else {
-        Alert.alert('無法生成', response.error || '請確認上週有寫日記');
+        Alert.alert('無法生成', response.error || '請稍後再試');
       }
     } catch {
       Alert.alert('錯誤', '生成失敗，請稍後再試');
@@ -233,17 +231,25 @@ export default function WeeklySummaryScreen() {
           <Text style={styles.headerSubtitle}>
             共 {summaries.length} 週的成長記錄
           </Text>
-          <TouchableOpacity
-            style={styles.generateButton}
-            onPress={handleGenerateLastWeek}
-            disabled={generating}
-          >
-            {generating ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={styles.generateButtonText}>✨ 生成上週回顧</Text>
-            )}
-          </TouchableOpacity>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity
+              style={styles.generateButton}
+              onPress={handleGenerateAll}
+              disabled={generating}
+            >
+              {generating ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.generateButtonText}>✨ 補齊週回顧</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.gospelButton}
+              onPress={() => setGospelModalVisible(true)}
+            >
+              <Text style={styles.gospelButtonText}>📖</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* 年份分組列表 */}
@@ -272,6 +278,40 @@ export default function WeeklySummaryScreen() {
           <Text style={styles.endText}>- 已經到底了 -</Text>
         )}
       </ScrollView>
+      <Modal
+        visible={gospelModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setGospelModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>📖 各週福音回顧</Text>
+              <TouchableOpacity onPress={() => setGospelModalVisible(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.gospelList} showsVerticalScrollIndicator={false}>
+              {summaries.filter((s) => s.bible_quote).length === 0 ? (
+                <Text style={styles.gospelEmpty}>還沒有週回顧包含福音金句</Text>
+              ) : (
+                summaries
+                  .filter((s) => s.bible_quote)
+                  .map((s) => (
+                    <View key={`${s.year}-${s.week_number}`} style={styles.gospelItem}>
+                      <Text style={styles.gospelWeekLabel}>
+                        {s.year} 年 第 {s.week_number} 週　{formatDate(s.start_date)} - {formatDate(s.end_date)}
+                      </Text>
+                      <Text style={styles.gospelQuote}>「{s.bible_quote}」</Text>
+                    </View>
+                  ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </VideoBackground>
   );
 }
@@ -438,13 +478,17 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.6)',
     textAlign: 'center',
   },
-  generateButton: {
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: 16,
+    gap: 10,
+  },
+  generateButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 20,
-    alignSelf: 'flex-start',
     minWidth: 140,
     alignItems: 'center',
   },
@@ -452,5 +496,80 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  gospelButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gospelButtonText: {
+    fontSize: 20,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#1a2a35',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 20,
+    paddingBottom: 40,
+    maxHeight: '75%',
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  modalClose: {
+    fontSize: 22,
+    color: 'rgba(255,255,255,0.6)',
+    lineHeight: 26,
+  },
+  gospelList: {
+    paddingHorizontal: 20,
+  },
+  gospelItem: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+  },
+  gospelWeekLabel: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.5)',
+    marginBottom: 4,
+  },
+  gospelQuote: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+    fontStyle: 'italic',
+    lineHeight: 20,
+  },
+  gospelEmpty: {
+    textAlign: 'center',
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 14,
+    paddingVertical: 40,
   },
 });

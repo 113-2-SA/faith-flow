@@ -2,7 +2,7 @@
 // 活水泉源 - 對話視窗（5.2）
 
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -31,11 +31,12 @@ export default function DrawCardChatScreen() {
   const { currentUser } = useAuth();
   const params = useLocalSearchParams<{
     questionId: string;
+    weekly_card_id: string;
     question: string;
     theme: string;
     quote: string;
     quote_source: string;
-    image_base64: string; // 新增圖片參數
+    image_url: string;
   }>();
 
   // 對話串從空的開始，問題卡片已經顯示在上方了
@@ -76,6 +77,8 @@ export default function DrawCardChatScreen() {
         }),
       });
 
+      if (!res.ok) throw new Error(`伺服器錯誤 (${res.status})`);
+
       // 後端回傳 SSE 串流，逐行解析取出 done 事件的 reply
       const raw = await res.text();
       let reply = "";
@@ -108,11 +111,12 @@ export default function DrawCardChatScreen() {
   router.push({
     pathname: "/drawcard/summary",
     params: {
+      weekly_card_id: params.weekly_card_id || "",
       question: params.question,
       theme: params.theme,
       quote: params.quote,
       quote_source: params.quote_source,
-      image_base64: params.image_base64 || "", // 繼續帶下去
+      image_url: params.image_url || "",
       conversation: messages
         .map((m) => `${m.role === "user" ? "使用者" : "AI"}：${m.content}`)
         .join("\n"),
@@ -154,7 +158,7 @@ export default function DrawCardChatScreen() {
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           renderItem={({ item }) => (
             <GlassCard
-              style={[styles.bubble, item.role === "user" ? styles.bubbleUser : styles.bubbleAI]}
+              style={{ ...styles.bubble, ...(item.role === "user" ? styles.bubbleUser : styles.bubbleAI) }}
               glassColor={item.role === "user" ? "rgba(102,126,234,0.60)" : "rgba(255,255,255,0.10)"}
             >
               <Text style={styles.bubbleText}>{item.content}</Text>
