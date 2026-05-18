@@ -76,6 +76,7 @@ export function BasilicaMap() {
   const [showVideo, setShowVideo] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [prayerRecords, setPrayerRecords] = useState<PrayerRecord[]>([]);
+  const [selectedPrayer, setSelectedPrayer] = useState<PrayerRecord | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
 
@@ -220,6 +221,10 @@ export function BasilicaMap() {
               autoFitBounds={searchText.trim() !== "" || filterType !== "all"}
               prayerMarkers={prayerRecords}
               locationToPan={userLocation}
+              onPrayerMarkerPress={(id) => {
+                const p = prayerRecords.find((r) => r.id === id);
+                if (p) setSelectedPrayer(p);
+              }}
             />
           )}
         </Suspense>
@@ -404,6 +409,25 @@ export function BasilicaMap() {
         <View style={styles.gestureOverlay} {...panResponder.panHandlers} />
       </Animated.View>
 
+      {selectedPrayer && (
+        <View style={styles.prayerModalOverlay}>
+          <GlassCard style={styles.prayerModalCard} glassColor="rgba(0,0,0,0.72)" blurTint="dark">
+            <View style={styles.prayerModalHeader}>
+              <Text style={styles.prayerModalTitle}>✝ {selectedPrayer.title || "祈禱記錄"}</Text>
+              <Pressable onPress={() => setSelectedPrayer(null)} style={styles.closeBtn}>
+                <Text style={styles.closeBtnText}>✕</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.prayerModalDate}>
+              {new Date(selectedPrayer.createdAt).toLocaleDateString("zh-TW", { year: "numeric", month: "long", day: "numeric" })}
+            </Text>
+            <ScrollView style={styles.prayerModalScroll} showsVerticalScrollIndicator={false}>
+              <Text style={styles.prayerModalText}>{selectedPrayer.text}</Text>
+            </ScrollView>
+          </GlassCard>
+        </View>
+      )}
+
       {showImages && selectedBasilica && (
         <ChurchImageViewer
           nameEn={selectedBasilica.nameEn}
@@ -497,4 +521,16 @@ const styles = StyleSheet.create({
   backToMapBtn: { marginTop: 8, marginBottom: 0 },
   backToMapCard: { paddingVertical: 10, paddingHorizontal: 14 },
   backToMapText: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.70)", textAlign: "center" },
+
+  prayerModalOverlay: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    justifyContent: "center", alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.45)", zIndex: 600, padding: 24,
+  },
+  prayerModalCard: { width: "100%", maxWidth: 420 },
+  prayerModalHeader: { flexDirection: "row", alignItems: "flex-start", marginBottom: 6 },
+  prayerModalTitle: { flex: 1, fontSize: 16, fontWeight: "700", color: "rgba(255,215,100,0.95)" },
+  prayerModalDate: { fontSize: 12, color: "rgba(255,255,255,0.50)", marginBottom: 12 },
+  prayerModalScroll: { maxHeight: 260 },
+  prayerModalText: { fontSize: 14, color: "rgba(255,255,255,0.88)", lineHeight: 22 },
 });

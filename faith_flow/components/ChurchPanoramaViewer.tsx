@@ -16,6 +16,22 @@ export function ChurchPanoramaViewer({ coordinates, basilicaName, onClose, headi
     `https://www.google.com/maps/embed/v1/streetview` +
     `?key=${GOOGLE_MAPS_API_KEY}&location=${coordinates[0]},${coordinates[1]}&heading=${heading}&pitch=0&fov=90`;
 
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; background: #000; }
+    iframe { width: 100%; height: 100%; border: none; display: block; }
+  </style>
+</head>
+<body>
+  <iframe src="${embedUrl}" allowfullscreen></iframe>
+</body>
+</html>`;
+
   return (
     <Modal visible={true} transparent={true} animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
@@ -34,11 +50,12 @@ export function ChurchPanoramaViewer({ coordinates, basilicaName, onClose, headi
           </View>
 
           <WebView
-            source={{ uri: embedUrl }}
+            source={{ html }}
             style={{ flex: 1 }}
             javaScriptEnabled
             allowsFullscreenVideo
             originWhitelist={["*"]}
+            mixedContentMode="always"
           />
 
           <View style={styles.hintBar}>
@@ -51,11 +68,10 @@ export function ChurchPanoramaViewer({ coordinates, basilicaName, onClose, headi
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.82)", alignItems: "center", justifyContent: "center" },
+  overlay: { flex: 1, backgroundColor: "#0a0a14" },
   container: {
-    width: "92%", height: "88%",
-    backgroundColor: "#0a0a14", borderRadius: 16, overflow: "hidden",
-    borderWidth: 1, borderColor: "rgba(102,126,234,0.4)",
+    flex: 1,
+    backgroundColor: "#0a0a14", overflow: "hidden",
   },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
