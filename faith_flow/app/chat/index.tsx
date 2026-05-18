@@ -92,6 +92,7 @@ export default function ChatScreen() {
   const [convsLoading, setConvsLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const getToken = async () => {
     if (!currentUser) throw new Error('請先登入');
@@ -184,34 +185,23 @@ export default function ChatScreen() {
     }
   };
 
-  const deleteConversation = (convId: string) => {
-    Alert.alert(
-      '刪除對話',
-      '確定要刪除這個對話嗎？',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '刪除',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const token = await getToken();
-              await fetch(`${API_BASE_URL}/api/chat/${convId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` },
-              });
-              setConversations(prev => prev.filter(c => c.conversation_id !== convId));
-              if (currentConversationId === convId) {
-                setCurrentConversationId(null);
-                setMessages([]);
-              }
-            } catch (err) {
-              Alert.alert('錯誤', '刪除失敗');
-            }
-          },
-        },
-      ]
-    );
+  const deleteConversation = async (convId: string) => {
+    try {
+      const token = await getToken();
+      await fetch(`${API_BASE_URL}/api/chat/${convId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      setConversations(prev => prev.filter(c => c.conversation_id !== convId));
+      if (currentConversationId === convId) {
+        setCurrentConversationId(null);
+        setMessages([]);
+      }
+    } catch (err) {
+      Alert.alert('錯誤', '刪除失敗');
+    } finally {
+      setConfirmDeleteId(null);
+    }
   };
 
   const toggleCitations = useCallback((id: string) => {
@@ -626,7 +616,17 @@ export default function ChatScreen() {
                           <Text style={styles.convCancelText}>取消</Text>
                         </TouchableOpacity>
                       </View>
-                    ) : (
+                    ) : confirmDeleteId === conv.conversation_id ? (
+                        <View style={styles.convConfirmRow}>
+                          <Text style={styles.convConfirmText}>確定刪除？</Text>
+                          <TouchableOpacity style={styles.convConfirmBtn} onPress={() => deleteConversation(conv.conversation_id)}>
+                            <Text style={styles.convConfirmBtnText}>刪除</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.convCancelConfirmBtn} onPress={() => setConfirmDeleteId(null)}>
+                            <Text style={styles.convCancelText}>取消</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
                       <View style={styles.convRow}>
                         <TouchableOpacity style={styles.convInfo} onPress={() => switchConversation(conv.conversation_id)}>
                           <Text style={[styles.convTitle, currentConversationId === conv.conversation_id && styles.convTitleActive]}>
@@ -639,7 +639,7 @@ export default function ChatScreen() {
                             onPress={() => { setEditingId(conv.conversation_id); setEditingTitle(conv.title || ''); }}>
                             <Text style={styles.convActionText}>✏️</Text>
                           </TouchableOpacity>
-                          <TouchableOpacity style={styles.convActionBtn} onPress={() => deleteConversation(conv.conversation_id)}>
+                          <TouchableOpacity style={styles.convActionBtn} onPress={() => setConfirmDeleteId(conv.conversation_id)}>
                             <Text style={styles.convActionText}>🗑️</Text>
                           </TouchableOpacity>
                         </View>
@@ -781,4 +781,9 @@ const styles = StyleSheet.create({
   convSaveBtn: { backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
   convSaveBtnText: { color: 'rgba(0,0,0,0.75)', fontSize: 12, fontWeight: '600' },
   convCancelText: { color: 'rgba(255,255,255,0.50)', fontSize: 12 },
+  convConfirmRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  convConfirmText: { flex: 1, color: 'rgba(255,200,150,0.95)', fontSize: 13 },
+  convConfirmBtn: { backgroundColor: 'rgba(220,60,60,0.80)', borderRadius: 6, paddingHorizontal: 12, paddingVertical: 4 },
+  convConfirmBtnText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  convCancelConfirmBtn: { paddingHorizontal: 6, paddingVertical: 4 },
 });

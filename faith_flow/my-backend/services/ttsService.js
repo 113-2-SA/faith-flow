@@ -17,12 +17,12 @@ PROSODY.volume = 100;
 /**
  * 將文字轉換為語音 Buffer
  * @param {string} text - 要轉換的文字
- * @param {'female'|'male'} gender - 語音性別，預設 female
+ * @param {'male'|'female'} gender - 語音性別，預設 male
  * @returns {Promise<Buffer|null>} MP3 音訊 Buffer，失敗時回傳 null
  */
-async function generateAudio(text, gender = 'female') {
+async function generateAudio(text, gender = 'male') {
   try {
-    const voice = VOICES[gender] ?? VOICES.female;
+    const voice = VOICES[gender] ?? VOICES.male;
     const tts = new MsEdgeTTS();
     await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
 

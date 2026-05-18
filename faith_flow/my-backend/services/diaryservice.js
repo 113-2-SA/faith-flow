@@ -354,14 +354,66 @@ async function deleteDiary(diaryId, userId) {
 }
 
 /**
- * 取得使用者的日記總數
- * userId 參數：firebase uid
+ * 取得使用者的日記總數（套用與 getUserDiaries 相同的篩選條件）
  */
-async function getDiaryCount(userId) {
-  const result = await pool.query(
-    `SELECT COUNT(*) as count FROM diary WHERE user_id = $1`,
-    [userId]
-  );
+async function getDiaryCount(userId, options = {}) {
+  const {
+    startDate,
+    endDate,
+    date,
+    year,
+    month,
+    keyword,
+  } = options;
+
+  let sql = `SELECT COUNT(*) as count FROM diary WHERE user_id = $1`;
+  const params = [userId];
+  let paramCount = 1;
+
+  if (date) {
+    paramCount++;
+    sql += ` AND diary_date = $${paramCount}`;
+    params.push(date);
+  } else {
+    if (startDate) {
+      paramCount++;
+      sql += ` AND diary_date >= $${paramCount}`;
+      params.push(startDate);
+    }
+    if (endDate) {
+      paramCount++;
+      sql += ` AND diary_date <= $${paramCount}`;
+      params.push(endDate);
+    }
+  }
+
+  if (year && !date && !startDate && !endDate) {
+    paramCount++;
+    sql += ` AND EXTRACT(YEAR FROM diary_date) = $${paramCount}`;
+    params.push(year);
+  }
+
+  if (month && year) {
+    paramCount++;
+    sql += ` AND EXTRACT(MONTH FROM diary_date) = $${paramCount}`;
+    params.push(month);
+  }
+
+  if (keyword) {
+    paramCount++;
+    sql += ` AND (
+      diary_title ILIKE $${paramCount}
+      OR diary_content ILIKE $${paramCount}
+      OR bible_quote ILIKE $${paramCount}
+      OR EXISTS (
+        SELECT 1 FROM jsonb_array_elements_text(COALESCE(tags, '[]'::jsonb)) AS _tag
+        WHERE _tag ILIKE $${paramCount}
+      )
+    )`;
+    params.push(`%${keyword}%`);
+  }
+
+  const result = await pool.query(sql, params);
   return parseInt(result.rows[0].count, 10);
 }
 
