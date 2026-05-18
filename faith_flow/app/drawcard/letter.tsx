@@ -3,8 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../context/authcontext";
-
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+import { API_BASE_URL } from "../../lib/api";
 
 export default function LetterScreen() {
   const router = useRouter();
@@ -27,7 +26,7 @@ export default function LetterScreen() {
     if (!params.weekly_card_id || !currentUser) return;
     try {
       const token = await currentUser.getIdToken(true);
-      const drawsRes = await fetch(`${API_BASE}/api/livingwater/my-draws`, {
+      const drawsRes = await fetch(`${API_BASE_URL}/api/livingwater/my-draws`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const drawsData = await drawsRes.json();
@@ -35,7 +34,7 @@ export default function LetterScreen() {
       const myDraw = drawsData.data.find((d: any) => String(d.weekly_card_id) === String(params.weekly_card_id));
       if (!myDraw) return;
 
-      const completeRes = await fetch(`${API_BASE}/api/livingwater/complete-draw`, {
+      const completeRes = await fetch(`${API_BASE_URL}/api/livingwater/complete-draw`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({

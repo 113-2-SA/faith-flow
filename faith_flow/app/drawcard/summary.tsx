@@ -85,7 +85,7 @@ export default function SummaryScreen() {
             {!loading && error === "" && <Text style={styles.summaryText}>{summary}</Text>}
           </View>
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>📖 今日金句</Text>
+            <Text style={styles.sectionTitle}>📖 今日福音</Text>
             <Text style={styles.quoteText}>「{quote}」</Text>
             <Text style={styles.quoteSource}>—— {quoteSource}</Text>
           </View>

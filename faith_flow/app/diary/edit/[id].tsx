@@ -165,13 +165,13 @@ export default function EditDiaryScreen() {
               placeholderTextColor="rgba(255,255,255,0.4)"
             />
 
-            {/* 靈感金句 */}
-            <Text style={styles.label}>靈感金句</Text>
+            {/* 靈感福音 */}
+            <Text style={styles.label}>靈感福音</Text>
             <TextInput
               style={styles.input}
               value={bibleQuote}
               onChangeText={setBibleQuote}
-              placeholder="輸入經文或金句"
+              placeholder="輸入經文或福音"
               placeholderTextColor="rgba(255,255,255,0.4)"
               multiline
             />

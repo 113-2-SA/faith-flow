@@ -25,6 +25,8 @@ interface GoogleMapsComponentProps {
   selectedId: string | null;
   autoFitBounds?: boolean;
   prayerMarkers?: PrayerRecord[];
+  locationToPan?: { lat: number; lng: number } | null;
+  onPrayerMarkerPress?: (id: string) => void;
 }
 
 const MAP_CONTAINER_STYLE: React.CSSProperties = {
@@ -51,6 +53,8 @@ export default function GoogleMapsComponent({
   selectedId,
   autoFitBounds,
   prayerMarkers = [],
+  locationToPan,
+  onPrayerMarkerPress,
 }: GoogleMapsComponentProps) {
   // useJsApiLoader is a singleton — won't re-inject the script on remount
   const { isLoaded, loadError } = useJsApiLoader({
@@ -73,6 +77,13 @@ export default function GoogleMapsComponent({
       }, 350);
     }
   }, [selectedId, markers, isLoaded]);
+
+  useEffect(() => {
+    if (locationToPan && mapRef.current) {
+      mapRef.current.panTo(locationToPan);
+      mapRef.current.setZoom(16);
+    }
+  }, [locationToPan]);
 
   useEffect(() => {
     if (!isLoaded || !autoFitBounds || !mapRef.current || markers.length === 0) return;
@@ -129,19 +140,20 @@ export default function GoogleMapsComponent({
             />
           </React.Fragment>
         ))}
-        {prayerMarkers.map((p) => (
+        {prayerMarkers.filter((p) => p.latitude != null && p.longitude != null && !isNaN(p.latitude) && !isNaN(p.longitude)).map((p) => (
           <Marker
             key={`prayer-${p.id}`}
             position={{ lat: p.latitude, lng: p.longitude }}
             title={p.title || "祈禱記錄"}
+            onClick={() => onPrayerMarkerPress?.(p.id)}
             icon={{
-              path: "M 6,0 L 10,0 L 10,6 L 16,6 L 16,10 L 10,10 L 10,16 L 6,16 L 6,10 L 0,10 L 0,6 L 6,6 Z",
+              path: "M 4,0 L 8,0 L 8,4 L 12,4 L 12,8 L 8,8 L 8,18 L 4,18 L 4,8 L 0,8 L 0,4 L 4,4 Z",
               fillColor: "#f5d060",
               fillOpacity: 0.95,
-              strokeColor: "rgba(255,255,255,0.85)",
-              strokeWeight: 1,
-              scale: 1.3,
-              anchor: new window.google.maps.Point(8, 8),
+              strokeColor: "rgba(255,255,255,0.9)",
+              strokeWeight: 2,
+              scale: 1.8,
+              anchor: new window.google.maps.Point(6, 9),
             }}
           />
         ))}

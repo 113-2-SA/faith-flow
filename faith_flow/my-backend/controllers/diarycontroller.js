@@ -431,7 +431,7 @@ exports.createFromPrayer = async (req, res) => {
       });
     }
 
-    // 1. 轉換語音為日記（AI 生成標題/標籤/聖經金句）
+    // 1. 轉換語音為日記（AI 生成標題/標籤/聖經福音）
     const diary = await prayerService.convertPrayerToDiary(
       userId,
       transcript.trim()

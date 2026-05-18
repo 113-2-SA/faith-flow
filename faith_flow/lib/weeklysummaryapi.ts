@@ -1,5 +1,5 @@
-import { API_BASE_URL } from '../../lib/api';
-import { auth } from '../../lib/firebase';
+import { API_BASE_URL } from './api';
+import { auth } from './firebase';
 
 // 獲取 Firebase Token
 async function getAuthToken(): Promise<string | null> {
@@ -63,6 +63,23 @@ export async function getWeeklySummary(
     return await res.json();
   } catch (error) {
     console.error('獲取周回顧失敗:', error);
+    return { ok: false, error: '網路錯誤' };
+  }
+}
+
+// 補齊所有有日記但尚未生成回顧的週
+export async function generateAllMissingWeeklySummaries(): Promise<ApiResponse> {
+  try {
+    const token = await getAuthToken();
+    if (!token) return { ok: false, error: '未登入' };
+
+    const res = await fetch(`${API_BASE_URL}/api/weekly-summary/generate-all`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return await res.json();
+  } catch (error) {
+    console.error('補齊週回顧失敗:', error);
     return { ok: false, error: '網路錯誤' };
   }
 }

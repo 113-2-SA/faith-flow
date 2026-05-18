@@ -25,6 +25,8 @@ interface GoogleMapsComponentProps {
   selectedId: string | null;
   autoFitBounds?: boolean;
   prayerMarkers?: PrayerRecord[];
+  locationToPan?: { lat: number; lng: number } | null;
+  onPrayerMarkerPress?: (id: string) => void;
 }
 
 const API_KEY = MAP_CONFIG.apiKey;
@@ -70,6 +72,12 @@ function makeHtml(markers: Basilica[], prayerMarkers: PrayerRecord[]): string {
       }, 350);
     }
 
+    let pendingLocation = null;
+    function panToLocation(lat, lng) {
+      if (map) { map.panTo({ lat, lng }); map.setZoom(16); }
+      else { pendingLocation = { lat, lng }; }
+    }
+
     function fitBounds(coords) {
       if (!coords || coords.length === 0) return;
       if (coords.length === 1) { map.panTo(coords[0]); map.setZoom(12); return; }
@@ -105,17 +113,25 @@ function makeHtml(markers: Basilica[], prayerMarkers: PrayerRecord[]): string {
 
       PRAYERS.forEach(p => {
         if (p.latitude == null || p.longitude == null) return;
-        new google.maps.Marker({
+        const pm = new google.maps.Marker({
           position: { lat: p.latitude, lng: p.longitude },
           map,
+          title: p.title || "祈禱記錄",
           icon: {
-            path: "M 6,0 L 10,0 L 10,6 L 16,6 L 16,10 L 10,10 L 10,16 L 6,16 L 6,10 L 0,10 L 0,6 L 6,6 Z",
+            path: "M 4,0 L 8,0 L 8,4 L 12,4 L 12,8 L 8,8 L 8,18 L 4,18 L 4,8 L 0,8 L 0,4 L 4,4 Z",
             fillColor: "#f5d060", fillOpacity: 0.95,
-            strokeColor: "rgba(255,255,255,0.85)", strokeWeight: 1, scale: 1.3,
-            anchor: new google.maps.Point(8, 8),
+            strokeColor: "rgba(255,255,255,0.9)", strokeWeight: 2, scale: 1.8,
+            anchor: new google.maps.Point(6, 9),
           },
         });
+        pm.addListener("click", () =>
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: "prayerMarkerPress", id: p.id }))
+        );
       });
+
+      if (pendingLocation) {
+        map.panTo(pendingLocation); map.setZoom(16); pendingLocation = null;
+      }
     }
   </script>
   <script src="https://maps.googleapis.com/maps/api/js?key=${API_KEY}&callback=initMap" async defer></script>
@@ -129,6 +145,8 @@ export default function GoogleMapsComponent({
   selectedId,
   autoFitBounds,
   prayerMarkers = [],
+  locationToPan,
+  onPrayerMarkerPress,
 }: GoogleMapsComponentProps) {
   const webViewRef = useRef<WebView>(null);
   const prevSelectedId = useRef<string | null>(null);
@@ -152,6 +170,14 @@ export default function GoogleMapsComponent({
     }
   }, [markers, autoFitBounds]);
 
+  useEffect(() => {
+    if (locationToPan) {
+      webViewRef.current?.injectJavaScript(
+        `panToLocation(${locationToPan.lat}, ${locationToPan.lng}); true;`
+      );
+    }
+  }, [locationToPan]);
+
   return (
     <View style={StyleSheet.absoluteFill}>
       <WebView
@@ -164,6 +190,7 @@ export default function GoogleMapsComponent({
           try {
             const data = JSON.parse(e.nativeEvent.data);
             if (data.type === "markerPress") onMarkerPress(data.id);
+            if (data.type === "prayerMarkerPress") onPrayerMarkerPress?.(data.id);
           } catch {}
         }}
       />

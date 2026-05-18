@@ -1,27 +1,28 @@
 // ==================== services/prayerService.js ====================
-// ⚠️ 注意：@mistralai/mistralai 新版只支援 ESM，
-// 因此改用 dynamic import() 在每次呼叫時動態載入，
-// 這樣就不會在 require 階段報錯。
+const axios = require('axios');
 const pool = require("../config/database");
 const { parseJsonFromLLM } = require('../utils/parseJsonFromLLM');
 
 class PrayerService {
-  constructor() {
-    // 把 API key 存起來，等實際呼叫時再建立 Mistral 實例
-    this.mistralApiKey = process.env.MISTRAL_API_KEY;
-  }
-
-  // 🔧 helper：動態載入 Mistral 並建立實例
-  // 因為 ESM 模組不能用 require()，所以改用 async import()
-  async getMistralClient() {
-    const { Mistral } = await import('@mistralai/mistralai');
-    return new Mistral({ apiKey: this.mistralApiKey });
+  async callMistral(messages, maxTokens = 1000) {
+    const res = await axios.post(
+      'https://api.mistral.ai/v1/chat/completions',
+      { model: 'mistral-small-latest', messages, max_tokens: maxTokens },
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.MISTRAL_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 30000,
+      }
+    );
+    return res.data.choices[0].message.content;
   }
 
   //* ⭐ 主要方法：將祈禱轉換為日記
   async generateTitleAndTags(prayerText) {
     console.log('🤖 [prayerService] 開始生成標題和標籤...');
-    
+
     const prompt = `請分析以下的祈禱內容，提取出：
 1. 一個簡短的標題（不超過20字，能概括主題）
 2. 1-2個相關標籤
@@ -36,21 +37,9 @@ ${prayerText}
 }`;
 
     try {
-      // 每次呼叫時動態取得 mistral 實例
-      const mistral = await this.getMistralClient();
-
-      const message = await mistral.chat.complete({
-        model: 'mistral-small-latest',
-        maxTokens: 1000,
-        messages: [{
-          role: 'user',
-          content: prompt
-        }]
-      });
-
-      const responseText = message.choices[0].message.content;
+      const responseText = await this.callMistral([{ role: 'user', content: prompt }], 1000);
       console.log('🤖 [prayerService] Mistral 回應:', responseText);
-      
+
       const result = parseJsonFromLLM(responseText);
       if (result) {
         if (!result.tags.includes('祈禱')) {
@@ -63,11 +52,10 @@ ${prayerText}
       throw new Error('無法從 Mistral 回應中解析 JSON');
     } catch (error) {
       console.error('❌ [prayerService] LLM 生成失敗:', error.message);
-      
-      // 降級方案：使用前30字作為標題
+
       const fallbackTitle = prayerText.substring(0, 30) + (prayerText.length > 30 ? '...' : '');
       console.log('⚠️ [prayerService] 使用降級方案，標題:', fallbackTitle);
-      
+
       return {
         title: fallbackTitle,
         tags: ['祈禱']
@@ -80,7 +68,7 @@ ${prayerText}
    */
   async generateBibleQuote(prayerText) {
     console.log('📖 [prayerService] 開始生成聖經經文...');
-    
+
     const prompt = `根據以下祈禱內容，推薦一句相關的聖經經文（包含書卷章節）。
 請直接回傳經文，不要有任何解釋或前言。
 
@@ -91,19 +79,7 @@ ${prayerText}
 「將你們的一切掛慮都託給他，因為他必關照你們。」（伯多祿前書 5:7）`;
 
     try {
-      // 每次呼叫時動態取得 mistral 實例
-      const mistral = await this.getMistralClient();
-
-      const message = await mistral.chat.complete({
-        model: 'mistral-small-latest',
-        maxTokens: 500,
-        messages: [{
-          role: 'user',
-          content: prompt
-        }]
-      });
-
-      const quote = message.choices[0].message.content.trim();
+      const quote = (await this.callMistral([{ role: 'user', content: prompt }], 500)).trim();
       console.log('✅ [prayerService] 聖經經文生成成功:', quote);
       return quote;
     } catch (error) {
@@ -121,7 +97,6 @@ ${prayerText}
     console.log(`📝 祈禱內容長度: ${prayerText.length} 字`);
 
     try {
-      // 1. 並行生成標題、標籤和聖經經文（節省時間）
       const [titleAndTags, bibleQuote] = await Promise.all([
         this.generateTitleAndTags(prayerText),
         this.generateBibleQuote(prayerText)
@@ -134,7 +109,6 @@ ${prayerText}
       console.log('  - 標籤:', tags);
       console.log('  - 聖經經文:', bibleQuote);
 
-      // 2. 插入資料庫
       const query = `
         INSERT INTO diary (
           user_id,
@@ -158,7 +132,7 @@ ${prayerText}
 
       console.log('💾 [prayerService] 準備寫入資料庫...');
       const result = await pool.query(query, values);
-      
+
       const diary = result.rows[0];
       console.log('✅ [prayerService] 日記建立成功! ID:', diary.diary_id);
 
@@ -174,7 +148,7 @@ ${prayerText}
    */
   async previewDiary(prayerText) {
     console.log('👁️ [prayerService] 預覽模式：生成標題和標籤');
-    
+
     try {
       const { title, tags } = await this.generateTitleAndTags(prayerText);
       const bibleQuote = await this.generateBibleQuote(prayerText);

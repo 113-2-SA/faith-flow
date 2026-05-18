@@ -1,6 +1,6 @@
 // ============================================================
 // generateQuestionsAssets.js
-// 批次生成腳本：為每道題目生成金句 + image_prompt + 圖片
+// 批次生成腳本：為每道題目生成福音 + image_prompt + 圖片
 // 執行方式：node scripts/generateQuestionsAssets.js
 // 注意：這個腳本只需要跑一次，結果會存成 JSON 備用
 // ============================================================
@@ -32,19 +32,19 @@ const THEME_MAP = {
   CREATION_ENV:     '受造界與環境',
 };
 
-// ── Step 1：用 Groq 生成金句 + image_prompt ───────────────
+// ── Step 1：用 Groq 生成福音 + image_prompt ───────────────
 const generateQuoteAndPrompt = async (question) => {
   const prompt = `你是天好運（Faith Flow）天主教靈性 App 的內容設計師。
 
-請根據以下反思題目，生成對應的天主教金句與圖片描述。
+請根據以下反思題目，生成對應的天主教福音與圖片描述。
 
 題目：${question.question}
 主題：${THEME_MAP[question.theme]}
 來源提示：${question.source_hint}
 
 請生成：
-1. quote：一句來自聖經、教宗通諭或禮儀文本的金句（20-40字），力道強、與題目高度相關
-2. quote_source：金句出處（如：瑪 6:34 / 《福音的喜樂》第197號）
+1. quote：一句來自聖經、教宗通諭或禮儀文本的福音（20-40字），力道強、與題目高度相關
+2. quote_source：福音出處（如：瑪 6:34 / 《福音的喜樂》第197號）
 3. image_prompt：英文，40-60字，象徵性水彩插畫風格，反映題目的情感核心，含 soft warm light, watercolor texture, contemplative mood，避免直接畫宗教符號
 
 嚴格輸出 JSON，不附任何說明：
@@ -121,10 +121,10 @@ const main = async () => {
     console.log(`\n📝 處理題目 ${q.id}/${questions.length}：${q.question.slice(0, 20)}...`);
 
     try {
-      // Step 1：生成金句
-      console.log(`  ① 生成金句中...`);
+      // Step 1：生成福音
+      console.log(`  ① 生成福音中...`);
       const { quote, quote_source, image_prompt } = await generateQuoteAndPrompt(q);
-      console.log(`  ✅ 金句：${quote.slice(0, 20)}...`);
+      console.log(`  ✅ 福音：${quote.slice(0, 20)}...`);
 
       // Step 2：生成圖片
       console.log(`  ② 生成圖片中（約 15-30 秒）...`);

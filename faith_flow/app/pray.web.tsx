@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -13,7 +14,6 @@ import { VideoBackground } from "../components/VideoBackground";
 import { GlassCard } from "../components/GlassCard";
 import { auth } from "../lib/firebase";
 import { API_BASE_URL } from "../lib/api";
-
 type TranscriptMsg = {
   type: "transcript";
   transcript: string;
@@ -29,12 +29,7 @@ const getAuthToken = async (): Promise<string> => {
 
 type WsStatus = "idle" | "connecting" | "open" | "closed" | "error";
 type LocationPermState = "idle" | "asking" | "granted" | "denied";
-type PreviewData = {
-  suggestedTitle: string;
-  suggestedTags: string[];
-  suggestedBibleQuote: string | null;
-  content: string;
-};
+type PreviewData = { title: string; bibleQuote: string | null };
 
 const WS_URL = API_BASE_URL.replace(/^http/, "ws") + "/ws/transcribe";
 const API_URL = API_BASE_URL;
@@ -82,7 +77,7 @@ function LocationConsentCard({ onGrant, onDeny }: { onGrant: () => void; onDeny:
 
 export default function Pray() {
   const [locationPerm, setLocationPerm] = useState<LocationPermState>("idle");
-  const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
+  const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [lang, setLang] = useState<"zh-TW" | "en-US">("zh-TW");
   const [hasMicPermission, setHasMicPermission] = useState<boolean | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -91,11 +86,10 @@ export default function Pray() {
   const [finalText, setFinalText] = useState("");
   const [interimText, setInterimText] = useState("");
   const [showCross, setShowCross] = useState(false);
-  const [recordSaved, setRecordSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
-  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
   const socketRef = useRef<WebSocket | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -174,7 +168,6 @@ export default function Pray() {
   const startRecording = async () => {
     setError("");
     setShowCross(false);
-    setRecordSaved(false);
     try {
       const ws = await openWs();
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -215,8 +208,7 @@ export default function Pray() {
   };
 
   const loadPreview = async () => {
-    const textToPreview = combinedText.trim();
-    if (!textToPreview) { setError("沒有可預覽的內容"); return; }
+    if (!combinedText.trim()) { setError("沒有可儲存的內容"); return; }
     setIsLoadingPreview(true);
     setError("");
     try {
@@ -224,11 +216,14 @@ export default function Pray() {
       const response = await fetch(`${API_URL}/api/diary/preview-prayer`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ transcript: textToPreview }),
+        body: JSON.stringify({ transcript: combinedText.trim() }),
       });
       const result = await response.json();
-      if (result.ok) setPreviewData(result.data);
-      else setError(result.error || "預覽生成失敗");
+      if (result.ok) {
+        setPreviewData({ title: result.data.suggestedTitle, bibleQuote: result.data.suggestedBibleQuote ?? null });
+      } else {
+        setError(result.error || "預覽失敗");
+      }
     } catch {
       setError("網路錯誤，請稍後再試");
     } finally {
@@ -237,7 +232,6 @@ export default function Pray() {
   };
 
   const saveToDiary = async () => {
-    if (!previewData) { setError("請先預覽"); return; }
     setIsSaving(true);
     setError("");
     try {
@@ -245,13 +239,18 @@ export default function Pray() {
       const response = await fetch(`${API_URL}/api/diary/from-prayer`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ transcript: combinedText.trim(), collectId: null }),
+        body: JSON.stringify({
+          transcript: combinedText.trim(),
+          latitude: userCoords?.latitude ?? null,
+          longitude: userCoords?.longitude ?? null,
+        }),
       });
       const result = await response.json();
       if (result.ok) {
+        setPreviewData(null);
         setSaveSuccess(true);
         setTimeout(() => {
-          setFinalText(""); setInterimText(""); setPreviewData(null);
+          setFinalText(""); setInterimText("");
           setSaveSuccess(false); setShowCross(false);
         }, 3000);
         if ("Notification" in window && Notification.permission === "granted") {
@@ -359,26 +358,18 @@ export default function Pray() {
             <GlassCard style={styles.controlCard}>
               <TouchableOpacity
                 onPress={loadPreview}
-                disabled={isRecording || !combinedText.trim() || isLoadingPreview}
-                style={[styles.outlineBtn, (isRecording || !combinedText.trim() || isLoadingPreview) && styles.btnDisabled]}
-              >
-                <Text style={styles.outlineBtnText}>{isLoadingPreview ? "⏳ 生成中..." : "👁️ 預覽日記"}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={saveToDiary}
-                disabled={!previewData || isSaving || saveSuccess}
-                style={[styles.outlineBtn, (!previewData || isSaving || saveSuccess) && styles.btnDisabled]}
+                disabled={!combinedText.trim() || isLoadingPreview || isSaving || saveSuccess || isRecording || !!previewData}
+                style={[styles.outlineBtn, (!combinedText.trim() || isLoadingPreview || isSaving || saveSuccess || isRecording || !!previewData) && styles.btnDisabled]}
               >
                 <Text style={styles.outlineBtnText}>
-                  {isSaving ? "⏳ 儲存中..." : saveSuccess ? "✅ 已儲存！" : "💾 儲存為日記"}
+                  {isLoadingPreview ? "⏳ 生成預覽中..." : saveSuccess ? "✅ 已儲存！" : "💾 儲存為日記"}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 onPress={() => {
                   setFinalText(""); setInterimText(""); setError("");
-                  setShowCross(false); setPreviewData(null); setSaveSuccess(false);
+                  setShowCross(false); setSaveSuccess(false); setWsStatus("idle");
                 }}
                 disabled={isRecording}
                 style={[styles.outlineBtn, isRecording && styles.btnDisabled]}
@@ -386,6 +377,47 @@ export default function Pray() {
                 <Text style={styles.outlineBtnText}>清除</Text>
               </TouchableOpacity>
             </GlassCard>
+
+            <GlassCard style={styles.transcriptCard}>
+              <Text style={styles.fieldLabel}>轉錄內容</Text>
+              <TextInput
+                style={[styles.transcriptInput, { outline: "none" } as any]}
+                value={finalText}
+                onChangeText={setFinalText}
+                placeholder="語音轉錄結果將顯示於此，也可直接輸入..."
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                multiline
+                textAlignVertical="top"
+                editable={!isRecording}
+              />
+              {!!interimText && (
+                <Text style={styles.interimText}>{interimText}</Text>
+              )}
+            </GlassCard>
+
+            {previewData && !saveSuccess && (
+              <GlassCard style={styles.previewCard}>
+                <Text style={styles.previewSectionLabel}>📖 聖經經文</Text>
+                <Text style={styles.previewBible}>{previewData.bibleQuote || "（AI 未推薦經文）"}</Text>
+                <Text style={styles.previewTitle}>建議標題：{previewData.title}</Text>
+                <View style={styles.previewBtnRow}>
+                  <TouchableOpacity
+                    style={[styles.primaryBtn, isSaving && styles.btnDisabled]}
+                    onPress={saveToDiary}
+                    disabled={isSaving}
+                  >
+                    <Text style={styles.primaryBtnText}>{isSaving ? "⏳ 儲存中..." : "✝ 確認儲存"}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.secondaryBtn, isSaving && styles.btnDisabled]}
+                    onPress={() => setPreviewData(null)}
+                    disabled={isSaving}
+                  >
+                    <Text style={styles.secondaryBtnText}>取消</Text>
+                  </TouchableOpacity>
+                </View>
+              </GlassCard>
+            )}
 
             {saveSuccess && (
               <GlassCard style={styles.successCard}>
@@ -399,45 +431,7 @@ export default function Pray() {
               </GlassCard>
             )}
 
-            {previewData && (
-              <GlassCard style={styles.previewCard}>
-                <Text style={styles.previewTitle}>📋 日記預覽</Text>
-
-                <Text style={styles.previewLabel}>標題</Text>
-                <GlassCard style={styles.previewInner}>
-                  <Text style={styles.previewValue}>{previewData.suggestedTitle}</Text>
-                </GlassCard>
-
-                <Text style={styles.previewLabel}>語音內容</Text>
-                <GlassCard style={styles.previewInner}>
-                  <Text style={styles.previewValue}>{previewData.content}</Text>
-                </GlassCard>
-
-                <Text style={styles.previewLabel}>標籤</Text>
-                <View style={styles.tagRow}>
-                  {previewData.suggestedTags.map((tag, i) => (
-                    <GlassCard key={i} style={styles.tagChip}>
-                      <Text style={styles.tagText}>{tag}</Text>
-                    </GlassCard>
-                  ))}
-                </View>
-
-                {previewData.suggestedBibleQuote && (
-                  <>
-                    <Text style={styles.previewLabel}>聖經經文</Text>
-                    <GlassCard style={styles.previewInner}>
-                      <Text style={[styles.previewValue, { fontStyle: "italic" }]}>
-                        {previewData.suggestedBibleQuote}
-                      </Text>
-                    </GlassCard>
-                  </>
-                )}
-
-                <Text style={styles.previewHint}>💡 確認無誤後，點擊「儲存為日記」即可存入資料庫</Text>
-              </GlassCard>
-            )}
-
-            {showCross && recordSaved && (
+            {showCross && saveSuccess && (
               <GlassCard style={styles.savedCard} glassColor="rgba(52,168,83,0.22)">
                 <MaterialCommunityIcons name="check-circle-outline" size={32} color="rgba(100,200,130,0.95)" />
                 <Text style={styles.savedText}>祈禱已記錄 ✝</Text>
@@ -500,16 +494,29 @@ const styles = StyleSheet.create({
   outlineBtnText: { color: "rgba(255,255,255,0.90)", fontSize: 14, fontWeight: "600" },
   btnDisabled: { opacity: 0.4 },
 
-  previewCard: { marginBottom: 12 },
-  previewTitle: { fontSize: 16, fontWeight: "700", color: "rgba(255,255,255,0.95)", marginBottom: 12 },
-  previewLabel: { fontSize: 11, color: "rgba(255,255,255,0.55)", marginBottom: 4, marginTop: 8, fontWeight: "600", letterSpacing: 0.5 },
-  previewInner: { marginBottom: 4 },
-  previewValue: { fontSize: 14, color: "rgba(255,255,255,0.90)", lineHeight: 20 },
-  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 4 },
-  tagChip: { paddingVertical: 4, paddingHorizontal: 10 },
-  tagText: { fontSize: 13, color: "rgba(255,255,255,0.90)" },
-  previewHint: { fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 10 },
+  transcriptCard: { marginBottom: 12 },
+  fieldLabel: { fontSize: 11, color: "rgba(255,255,255,0.55)", marginBottom: 6, fontWeight: "600", letterSpacing: 0.5 },
+  transcriptInput: {
+    fontSize: 15,
+    color: "rgba(255,255,255,0.90)",
+    lineHeight: 22,
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  interimText: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.40)",
+    fontStyle: "italic",
+    marginTop: 6,
+    lineHeight: 20,
+  },
 
   savedCard: { alignItems: "center", gap: 8 },
   savedText: { fontSize: 16, fontWeight: "700", color: "rgba(255,255,255,0.95)" },
+
+  previewCard: { marginBottom: 12 },
+  previewSectionLabel: { fontSize: 11, color: "rgba(255,255,255,0.55)", marginBottom: 6, fontWeight: "600", letterSpacing: 0.5 },
+  previewBible: { fontSize: 15, color: "rgba(255,255,220,0.95)", fontStyle: "italic", lineHeight: 22, marginBottom: 10 },
+  previewTitle: { fontSize: 13, color: "rgba(255,255,255,0.65)", marginBottom: 14 },
+  previewBtnRow: { flexDirection: "row", gap: 12 },
 });

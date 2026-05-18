@@ -8,9 +8,15 @@ module.exports = (weeklySummaryController) => {
   const authMiddleware = [verifyToken, attachUserId];
 
   // 生成特定周回顧
-  router.post('/generate', 
-    authMiddleware, 
+  router.post('/generate',
+    authMiddleware,
     (req, res) => weeklySummaryController.generateSpecificWeek(req, res)
+  );
+
+  // 補齊所有有日記但尚未生成回顧的週
+  router.post('/generate-all',
+    authMiddleware,
+    (req, res) => weeklySummaryController.generateAllMissing(req, res)
   );
 
   // 獲取歷史回顧列表

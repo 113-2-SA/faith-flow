@@ -10,6 +10,7 @@ type Props = {
   intensity?: number;
   transparent?: boolean;
   glassColor?: string;
+  blurTint?: "light" | "dark" | "default";
 };
 
 // angle (degrees) → expo-linear-gradient start/end
@@ -23,7 +24,7 @@ function angleToPoints(deg: number) {
   };
 }
 
-export function GlassCard({ children, style, intensity, transparent = false, glassColor }: Props) {
+export function GlassCard({ children, style, intensity, transparent = false, glassColor, blurTint = "light" }: Props) {
   const { theme } = useGlassTheme();
 
   const effectiveBlur = intensity ?? theme.blur;
@@ -39,7 +40,7 @@ export function GlassCard({ children, style, intensity, transparent = false, gla
   return (
     <View style={[styles.wrap, isTransparent ? styles.wrapTransparent : null, style]}>
       {showBlur && (
-        <BlurView intensity={effectiveBlur} tint="light" style={StyleSheet.absoluteFill} />
+        <BlurView intensity={effectiveBlur} tint={blurTint} style={StyleSheet.absoluteFill} />
       )}
 
       {!isTransparent && !glassColor && (
@@ -53,6 +54,10 @@ export function GlassCard({ children, style, intensity, transparent = false, gla
 
       {!isTransparent && glassColor && (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: glassColor }]} />
+      )}
+
+      {theme.overlayColor && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.overlayColor }]} />
       )}
 
       <View style={[styles.border, { borderColor }]} />

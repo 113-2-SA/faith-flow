@@ -44,7 +44,7 @@ interface LetterItem {
   question?: string;         // 問題主題（從 ai_questions 來）
   image_url?: string;        // 卡片圖片（Cloudflare R2）
   quote?: string;        // ✨ 改這裡（原本是 letter_quote）
-  quote_source?: string; // 金句來源
+  quote_source?: string; // 福音來源
   }
 
 export default function CreatePostScreen() {
@@ -361,7 +361,7 @@ export default function CreatePostScreen() {
                     {attachedLetter.summary_text.slice(0, 80)}
                     {attachedLetter.summary_text.length > 80 ? '...' : ''}
                   </Text>
-                  {/* 金句 */}
+                  {/* 福音 */}
                   {attachedLetter.quote ? (
   <Text style={styles.letterQuote} numberOfLines={2}>
     「{attachedLetter.quote}」
@@ -774,7 +774,7 @@ const styles = StyleSheet.create({
   },
   letterQuote: {
     fontSize: 12,
-    color: 'rgba(180,230,180,0.85)',            // 淡綠色金句
+    color: 'rgba(180,230,180,0.85)',            // 淡綠色福音
     fontStyle: 'italic',
     lineHeight: 17,
   },

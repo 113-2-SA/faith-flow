@@ -6,12 +6,24 @@
 //   Step 2: findSimilar   → 用 pgvector 找相似日記（cosine similarity > 0.75）
 //   Step 3: analyzeTheme  → 深度主題分析，寫入 prayer_clusters 表
 
-const MistralClient = require('@mistralai/mistralai').default;
 const axios = require('axios');
 const pool = require('../config/database');
 const { parseJsonFromLLM } = require('../utils/parseJsonFromLLM');
 
-const mistral = new MistralClient({ apiKey: process.env.MISTRAL_API_KEY });
+async function callMistral(model, messages, maxTokens = 800) {
+  const res = await axios.post(
+    'https://api.mistral.ai/v1/chat/completions',
+    { model, messages, max_tokens: maxTokens },
+    {
+      headers: {
+        'Authorization': `Bearer ${process.env.MISTRAL_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 30000,
+    }
+  );
+  return res.data;
+}
 
 // 回傳 embedding 向量陣列，供 findSimilar 直接使用（避免重複讀 DB）
 async function processDiary(diaryId, content, userId, title = '', tags = []) {
@@ -27,17 +39,13 @@ async function processDiary(diaryId, content, userId, title = '', tags = []) {
       { model: 'jina-embeddings-v3', input: [embeddingInput], task: 'text-matching' },
       { headers: { Authorization: `Bearer ${process.env.JINA_API_KEY}`, 'Content-Type': 'application/json' } }
     ),
-    mistral.chat.complete({
-      model: 'mistral-small-latest',
-      maxTokens: 200,
-      messages: [{
-        role: 'user',
-        content: `分析以下祈禱日記的情緒狀態，只回傳 JSON，不要其他文字：
+    callMistral('mistral-small-latest', [{
+      role: 'user',
+      content: `分析以下祈禱日記的情緒狀態，只回傳 JSON，不要其他文字：
 {"emotion_score": 0到1之間的數字（0=非常悲傷/焦慮，1=非常喜悅/平靜）, "emotion_label": "一個中文情緒標籤（感恩、平靜、焦慮、難過、開心、期待、放鬆、擔心等日常用語）"}
 
 日記內容：${content}`
-      }]
-    })
+    }], 200),
   ]);
 
   const embedding = embedRes.data.data[0].embedding;
@@ -71,7 +79,7 @@ async function findSimilar(diaryId, userId, embedding) {
 
   const vectorStr = `[${embedding.join(',')}]`;
 
-// pgvector 的 cosine similarity 計算方式是 1 - (embedding <=> query_vector)，所以我們要找 similarity > 0.82（相當於 cosine similarity > 0.75）
+// pgvector 的 cosine similarity 計算方式是 1 - (embedding <=> query_vector)，所以我們要找 similarity > 0.75
   const simRes = await pool.query(
     `SELECT diary_id,
             diary_date,
@@ -80,7 +88,7 @@ async function findSimilar(diaryId, userId, embedding) {
      WHERE user_id = $2
        AND diary_id != $3
        AND embedding IS NOT NULL
-       AND 1 - (embedding <=> $1::vector) > 0.82
+       AND 1 - (embedding <=> $1::vector) > 0.75
      ORDER BY similarity DESC
      LIMIT 10`,
     [vectorStr, userId, diaryId]
@@ -111,17 +119,13 @@ async function analyzeTheme(diaryIds, userId) {
 
   // 驗證這些日記是否真的屬於同一個核心主題，避免只是情緒相似卻主題不同
   const titlesSnippet = diaries
-    .map((d, i) => `${i + 1}. 「${d.diary_title}」— ${d.diary_content.substring(0, 60)}`)
+    .map((d, i) => `${i + 1}. 「${d.diary_title}」— ${d.diary_content.substring(0, 100)}`)
     .join('\n');
 
-  const coherenceRes = await mistral.chat.complete({
-    model: 'mistral-small-latest',
-    maxTokens: 10,
-    messages: [{
-      role: 'user',
-      content: `以下幾篇日記是否圍繞同一個核心主題（而非只是情緒類似）？請只回答 YES 或 NO。\n${titlesSnippet}`
-    }]
-  });
+  const coherenceRes = await callMistral('mistral-small-latest', [{
+    role: 'user',
+    content: `以下幾篇日記是否圍繞同一個核心主題（而非只是情緒類似）？請只回答 YES 或 NO。\n${titlesSnippet}`
+  }], 10);
 
   const coherenceAnswer = coherenceRes.choices[0].message.content.trim().toUpperCase();
   if (!coherenceAnswer.startsWith('YES')) {
@@ -133,12 +137,9 @@ async function analyzeTheme(diaryIds, userId) {
     `【日記 ${i + 1}】${d.diary_date}\n標題：${d.diary_title}\n${d.diary_content}`
   ).join('\n\n---\n\n');
 
-  const analysisRes = await mistral.chat.complete({
-    model: 'mistral-small-latest',
-    maxTokens: 800,
-    messages: [{
-      role: 'user',
-      content: `以下是同一位用戶在不同時間寫的數篇祈禱日記，它們有相似的主題。
+  const analysisRes = await callMistral('mistral-small-latest', [{
+    role: 'user',
+    content: `以下是同一位用戶在不同時間寫的數篇祈禱日記，它們有相似的主題。
 請分析這些日記，只回傳 JSON，不要其他文字：
 {
   "theme": "這些日記的核心主題（10字以內）",
@@ -150,8 +151,7 @@ async function analyzeTheme(diaryIds, userId) {
 
 祈禱日記：
 ${diariesText}`
-    }]
-  });
+  }]);
 
   let theme = '靈修主題';
   let emotion_trend = '';

@@ -617,6 +617,37 @@ export default function CommunityFeedScreen() {
                     </Text>
                   </View>
                 )}
+                {shareTarget.letter_card && (
+                  <View style={[styles.letterCard, { marginTop: 6 }]}>
+                    <View style={styles.letterCardRow}>
+                      {shareTarget.letter_card.image_url ? (
+                        <Image source={{ uri: shareTarget.letter_card.image_url }} style={styles.letterCardImage} />
+                      ) : (
+                        <View style={styles.letterCardImagePlaceholder}>
+                          <Text style={{ fontSize: 20 }}>🖼️</Text>
+                        </View>
+                      )}
+                      <View style={styles.letterCardText}>
+                        {shareTarget.letter_card.question ? (
+                          <Text style={styles.letterCardQuestion} numberOfLines={2}>
+                            {shareTarget.letter_card.question}
+                          </Text>
+                        ) : null}
+                        {shareTarget.letter_card.summary_text ? (
+                          <Text style={styles.letterCardPreview} numberOfLines={2}>
+                            {shareTarget.letter_card.summary_text.slice(0, 50)}
+                            {shareTarget.letter_card.summary_text.length > 50 ? '...' : ''}
+                          </Text>
+                        ) : null}
+                        {shareTarget.letter_card.quote ? (
+                          <Text style={styles.letterCardQuote} numberOfLines={1}>
+                            「{shareTarget.letter_card.quote}」
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  </View>
+                )}
               </View>
             )}
             <View style={styles.modalButtons}>
