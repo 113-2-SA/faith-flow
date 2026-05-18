@@ -68,11 +68,10 @@ export function ChurchPanoramaViewer({ coordinates, basilicaName, onClose, headi
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.82)", alignItems: "center", justifyContent: "center" },
+  overlay: { flex: 1, backgroundColor: "#0a0a14" },
   container: {
-    width: "92%", height: "88%",
-    backgroundColor: "#0a0a14", borderRadius: 16, overflow: "hidden",
-    borderWidth: 1, borderColor: "rgba(102,126,234,0.4)",
+    flex: 1,
+    backgroundColor: "#0a0a14", overflow: "hidden",
   },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",

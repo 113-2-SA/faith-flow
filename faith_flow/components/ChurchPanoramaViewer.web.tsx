@@ -68,21 +68,12 @@ export function ChurchPanoramaViewer({ coordinates, basilicaName, onClose, headi
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.82)",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: "#0a0a14",
   },
   container: {
-    width: "92%",
-    maxWidth: 900,
-    // 最高不超過視窗高度的 88%
-    maxHeight: "88vh" as unknown as number,
-    height: "88%",
+    flex: 1,
     backgroundColor: "#0a0a14",
-    borderRadius: 16,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(102,126,234,0.4)",
   },
   header: {
     flexDirection: "row",
