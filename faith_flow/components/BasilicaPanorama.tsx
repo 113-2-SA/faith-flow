@@ -8,6 +8,7 @@ import {
   Animated,
   Dimensions,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { GlassCard } from "./GlassCard";
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
@@ -182,6 +183,7 @@ type Props = {
 };
 
 export function BasilicaPanorama({ panoramaData, onClose }: Props) {
+  const router = useRouter();
   const [selectedSceneId, setSelectedSceneId] = useState(
     panoramaData.scenes[0]?.id || ""
   );
@@ -460,6 +462,18 @@ export function BasilicaPanorama({ panoramaData, onClose }: Props) {
           </View>
         </View>
       </GlassCard>
+
+      {/* Add Prayer Button */}
+      <Pressable
+        onPress={() => router.push("/pray")}
+        style={({ pressed }) => [
+          styles.addPrayerBtn,
+          pressed && styles.addPrayerBtnPressed,
+        ]}
+      >
+        <Text style={styles.addPrayerIcon}>✝</Text>
+        <Text style={styles.addPrayerText}>新增祈禱</Text>
+      </Pressable>
     </ThemedView>
   );
 }
@@ -837,4 +851,21 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.15)",
     marginHorizontal: 8,
   },
+  addPrayerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 13,
+    borderRadius: 14,
+    backgroundColor: "rgba(200,146,42,0.22)",
+    borderWidth: 1,
+    borderColor: "rgba(200,146,42,0.6)",
+  },
+  addPrayerBtnPressed: {
+    backgroundColor: "rgba(200,146,42,0.42)",
+    borderColor: "rgba(200,146,42,1)",
+  },
+  addPrayerIcon: { fontSize: 16, color: "#f5d680" },
+  addPrayerText: { fontSize: 15, fontWeight: "700", color: "#f5d680", letterSpacing: 0.5 },
 });
