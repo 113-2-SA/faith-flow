@@ -35,8 +35,6 @@ export default function SummaryScreen() {
       const data = await res.json();
       if (data.success) {
         setSummary(data.data.summary || "");
-        setQuote(data.data.quote || params.quote || "");
-        setQuoteSource(data.data.quote_source || params.quote_source || "");
         setImagePrompt(data.data.image_prompt || "");
       } else { setError("摘要生成失敗，請稍後再試"); }
     } catch (err) {

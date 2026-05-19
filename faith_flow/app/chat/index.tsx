@@ -414,7 +414,6 @@ export default function ChatScreen() {
               <View style={styles.userMsgContainer}>
                 {msg.quoted_content && (
                   <View style={styles.userQuoteTag}>
-                    <Text style={styles.userQuoteLabel}>{msg.quoted_label}</Text>
                     <Text style={styles.userQuoteText} numberOfLines={2}>
                       「{msg.quoted_content.slice(0, 60)}{msg.quoted_content.length > 60 ? '...' : ''}」
                     </Text>
@@ -433,7 +432,6 @@ export default function ChatScreen() {
                 {msg.companion_response && (
                   <View style={styles.companionBubble}>
                     <View style={styles.bubbleHeader}>
-                      <Text style={styles.companionLabel}>💙 陪伴回應</Text>
                       <TouchableOpacity style={styles.quoteBtn} onPress={() => handleQuote('companion', msg.companion_response!)}>
                         <Text style={styles.quoteBtnText}>引用</Text>
                       </TouchableOpacity>
@@ -446,7 +444,6 @@ export default function ChatScreen() {
                   <>
                     <View style={styles.knowledgeBubble}>
                       <View style={styles.bubbleHeader}>
-                        <Text style={styles.knowledgeLabel}>📖 知識回答</Text>
                         <TouchableOpacity style={styles.quoteBtn} onPress={() => handleQuote('knowledge', msg.knowledge_answer!)}>
                           <Text style={styles.quoteBtnText}>引用</Text>
                         </TouchableOpacity>
@@ -465,7 +462,6 @@ export default function ChatScreen() {
                   </>
                 ) : msg.knowledge_answer ? (
                   <View style={styles.knowledgeBubble}>
-                    <View style={styles.bubbleHeader}><Text style={styles.knowledgeLabel}>📖 知識回答</Text></View>
 <Text style={{ color: 'rgba(255,255,255,0.90)', fontSize: 14, lineHeight: 22 }}>{msg.knowledge_answer}</Text>                  </View>
                 ) : null}
 
@@ -502,7 +498,6 @@ export default function ChatScreen() {
       {quotedContent && (
         <View style={styles.quotePreview}>
           <View style={styles.quotePreviewContent}>
-            <Text style={styles.quotePreviewLabel}>{quotedContent.label}</Text>
             <Text style={styles.quotePreviewText} numberOfLines={2}>{quotedContent.content}</Text>
           </View>
           <TouchableOpacity onPress={cancelQuote} style={styles.quoteCancelBtn}>
@@ -557,7 +552,6 @@ export default function ChatScreen() {
                         <Text style={styles.historyRoleLabel}>有答大師</Text>
                         {msg.companion_response && (
                           <View style={styles.historyCompanionBubble}>
-                            <Text style={styles.historyCompanionLabel}>💙 陪伴</Text>
                             <Text style={styles.historyText}>{msg.companion_response}</Text>
                             <TouchableOpacity style={styles.historyQuoteBtn}
                               onPress={() => { handleQuote('companion', msg.companion_response!); setShowHistoryModal(false); }}>
@@ -567,7 +561,6 @@ export default function ChatScreen() {
                         )}
                         {msg.knowledge_answer && (
                           <View style={styles.historyKnowledgeBubble}>
-                            <Text style={styles.historyKnowledgeLabel}>📖 知識</Text>
                             <Text style={styles.historyText} numberOfLines={4}>{msg.knowledge_answer}</Text>
                             <TouchableOpacity style={styles.historyQuoteBtn}
                               onPress={() => { handleQuote('knowledge', msg.knowledge_answer!); setShowHistoryModal(false); }}>
