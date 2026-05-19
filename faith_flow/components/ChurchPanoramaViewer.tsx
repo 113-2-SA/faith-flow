@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable, Modal } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import { ThemedText } from "./themed-text";
 import { GOOGLE_MAPS_API_KEY } from "../config/mapConfig";
@@ -12,6 +13,7 @@ type Props = {
 };
 
 export function ChurchPanoramaViewer({ coordinates, basilicaName, onClose, heading = 0 }: Props) {
+  const insets = useSafeAreaInsets();
   const embedUrl =
     `https://www.google.com/maps/embed/v1/streetview` +
     `?key=${GOOGLE_MAPS_API_KEY}&location=${coordinates[0]},${coordinates[1]}&heading=${heading}&pitch=0&fov=90`;
@@ -36,7 +38,7 @@ export function ChurchPanoramaViewer({ coordinates, basilicaName, onClose, headi
     <Modal visible={true} transparent={true} animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.container}>
-          <View style={styles.header}>
+          <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
             <View style={styles.headerLeft}>
               <Text style={styles.headerIcon}>🌐</Text>
               <ThemedText style={styles.headerTitle} numberOfLines={1}>
@@ -75,7 +77,7 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 16, paddingVertical: 12,
+    paddingHorizontal: 16, paddingBottom: 12,
     backgroundColor: "rgba(10,10,20,0.98)",
     borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.1)",
   },
