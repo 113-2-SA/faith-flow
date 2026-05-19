@@ -13,13 +13,14 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { useAuth } from "../hooks/useAuth";
 import { API_BASE_URL } from "../lib/api";
+import { HEADER_CONTENT_HEIGHT } from "./AppShell";
 
 const SCREEN_HEIGHT = Dimensions.get("window").height;
-const PANEL_HEIGHT = SCREEN_HEIGHT * 0.92;
 const HANDLE_HEIGHT = 72;
-const COLLAPSED_OFFSET = PANEL_HEIGHT - HANDLE_HEIGHT;
 
 interface DiaryEntry {
   diary_id: number;
@@ -42,6 +43,12 @@ type Props = {
 
 export function DiaryHandle({ open, date, openInCreateMode, onDragOpen, onClose }: Props) {
   const { user } = useAuth();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+
+  // Panel fills from just below header to physical screen bottom (no gap)
+  const PANEL_HEIGHT = SCREEN_HEIGHT - insets.top - insets.bottom - HEADER_CONTENT_HEIGHT - 16;
+  const COLLAPSED_OFFSET = PANEL_HEIGHT - HANDLE_HEIGHT;
 
   // ── 動畫 ────────────────────────────────────────────────────────
   const translateY = useRef(new Animated.Value(COLLAPSED_OFFSET)).current;
@@ -208,7 +215,11 @@ export function DiaryHandle({ open, date, openInCreateMode, onDragOpen, onClose 
 
   // ── 渲染 ─────────────────────────────────────────────────────────
   return (
-    <Animated.View style={[styles.panel, { transform: [{ translateY }] }]}>
+    <Animated.View style={[styles.panel, {
+      height: PANEL_HEIGHT + insets.bottom,
+      bottom: -insets.bottom,
+      transform: [{ translateY }],
+    }]}>
 
       {/* ── 視覺把手區（純顯示，不處理事件） ── */}
       <View style={styles.handleArea} pointerEvents="none">
@@ -235,7 +246,7 @@ export function DiaryHandle({ open, date, openInCreateMode, onDragOpen, onClose 
 
       {/* ── 主體內容 ── */}
       <KeyboardAvoidingView
-        style={styles.body}
+        style={[styles.body, { paddingBottom: insets.bottom + 32 }]}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         {mode === "list" ? (
@@ -258,7 +269,11 @@ export function DiaryHandle({ open, date, openInCreateMode, onDragOpen, onClose 
                 </View>
               ) : (
                 diaries.map((item) => (
-                  <View key={item.diary_id} style={styles.diaryCard}>
+                  <Pressable
+                    key={item.diary_id}
+                    style={styles.diaryCard}
+                    onPress={() => router.push(`/diary/${item.diary_id}` as any)}
+                  >
                     <Text selectable={false} style={styles.diaryTitle}>{item.diary_title}</Text>
                     {!!item.diary_content && (
                       <Text selectable={false} style={styles.diaryPreview} numberOfLines={2}>
@@ -270,7 +285,8 @@ export function DiaryHandle({ open, date, openInCreateMode, onDragOpen, onClose 
                         📖 {item.bible_quote}
                       </Text>
                     )}
-                  </View>
+                    <Text selectable={false} style={styles.diaryArrow}>›</Text>
+                  </Pressable>
                 ))
               )}
             </ScrollView>
@@ -383,7 +399,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: PANEL_HEIGHT,
     backgroundColor: "rgba(255,255,255,0.97)",
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
@@ -467,7 +482,6 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingBottom: 32,
   },
 
   // 列表
@@ -485,6 +499,7 @@ const styles = StyleSheet.create({
   diaryTitle: { fontSize: 16, fontWeight: "700", color: "rgba(0,0,0,0.82)", marginBottom: 6, fontFamily: "NotoSerifTC_400Regular" },
   diaryPreview: { fontSize: 14, color: "rgba(0,0,0,0.52)", lineHeight: 20, marginBottom: 4, fontFamily: "NotoSerifTC_400Regular" },
   bibleQuote: { fontSize: 12, color: "rgba(70,130,180,0.85)", fontStyle: "italic", marginTop: 4, fontFamily: "NotoSerifTC_400Regular" },
+  diaryArrow: { position: "absolute", right: 12, top: "50%", fontSize: 20, color: "rgba(0,0,0,0.25)", fontWeight: "300" },
   addButton: {
     marginTop: 8,
     paddingVertical: 14,

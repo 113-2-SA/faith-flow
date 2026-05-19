@@ -69,7 +69,7 @@ export default function GoogleMapsComponent({
     const selected = markers.find((m) => m.id === selectedId);
     if (selected) {
       mapRef.current.panTo({ lat: selected.coordinates[0], lng: selected.coordinates[1] });
-      mapRef.current.setZoom(14);
+      mapRef.current.setZoom(17);
       setTimeout(() => {
         if (!mapRef.current) return;
         const h = mapRef.current.getDiv().clientHeight;
@@ -81,7 +81,7 @@ export default function GoogleMapsComponent({
   useEffect(() => {
     if (locationToPan && mapRef.current) {
       mapRef.current.panTo(locationToPan);
-      mapRef.current.setZoom(16);
+      mapRef.current.setZoom(18);
     }
   }, [locationToPan]);
 
@@ -140,6 +140,20 @@ export default function GoogleMapsComponent({
             />
           </React.Fragment>
         ))}
+        {locationToPan && (
+          <Marker
+            position={locationToPan}
+            zIndex={100}
+            icon={{
+              path: (window as any).google?.maps?.SymbolPath?.CIRCLE ?? 0,
+              scale: 8,
+              fillColor: "#4285F4",
+              fillOpacity: 1,
+              strokeColor: "white",
+              strokeWeight: 2,
+            }}
+          />
+        )}
         {prayerMarkers.filter((p) => p.latitude != null && p.longitude != null && !isNaN(p.latitude) && !isNaN(p.longitude)).map((p) => (
           <Marker
             key={`prayer-${p.id}`}

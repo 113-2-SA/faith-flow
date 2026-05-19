@@ -60,9 +60,27 @@ function makeHtml(markers: Basilica[], prayerMarkers: PrayerRecord[]): string {
       };
     }
 
+    let userLocationMarker = null;
+    function setUserLocation(lat, lng) {
+      if (!map) return;
+      const pos = { lat, lng };
+      if (userLocationMarker) { userLocationMarker.setPosition(pos); }
+      else {
+        userLocationMarker = new google.maps.Marker({
+          position: pos, map,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 8, fillColor: "#4285F4", fillOpacity: 1,
+            strokeColor: "white", strokeWeight: 2,
+          },
+          zIndex: 100,
+        });
+      }
+    }
+
     function panToSelected(lat, lng, id) {
       map.panTo({ lat, lng });
-      map.setZoom(14);
+      map.setZoom(17);
       Object.entries(markerRefs).forEach(([mid, m]) =>
         m.setIcon(churchIcon(mid === id ? 2 : 1.4))
       );
@@ -74,7 +92,7 @@ function makeHtml(markers: Basilica[], prayerMarkers: PrayerRecord[]): string {
 
     let pendingLocation = null;
     function panToLocation(lat, lng) {
-      if (map) { map.panTo({ lat, lng }); map.setZoom(16); }
+      if (map) { map.panTo({ lat, lng }); map.setZoom(18); setUserLocation(lat, lng); }
       else { pendingLocation = { lat, lng }; }
     }
 
@@ -130,7 +148,9 @@ function makeHtml(markers: Basilica[], prayerMarkers: PrayerRecord[]): string {
       });
 
       if (pendingLocation) {
-        map.panTo(pendingLocation); map.setZoom(16); pendingLocation = null;
+        map.panTo(pendingLocation); map.setZoom(18);
+        setUserLocation(pendingLocation.lat, pendingLocation.lng);
+        pendingLocation = null;
       }
     }
   </script>

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as Location from "expo-location";
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,7 +11,9 @@ import {
   View,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { VideoBackground } from "../components/VideoBackground";
+import { HEADER_CONTENT_HEIGHT } from "../components/AppShell";
 import { GlassCard } from "../components/GlassCard";
 import { auth } from "../lib/firebase";
 import { API_BASE_URL } from "../lib/api";
@@ -76,6 +79,7 @@ function LocationConsentCard({ onGrant, onDeny }: { onGrant: () => void; onDeny:
 }
 
 export default function Pray() {
+  const router = useRouter();
   const [locationPerm, setLocationPerm] = useState<LocationPermState>("idle");
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [lang, setLang] = useState<"zh-TW" | "en-US">("zh-TW");
@@ -285,6 +289,16 @@ export default function Pray() {
 
   return (
     <VideoBackground source={require("../assets/backgrounds/main.mp4")}>
+      <View style={{ flex: 1 }}>
+        <View style={styles.backFloatRow}>
+          <Pressable
+            style={styles.backFloatBtn}
+            onPress={() => router.canGoBack() ? router.back() : router.replace("/pilgrimage" as any)}
+            hitSlop={12}
+          >
+            <MaterialCommunityIcons name="arrow-left" size={26} color="rgba(255,255,255,0.95)" />
+          </Pressable>
+        </View>
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.pageTitle}>即時祈禱轉錄</Text>
 
@@ -442,11 +456,14 @@ export default function Pray() {
           </>
         )}
       </ScrollView>
+      </View>
     </VideoBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  backFloatRow: { position: "absolute", top: -(HEADER_CONTENT_HEIGHT - 10), right: 16, zIndex: 500 },
+  backFloatBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: "transparent", alignItems: "center", justifyContent: "center" },
   scroll: { padding: 20, paddingBottom: 40 },
   pageTitle: { fontSize: 24, fontWeight: "700", color: "rgba(255,255,255,0.95)", marginBottom: 4 },
 

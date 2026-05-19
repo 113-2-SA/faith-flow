@@ -83,9 +83,6 @@ export function LiturgicalInfo({ date }: LiturgicalInfoProps) {
       
       {data.feast && <Text style={styles.feast}>{data.feast}</Text>}
       
-      {data.rank && (
-        <Text style={styles.rank}>{data.rank}</Text>
-      )}
     </GlassCard>
   );
 }
@@ -111,7 +108,7 @@ const styles = StyleSheet.create({
   },
   season: {
     color: "rgba(255,255,255,0.95)",
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "600",
     letterSpacing: 1,
     textAlign: "center",
@@ -131,16 +128,9 @@ const styles = StyleSheet.create({
   },
   feast: {
     color: "rgba(255,255,255,0.80)",
-    fontSize: 11,
+    fontSize: 13,
     marginTop: 3,
     textAlign: "center",
-    fontFamily: "NotoSerifTC_400Regular",
-  },
-  rank: {
-    color: "rgba(255,255,255,0.58)",
-    fontSize: 10,
-    marginTop: 2,
-    fontStyle: "italic",
     fontFamily: "NotoSerifTC_400Regular",
   },
 });

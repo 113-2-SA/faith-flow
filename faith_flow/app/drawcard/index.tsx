@@ -89,7 +89,6 @@ export default function DrawCardScreen() {
                     style={[styles.card, isDrawn ? styles.cardDrawn : styles.cardAvailable]}
                     onPress={() => card && canPress && handleCardPress(card)}
                     disabled={!canPress}>
-                    <Text style={[styles.cardDayLabel, !isDrawn && styles.cardDayLabelAvailable]}>週{DAY_LABELS[day-1]}</Text>
                     {isDrawn && <Text style={styles.cardDoneIcon}>✓</Text>}
                     {!isDrawn && card && <Text style={styles.cardTapHint}>點我{'\n'}抽卡</Text>}
                   </Pressable>
@@ -105,9 +104,10 @@ export default function DrawCardScreen() {
           <View style={styles.revealArea}>
             <View style={styles.revealCard}>
               <Text style={styles.themeText}>{selectedCard.theme}</Text>
-              <Text style={styles.questionText}>{selectedCard.question}</Text>
               <Text style={styles.quoteText}>「{selectedCard.quote}」</Text>
               <Text style={styles.quoteSourceText}>——{selectedCard.quote_source}</Text>
+              <View style={styles.revealDivider} />
+              <Text style={styles.questionText}>{selectedCard.question}</Text>
             </View>
             <Pressable style={styles.startBtn} onPress={() => router.push({
               pathname: '/drawcard/chat',
@@ -159,10 +159,11 @@ const styles = StyleSheet.create({
   legendText:{color:'rgba(255,255,255,0.6)',fontSize:11},
   revealArea:{flex:1,alignItems:'center',justifyContent:'center',gap:20,paddingHorizontal:32},
   revealCard:{width:'100%',borderRadius:16,backgroundColor:'rgba(20,20,40,0.82)',padding:24,alignItems:'center',gap:12},
-  themeText:{color:'rgba(255,255,255,0.6)',fontSize:12,letterSpacing:1},
-  questionText:{color:'#fff',fontSize:15,lineHeight:24,textAlign:'center'},
-  quoteText:{color:'rgba(255,255,255,0.8)',fontSize:13,fontStyle:'italic',textAlign:'center',marginTop:8},
-  quoteSourceText:{color:'rgba(255,255,255,0.5)',fontSize:12,textAlign:'center'},
+  themeText:{color:'rgba(255,255,255,0.55)',fontSize:11,letterSpacing:2,textTransform:'uppercase'},
+  quoteText:{color:'rgba(255,255,230,0.95)',fontSize:17,fontStyle:'italic',textAlign:'center',lineHeight:28,fontWeight:'500'},
+  quoteSourceText:{color:'rgba(255,255,255,0.5)',fontSize:12,textAlign:'center',marginTop:2},
+  revealDivider:{width:40,height:1,backgroundColor:'rgba(255,255,255,0.2)',marginVertical:14,alignSelf:'center'},
+  questionText:{color:'rgba(255,255,255,0.92)',fontSize:15,lineHeight:26,textAlign:'center',fontWeight:'600'},
   startBtn:{paddingVertical:14,paddingHorizontal:40,borderRadius:24,backgroundColor:'rgba(255,255,255,0.2)',borderWidth:1,borderColor:'rgba(255,255,255,0.5)'},
   startBtnText:{color:'#fff',fontSize:16,fontWeight:'600'},
   backBtn:{paddingVertical:8,paddingHorizontal:20},
