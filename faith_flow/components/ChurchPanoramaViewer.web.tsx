@@ -415,8 +415,33 @@ export function ChurchPanoramaViewer({
               祈禱 Overlay — 以 360 環景為底圖
           ══════════════════════════════════════════════════════════════ */}
           {showPrayOverlay && (
-            <View style={styles.prayOverlay}>
+            <View
+              style={[
+                styles.prayOverlay,
+                isRecording && styles.prayOverlayRecording,
+              ]}
+              pointerEvents={isRecording ? "box-none" : "auto"}
+            >
+              {/* 錄音中：僅顯示停止按鈕懸浮於底部 */}
+              {isRecording && (
+                <View style={styles.recordingBar}>
+                  <TouchableOpacity
+                    onPress={stopRecording}
+                    style={[styles.recordBtn, styles.recordBtnActive]}
+                  >
+                    <MaterialCommunityIcons
+                      name="stop"
+                      size={20}
+                      color="rgba(255,100,80,0.95)"
+                    />
+                    <Text style={styles.recordBtnTextActive}>結束祈禱</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
+              {/* 非錄音中：顯示完整 UI ─────────────────────────────── */}
+              {!isRecording && (
+                <>
               {/* 關閉 overlay */}
               <TouchableOpacity onPress={closeOverlay} style={styles.overlayClose}>
                 <Text style={styles.overlayCloseText}>✕</Text>
@@ -671,6 +696,8 @@ export function ChurchPanoramaViewer({
                   <View style={{ height: 40 }} />
                 </ScrollView>
               )}
+                </>
+              )}
             </View>
           )}
         </View>
@@ -834,6 +861,22 @@ const styles = StyleSheet.create({
     top: 0, left: 0, right: 0, bottom: 0,
     backgroundColor: "rgba(8,8,18,0.80)",
     zIndex: 50,
+  },
+  // 錄音中：overlay 完全透明，只露出底部停止按鈕列
+  prayOverlayRecording: {
+    backgroundColor: "transparent",
+  },
+  // 錄音中底部停止按鈕列
+  recordingBar: {
+    position: "absolute" as any,
+    bottom: 0, left: 0, right: 0,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    paddingBottom: 28,
+    backgroundColor: "rgba(8,8,18,0.88)",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.10)",
+    zIndex: 55,
   },
   overlayClose: {
     position: "absolute" as any,
