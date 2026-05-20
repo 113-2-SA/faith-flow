@@ -27,6 +27,7 @@ interface GoogleMapsComponentProps {
   prayerMarkers?: PrayerRecord[];
   locationToPan?: { lat: number; lng: number } | null;
   onPrayerMarkerPress?: (id: string) => void;
+  focusLocation?: { lat: number; lng: number } | null;
 }
 
 const MAP_CONTAINER_STYLE: React.CSSProperties = {
@@ -55,6 +56,7 @@ export default function GoogleMapsComponent({
   prayerMarkers = [],
   locationToPan,
   onPrayerMarkerPress,
+  focusLocation,
 }: GoogleMapsComponentProps) {
   // useJsApiLoader is a singleton — won't re-inject the script on remount
   const { isLoaded, loadError } = useJsApiLoader({
@@ -84,6 +86,13 @@ export default function GoogleMapsComponent({
       mapRef.current.setZoom(18);
     }
   }, [locationToPan]);
+
+  useEffect(() => {
+    if (focusLocation && mapRef.current) {
+      mapRef.current.panTo(focusLocation);
+      mapRef.current.setZoom(17);
+    }
+  }, [focusLocation]);
 
   useEffect(() => {
     if (!isLoaded || !autoFitBounds || !mapRef.current || markers.length === 0) return;

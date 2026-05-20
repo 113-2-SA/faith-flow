@@ -27,6 +27,7 @@ interface GoogleMapsComponentProps {
   prayerMarkers?: PrayerRecord[];
   locationToPan?: { lat: number; lng: number } | null;
   onPrayerMarkerPress?: (id: string) => void;
+  focusLocation?: { lat: number; lng: number } | null;
 }
 
 const API_KEY = MAP_CONFIG.apiKey;
@@ -94,6 +95,10 @@ function makeHtml(markers: Basilica[], prayerMarkers: PrayerRecord[]): string {
     function panToLocation(lat, lng) {
       if (map) { map.panTo({ lat, lng }); map.setZoom(18); setUserLocation(lat, lng); }
       else { pendingLocation = { lat, lng }; }
+    }
+
+    function panToFocus(lat, lng) {
+      if (map) { map.panTo({ lat, lng }); map.setZoom(17); }
     }
 
     function fitBounds(coords) {
@@ -167,6 +172,7 @@ export default function GoogleMapsComponent({
   prayerMarkers = [],
   locationToPan,
   onPrayerMarkerPress,
+  focusLocation,
 }: GoogleMapsComponentProps) {
   const webViewRef = useRef<WebView>(null);
   const prevSelectedId = useRef<string | null>(null);
@@ -197,6 +203,14 @@ export default function GoogleMapsComponent({
       );
     }
   }, [locationToPan]);
+
+  useEffect(() => {
+    if (focusLocation) {
+      webViewRef.current?.injectJavaScript(
+        `panToFocus(${focusLocation.lat}, ${focusLocation.lng}); true;`
+      );
+    }
+  }, [focusLocation]);
 
   return (
     <View style={StyleSheet.absoluteFill}>

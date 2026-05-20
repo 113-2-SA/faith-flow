@@ -79,6 +79,7 @@ export function BasilicaMap() {
   const [selectedPrayer, setSelectedPrayer] = useState<PrayerRecord | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
+  const [prayerFocusLocation, setPrayerFocusLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   const searchWidth = useRef(new Animated.Value(0)).current;
   const sheetY = useRef(new Animated.Value(COLLAPSED_Y)).current;
@@ -221,9 +222,15 @@ export function BasilicaMap() {
               autoFitBounds={searchText.trim() !== "" || filterType !== "all"}
               prayerMarkers={prayerRecords}
               locationToPan={userLocation}
+              focusLocation={prayerFocusLocation}
               onPrayerMarkerPress={(id) => {
                 const p = prayerRecords.find((r) => r.id === id);
-                if (p) setSelectedPrayer(p);
+                if (p) {
+                  setSelectedPrayer(p);
+                  if (p.latitude != null && p.longitude != null) {
+                    setPrayerFocusLocation({ lat: p.latitude, lng: p.longitude });
+                  }
+                }
               }}
             />
           )}
