@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { VideoBackground } from "../components/VideoBackground";
 import { HEADER_CONTENT_HEIGHT } from "../components/AppShell";
 import { GlassCard } from "../components/GlassCard";
@@ -65,8 +65,18 @@ function LocationConsentCard({ onGrant, onDeny }: { onGrant: () => void; onDeny:
 
 export default function Pray() {
   const router = useRouter();
-  const [locationPerm, setLocationPerm] = useState<LocationPermState>("idle");
-  const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const { basilicaLat, basilicaLng, basilicaName: paramBasilicaName } = useLocalSearchParams<{
+    basilicaLat?: string;
+    basilicaLng?: string;
+    basilicaName?: string;
+  }>();
+
+  const presetCoords = basilicaLat && basilicaLng
+    ? { latitude: parseFloat(String(basilicaLat)), longitude: parseFloat(String(basilicaLng)) }
+    : null;
+
+  const [locationPerm, setLocationPerm] = useState<LocationPermState>(presetCoords ? "granted" : "idle");
+  const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(presetCoords);
   const [lang, setLang] = useState<"zh-TW" | "en-US">("zh-TW");
   const [hasMicPermission, setHasMicPermission] = useState<boolean | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -323,7 +333,9 @@ export default function Pray() {
         {canPray && (
           <View style={styles.locationTag}>
             <Text style={styles.locationTagText}>
-              {locationPerm === "granted" ? "📍 已記錄真實位置" : "📍 標示於聖殿鄰近（匿名）"}
+              {presetCoords
+                ? `⛪ 虛擬朝聖位置：${paramBasilicaName ?? "教堂"}`
+                : locationPerm === "granted" ? "📍 已記錄真實位置" : "📍 標示於聖殿鄰近（匿名）"}
             </Text>
           </View>
         )}

@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { WebView } from "react-native-webview";
 import { ThemedText } from "./themed-text";
 import { GOOGLE_MAPS_API_KEY } from "../config/mapConfig";
@@ -14,6 +15,7 @@ type Props = {
 
 export function ChurchPanoramaViewer({ coordinates, basilicaName, onClose, heading = 0 }: Props) {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const embedUrl =
     `https://www.google.com/maps/embed/v1/streetview` +
     `?key=${GOOGLE_MAPS_API_KEY}&location=${coordinates[0]},${coordinates[1]}&heading=${heading}&pitch=0&fov=90`;
@@ -62,6 +64,22 @@ export function ChurchPanoramaViewer({ coordinates, basilicaName, onClose, headi
 
           <View style={styles.hintBar}>
             <Text style={styles.hintText}>拖曳旋轉視角・雙指縮放</Text>
+            <Pressable
+              onPress={() => {
+                onClose();
+                router.push({
+                  pathname: "/pray",
+                  params: {
+                    basilicaLat: String(coordinates[0]),
+                    basilicaLng: String(coordinates[1]),
+                    basilicaName,
+                  },
+                } as any);
+              }}
+              style={styles.recordBtn}
+            >
+              <Text style={styles.recordBtnText}>🎙 錄音祈禱</Text>
+            </Pressable>
           </View>
         </View>
       </View>
@@ -91,6 +109,8 @@ const styles = StyleSheet.create({
   },
   closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.1)", alignItems: "center", justifyContent: "center" },
   closeBtnText: { fontSize: 16, color: "rgba(255,255,255,0.85)" },
-  hintBar: { paddingVertical: 8, alignItems: "center", backgroundColor: "rgba(10,10,20,0.9)" },
+  hintBar: { paddingVertical: 8, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(10,10,20,0.9)" },
   hintText: { fontSize: 11, color: "rgba(255,255,255,0.4)" },
+  recordBtn: { backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.25)", paddingHorizontal: 14, paddingVertical: 5 },
+  recordBtnText: { fontSize: 12, fontWeight: "600", color: "rgba(255,255,255,0.88)" },
 });

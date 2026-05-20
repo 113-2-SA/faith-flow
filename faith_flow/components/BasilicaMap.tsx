@@ -353,7 +353,14 @@ export function BasilicaMap() {
                 </GlassCard>
               </Pressable>
 
-              <Pressable onPress={() => router.push("/pray" as any)}>
+              <Pressable onPress={() => router.push({
+                pathname: "/pray",
+                params: {
+                  basilicaLat: String(selectedBasilica.coordinates[0]),
+                  basilicaLng: String(selectedBasilica.coordinates[1]),
+                  basilicaName: selectedBasilica.name,
+                },
+              } as any)}>
                 <GlassCard style={styles.detailActionCard} glassColor="rgba(0,0,0,0.45)" blurTint="dark">
                   <Text style={styles.recordBtnText}>🎙 錄音祈禱</Text>
                 </GlassCard>
