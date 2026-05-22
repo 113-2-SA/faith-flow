@@ -8,9 +8,10 @@ import { HEADER_CONTENT_HEIGHT } from "./AppShell";
 type Props = {
   source: any;
   children?: React.ReactNode;
+  overlay?: boolean;
 };
 
-export function VideoBackground({ source, children }: Props) {
+export function VideoBackground({ source, children, overlay = true }: Props) {
   const player = useVideoPlayer(Platform.OS !== "web" ? source : null, (p) => {
     p.loop = true;
     p.muted = true;
@@ -27,13 +28,14 @@ export function VideoBackground({ source, children }: Props) {
           playsInline
           src={source}
           style={{
-            position: "absolute",
+            position: "fixed",
             top: 0,
             left: 0,
-            width: "100%",
-            height: "100%",
+            width: "100vw",
+            height: "100vh",
             objectFit: "cover",
             pointerEvents: "none",
+            zIndex: -1,
           } as React.CSSProperties}
         />
       ) : (
@@ -54,6 +56,13 @@ export function VideoBackground({ source, children }: Props) {
         ]}
         style={StyleSheet.absoluteFill}
       />
+
+      {overlay && (
+        <View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.5)" }]}
+        />
+      )}
 
       <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
         <View style={{ flex: 1, paddingTop: HEADER_CONTENT_HEIGHT }}>

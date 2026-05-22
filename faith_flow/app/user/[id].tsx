@@ -156,7 +156,7 @@ export default function UserProfileScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView contentContainerStyle={styles.container} keyboardDismissMode="on-drag">
           {/* Header */}
           <GlassCard style={styles.header}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>

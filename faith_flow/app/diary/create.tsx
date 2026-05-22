@@ -116,7 +116,7 @@ export default function CreateDiaryScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} keyboardDismissMode="on-drag">
       <View style={styles.content}>
         {/* 日期 */}
         <View style={styles.section}>

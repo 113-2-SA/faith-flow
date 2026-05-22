@@ -60,7 +60,7 @@ export default function Home() {
   };
 
   return (
-    <VideoBackground source={require("../assets/backgrounds/main.mp4")}>
+    <VideoBackground source={require("../assets/backgrounds/main.mp4")} overlay={false}>
       <View style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: 88 }} showsVerticalScrollIndicator={false}>
           <View style={{ flex: 1, paddingHorizontal: 30, paddingBottom: 24 }}>

@@ -81,7 +81,7 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(false);
   const [expandedCitations, setExpandedCitations] = useState<Set<string>>(new Set());
   const [expandedAnswers, setExpandedAnswers] = useState<Set<string>>(new Set());
-  const [emotionScore, setEmotionScore] = useState<number | null>(null);
+  const [emotionScore, setEmotionScore] = useState<number>(50);
   const [quotedContent, setQuotedContent] = useState<QuotedContent | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -126,7 +126,7 @@ export default function ChatScreen() {
       if (data.ok) {
         setCurrentConversationId(data.data.conversation_id);
         setMessages([]);
-        setEmotionScore(null);
+        setEmotionScore(50);
         setShowAllConvsModal(false);
       }
     } catch (err) {
@@ -154,7 +154,7 @@ export default function ChatScreen() {
         }));
         setMessages(loadedMessages);
         setCurrentConversationId(convId);
-        setEmotionScore(null);
+        setEmotionScore(50);
         setShowAllConvsModal(false);
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 100);
       }
@@ -312,6 +312,11 @@ export default function ChatScreen() {
                 setEmotionScore(prev => updateEmotionScore(prev ?? 50, parsed.score));
               } else if (parsed.type === 'done') {
                 if (parsed.conversationId) setCurrentConversationId(parsed.conversationId);
+                setMessages(prev => prev.map(msg =>
+                  msg.id === assistantId && msg.knowledge_answer
+                    ? { ...msg, knowledge_blocks: parseMarkdownBlocks(msg.knowledge_answer) }
+                    : msg
+                ));
               } else if (parsed.type === 'error') {
                 setMessages(prev => prev.map(msg =>
                   msg.id === assistantId ? { ...msg, error: parsed.message } : msg
@@ -357,10 +362,9 @@ export default function ChatScreen() {
 
   return (
     <VideoBackground source={require('../../assets/backgrounds/main.mp4')}>
-      <View style={styles.darkOverlay} pointerEvents="none" />
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior="padding"
       keyboardVerticalOffset={90}
     >
       {/* ── Header ── */}
@@ -382,24 +386,23 @@ export default function ChatScreen() {
           </View>
         </View>
 
-        {emotionScore !== null && (
-          <View style={styles.emotionContainer}>
-            <Text style={styles.emotionLabel}>情緒指標</Text>
-            <View style={styles.emotionBarBg}>
-              <View style={[styles.emotionBarHalf, { backgroundColor: '#E74C3C' }]} />
-              <View style={[styles.emotionBarHalf, { backgroundColor: '#3498DB' }]} />
-              <View style={[styles.emotionIndicator, { left: `${emotionScore}%` as any }]} />
-            </View>
-            <View style={styles.emotionLabelRow}>
-              <Text style={styles.emotionEndLabel}>感性</Text>
-              <Text style={styles.emotionEndLabel}>理性</Text>
-            </View>
+        <View style={styles.emotionContainer}>
+          <Text style={styles.emotionLabel}>情緒指標</Text>
+          <View style={styles.emotionBarBg}>
+            <View style={[styles.emotionBarHalf, { backgroundColor: '#E74C3C' }]} />
+            <View style={[styles.emotionBarHalf, { backgroundColor: '#3498DB' }]} />
+            <View style={[styles.emotionIndicator, { left: `${emotionScore}%` as any }]} />
           </View>
-        )}
+          <View style={styles.emotionLabelRow}>
+            <Text style={styles.emotionEndLabel}>感性</Text>
+            <Text style={styles.emotionEndLabel}>理性</Text>
+          </View>
+        </View>
       </GlassCard>
 
       {/* ── 訊息列表 ── */}
       <ScrollView ref={scrollRef} style={styles.messageList} contentContainerStyle={styles.messageListContent}
+        keyboardDismissMode="on-drag"
         onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>
         {messages.length === 0 && (
           <View style={styles.emptyState}>
@@ -462,7 +465,13 @@ export default function ChatScreen() {
                   </>
                 ) : msg.knowledge_answer ? (
                   <View style={styles.knowledgeBubble}>
-<Text style={{ color: 'rgba(255,255,255,0.90)', fontSize: 14, lineHeight: 22 }}>{msg.knowledge_answer}</Text>                  </View>
+                    <View style={styles.bubbleHeader}>
+                      <TouchableOpacity style={styles.quoteBtn} onPress={() => handleQuote('knowledge', msg.knowledge_answer!)}>
+                        <Text style={styles.quoteBtnText}>引用</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={{ color: 'rgba(255,255,255,0.90)', fontSize: 14, lineHeight: 22 }}>{msg.knowledge_answer}</Text>
+                  </View>
                 ) : null}
 
                 {msg.citations && msg.citations.length > 0 && (
@@ -664,10 +673,6 @@ const markdownStyles = {
 };
 
 const styles = StyleSheet.create({
-  darkOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
   container: { flex: 1 },
   header: { paddingTop: 12, paddingBottom: 16, paddingHorizontal: 20, borderRadius: 0 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },

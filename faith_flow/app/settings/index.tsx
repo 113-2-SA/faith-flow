@@ -126,7 +126,7 @@ export default function SettingsScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView contentContainerStyle={styles.container} keyboardDismissMode="on-drag">
           <GlassCard style={styles.card}>
             <Text style={styles.title}>設定</Text>
 

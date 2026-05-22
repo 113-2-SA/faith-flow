@@ -304,7 +304,7 @@ export default function CreatePostScreen() {
 
   return (
     <VideoBackground source={require('../../assets/backgrounds/main.mp4')}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardDismissMode="on-drag">
         {/* Header */}
         <GlassCard style={styles.headerCard}>
           <View style={styles.headerRow}>

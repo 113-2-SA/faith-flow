@@ -143,7 +143,7 @@ export default function EditDiaryScreen() {
           </TouchableOpacity>
         </GlassCard>
 
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView contentContainerStyle={styles.container} keyboardDismissMode="on-drag">
           <GlassCard style={styles.card}>
             {/* 日期 */}
             <Text style={styles.label}>日期</Text>

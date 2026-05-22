@@ -411,7 +411,7 @@ export default function Pray() {
 
             {previewData && !saveSuccess && (
               <GlassCard style={styles.previewCard}>
-                <Text style={styles.previewSectionLabel}>📖 聖經經文</Text>
+                <Text style={styles.previewSectionLabel}>📖 聖經福音</Text>
                 <Text style={styles.previewBible}>{previewData.bibleQuote || "（AI 未推薦經文）"}</Text>
                 <Text style={styles.previewTitle}>建議標題：{previewData.title}</Text>
                 <View style={styles.previewBtnRow}>

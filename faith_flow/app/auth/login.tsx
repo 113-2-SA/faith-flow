@@ -13,6 +13,7 @@ import {
 import { auth } from "../../lib/firebase";
 import {
   ActivityIndicator,
+  Keyboard,
   Platform,
   Pressable,
   Text,
@@ -120,7 +121,7 @@ export default function LoginScreen() {
 
   return (
     <VideoBackground source={require("../../assets/backgrounds/main.mp4")}>
-      <View style={{ flex: 1, justifyContent: "center", padding: 24 }}>
+      <Pressable style={{ flex: 1, justifyContent: "center", padding: 24 }} onPress={Keyboard.dismiss}>
         <GlassCard style={{ padding: 20 }}>
           <Text
             style={{
@@ -260,7 +261,7 @@ export default function LoginScreen() {
             </Text>
           )}
         </GlassCard>
-      </View>
+      </Pressable>
     </VideoBackground>
   );
 }
