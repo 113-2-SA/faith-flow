@@ -11,12 +11,10 @@ export default function SummaryScreen() {
   const params = useLocalSearchParams<{
     weekly_card_id: string; question: string; theme: string;
     quote: string; quote_source: string; conversation: string; image_url: string;
+    conversation_id: string;
   }>();
 
   const [summary, setSummary] = useState("");
-  const [quote, setQuote] = useState(params.quote || "");
-  const [quoteSource, setQuoteSource] = useState(params.quote_source || "");
-  const [imagePrompt, setImagePrompt] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -35,7 +33,6 @@ export default function SummaryScreen() {
       const data = await res.json();
       if (data.success) {
         setSummary(data.data.summary || "");
-        setImagePrompt(data.data.image_prompt || "");
       } else { setError("摘要生成失敗，請稍後再試"); }
     } catch (err) {
       console.error("[Summary] 生成摘要失敗：", err);
@@ -49,9 +46,10 @@ export default function SummaryScreen() {
       params: {
         weekly_card_id: params.weekly_card_id || "",
         question: params.question, theme: params.theme,
-        summary, quote, quote_source: quoteSource,
-        image_prompt: imagePrompt,
+        summary,
+        quote: params.quote, quote_source: params.quote_source,
         image_url: params.image_url || "",
+        conversation_id: params.conversation_id || "",
         conversation: params.conversation || "",
       },
     });
@@ -84,8 +82,8 @@ export default function SummaryScreen() {
           </View>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>📖 今日福音</Text>
-            <Text style={styles.quoteText}>「{quote}」</Text>
-            <Text style={styles.quoteSource}>—— {quoteSource}</Text>
+            <Text style={styles.quoteText}>「{params.quote}」</Text>
+            <Text style={styles.quoteSource}>—— {params.quote_source}</Text>
           </View>
         </ScrollView>
       </SafeAreaView>

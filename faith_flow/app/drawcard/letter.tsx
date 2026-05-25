@@ -1,6 +1,6 @@
 // app/drawcard/letter.tsx
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../context/authcontext";
 import { API_BASE_URL } from "../../lib/api";
@@ -10,10 +10,10 @@ export default function LetterScreen() {
   const { currentUser } = useAuth();
   const params = useLocalSearchParams<{
     weekly_card_id: string; question: string; theme: string; summary: string;
-    quote: string; quote_source: string; image_prompt: string; image_url: string; conversation: string;
+    quote: string; quote_source: string; image_url: string;
+    conversation: string; conversation_id: string;
   }>();
 
-  const [letterId, setLetterId] = useState<number | null>(null);
   const hasCompletedRef = useRef(false);
 
   useEffect(() => {
@@ -34,34 +34,20 @@ export default function LetterScreen() {
       const myDraw = drawsData.data.find((d: any) => String(d.weekly_card_id) === String(params.weekly_card_id));
       if (!myDraw) return;
 
-      const completeRes = await fetch(`${API_BASE_URL}/api/livingwater/complete-draw`, {
+      await fetch(`${API_BASE_URL}/api/livingwater/complete-draw`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           user_draws_id: myDraw.user_draws_id,
           summary: params.summary || null,
-          letter_quote: params.quote || null,
-          letter_quote_source: params.quote_source || null,
+          conversation_id: params.conversation_id ? Number(params.conversation_id) : null,
         }),
       });
-      const completeData = await completeRes.json();
-      if (completeData.success && completeData.data?.letter_id) {
-        setLetterId(completeData.data.letter_id);
-      }
     } catch (err) { console.warn("[Letter] complete-draw 失敗:", err); }
   };
 
   const handleCollect = () => {
-    router.push({
-      pathname: "/drawcard/collection",
-      params: {
-        question: params.question, theme: params.theme, summary: params.summary,
-        quote: params.quote, quote_source: params.quote_source,
-        image_url: params.image_url || '',
-        conversation: params.conversation || "",
-        letter_id: letterId ? String(letterId) : '',
-      },
-    });
+    router.push("/drawcard/collection");
   };
 
   const today = new Date().toLocaleDateString("zh-TW", { year: "numeric", month: "numeric", day: "numeric" });

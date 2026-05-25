@@ -11,7 +11,8 @@ const {
   recordDrawController,
   completeDrawController,
   getMyDrawsController,
-  getLetterController,
+  getMyCollectionController,
+  getDrawController,
   chatController,
 } = require('../controllers/livingwatercontroller');
 
@@ -21,11 +22,12 @@ router.get('/weekly-cards', getWeeklyCardsController);
 
 // 需要登入
 router.get('/my-draws', verifyToken, attachUserId, getMyDrawsController);
+router.get('/my-collection', verifyToken, attachUserId, getMyCollectionController);
 router.post('/record-draw', verifyToken, attachUserId, recordDrawController);
 router.post('/complete-draw', verifyToken, attachUserId, completeDrawController);
 router.post('/generate-letter', generateLetterController);
 router.post('/generate-image', generateImageController);
-router.get('/letter/:letter_id', verifyToken, attachUserId, getLetterController);
+router.get('/draw/:user_draws_id', verifyToken, attachUserId, getDrawController);
 router.post('/chat', verifyToken, attachUserId, chatController);
 
 

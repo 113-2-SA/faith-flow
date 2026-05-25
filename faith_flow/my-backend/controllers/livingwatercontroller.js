@@ -90,33 +90,38 @@ const getWeeklyCardsController = async (req, res) => {
     const indexes = pickWeeklyQuestions(allQuestions.rows, weekNumber);
     const pickedQuestions = indexes.map(i => allQuestions.rows[i]);
 
-    // 先刪除本週舊資料（避免重複）
-    await pool.query(
-      'DELETE FROM weekly_cards WHERE weekly_start_date = $1',
+    for (let i = 0; i < pickedQuestions.length; i++) {
+      const q = pickedQuestions[i];
+      await pool.query(
+        `INSERT INTO weekly_cards (weekly_start_date, day_no, ai_question_id, created_at)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (weekly_start_date, day_no) DO NOTHING`,
+        [weekStartDate, i + 1, q.ai_question_id]
+      );
+    }
+
+    // 重新查詢確保回傳完整資料（含已存在的）
+    const finalCards = await pool.query(
+      `SELECT wc.weekly_cards_id, wc.day_no, aq.ai_question_id, aq.question_text, aq.theme, aq.quote, aq.quote_source, aq.image_url
+       FROM weekly_cards wc JOIN ai_questions aq ON wc.ai_question_id = aq.ai_question_id
+       WHERE wc.weekly_start_date = $1 ORDER BY wc.day_no`,
       [weekStartDate]
     );
 
-    // 寫入 weekly_cards 表
-    const insertedCards = [];
-    for (let i = 0; i < pickedQuestions.length; i++) {
-      const q = pickedQuestions[i];
-      const result = await pool.query(
-'INSERT INTO weekly_cards (weekly_start_date, day_no, card_style_id, ai_question_id, created_at) VALUES ($1, $2, 1, $3, NOW()) RETURNING weekly_cards_id',        [weekStartDate, i + 1, q.ai_question_id]
-      );
-      insertedCards.push({
-        weekly_card_id: result.rows[0].weekly_cards_id,
-        day: i + 1,
-        id: q.ai_question_id,
-        question: q.question_text,
-        theme: q.theme,
-        quote: q.quote,
-        quote_source: q.quote_source,
-        image_url: q.image_url,
-      });
-    }
-
-    console.log('[活水泉源] 本週卡片已建立:', insertedCards.length, '張');
-    return res.status(200).json({ success: true, data: insertedCards });
+    console.log('[活水泉源] 本週卡片已建立:', finalCards.rows.length, '張');
+    return res.status(200).json({
+      success: true,
+      data: finalCards.rows.map(row => ({
+        weekly_card_id: row.weekly_cards_id,
+        day: row.day_no,
+        id: row.ai_question_id,
+        question: row.question_text,
+        theme: row.theme,
+        quote: row.quote,
+        quote_source: row.quote_source,
+        image_url: row.image_url,
+      })),
+    });
 
   } catch (error) {
     console.error('[活水泉源] getWeeklyCards 錯誤：', error.message);
@@ -216,7 +221,7 @@ const recordDrawController = async (req, res) => {
 
     // 建立新的抽卡記錄
     const result = await pool.query(
-      'INSERT INTO user_draws (user_id, weekly_card_id, drawdate, is_completed, created_at) VALUES ($1, $2, CURRENT_DATE, false, NOW()) RETURNING user_draws_id',
+      'INSERT INTO user_draws (user_id, weekly_card_id, is_completed, created_at) VALUES ($1, $2, false, NOW()) RETURNING user_draws_id',
       [userId, weekly_card_id]
     );
 
@@ -233,67 +238,36 @@ const recordDrawController = async (req, res) => {
 
 // ============================================================
 // POST /api/livingwater/complete-draw
-// 完成整個流程（到 letter）後標記已完成
-// Body: { user_draws_id, summary, letter_quote, letter_quote_source, conversation_id }
+// 完成整個流程後標記已完成
+// Body: { user_draws_id, summary, conversation_id }
 // ============================================================
 const completeDrawController = async (req, res) => {
   try {
     const userId = req.userId;
     if (!userId) return res.status(401).json({ success: false, message: '請先登入' });
 
-    const { user_draws_id, summary, letter_quote, letter_quote_source, conversation_id } = req.body;
+    const { user_draws_id, summary, conversation_id } = req.body;
     if (!user_draws_id) {
       return res.status(400).json({ success: false, message: '缺少 user_draws_id' });
     }
 
-    // 更新 user_draws
     const result = await pool.query(
-      `UPDATE user_draws 
-       SET is_completed = true, 
-           summary = $1, 
-           letter_quote = $2, 
-           letter_quote_source = $3,
-           conversation_id = $4
-       WHERE user_draws_id = $5 AND user_id = $6
+      `UPDATE user_draws
+       SET is_completed = true,
+           summary = $1,
+           conversation_id = $2
+       WHERE user_draws_id = $3 AND user_id = $4
        RETURNING *`,
-      [summary || null, letter_quote || null, letter_quote_source || null,
-       conversation_id || null, user_draws_id, userId]
+      [summary || null, conversation_id || null, user_draws_id, userId]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: '找不到抽卡記錄' });
     }
 
-    const draw = result.rows[0];
-
-    // ✨ 寫入 letters 表並回傳 letter_id
-    let letter_id = null;
-    try {
-      // 取得 card_style_id（從 weekly_cards 取）
-      const cardRes = await pool.query(
-        `SELECT wc.card_style_id FROM weekly_cards wc
-         JOIN user_draws ud ON ud.weekly_card_id = wc.weekly_cards_id
-         WHERE ud.user_draws_id = $1`,
-        [user_draws_id]
-      );
-      const card_style_id = cardRes.rows[0]?.card_style_id || 1;
-
-      // 寫入 letters
-      const letterRes = await pool.query(
-        `INSERT INTO letters (conversation_id, card_style_id, summary_text, created_at)
-         VALUES ($1, $2, $3, NOW())
-         ON CONFLICT DO NOTHING
-         RETURNING letter_id`,
-        [conversation_id || null, card_style_id, summary || null]
-      );
-      letter_id = letterRes.rows[0]?.letter_id || null;
-    } catch (e) {
-      console.warn('[活水泉源] 寫入 letters 失敗（不影響主流程）:', e.message);
-    }
-
     return res.status(200).json({
       success: true,
-      data: { ...draw, letter_id },
+      data: result.rows[0],
     });
 
   } catch (error) {
@@ -314,41 +288,19 @@ const getMyDrawsController = async (req, res) => {
     const weekStartDate = getWeekStartDate();
 
     const result = await pool.query(
-      `SELECT ud.user_draws_id, ud.weekly_card_id, ud.is_completed, ud.drawdate,
-              ud.summary, ud.letter_quote, ud.letter_quote_source, ud.conversation_id,
-              wc.day_no, wc.card_style_id,
-              l.letter_id
+      `SELECT ud.user_draws_id, ud.weekly_card_id, ud.is_completed, ud.created_at,
+              ud.summary, ud.conversation_id,
+              wc.day_no
        FROM user_draws ud
        JOIN weekly_cards wc ON ud.weekly_card_id = wc.weekly_cards_id
-       LEFT JOIN letters l ON l.conversation_id = ud.conversation_id
        WHERE ud.user_id = $1 AND wc.weekly_start_date = $2`,
       [userId, weekStartDate]
     );
 
-    // ✨ 對有 summary 但沒有 letter_id 的資料，即時補建 letter
-    const rows = await Promise.all(result.rows.map(async (row) => {
-      if (row.summary && !row.letter_id) {
-        try {
-          const card_style_id = row.card_style_id || 1;
-          const letterRes = await pool.query(
-            `INSERT INTO letters (conversation_id, card_style_id, summary_text, created_at)
-             VALUES ($1, $2, $3, NOW())
-             RETURNING letter_id`,
-            [row.conversation_id || null, card_style_id, row.summary]
-          );
-          row.letter_id = letterRes.rows[0]?.letter_id || null;
-          console.log(`[活水泉源] 補建 letter_id=${row.letter_id} for user_draws_id=${row.user_draws_id}`);
-        } catch (e) {
-          console.warn('[活水泉源] 補建 letter 失敗:', e.message);
-        }
-      }
-      return row;
-    }));
-
     return res.status(200).json({
       success: true,
-      data: rows,
-      drawn_card_ids: rows.map(r => r.weekly_card_id),
+      data: result.rows,
+      drawn_card_ids: result.rows.map(r => r.weekly_card_id),
     });
 
   } catch (error) {
@@ -416,80 +368,35 @@ const generateImageController = async (req, res) => {
   }
 };
 
-const getLetterController = async (req, res) => {
+// ============================================================
+// GET /api/livingwater/draw/:user_draws_id
+// 取得單筆抽卡記錄（含題目、圖案、金句）
+// ============================================================
+const getDrawController = async (req, res) => {
   try {
-    const { letter_id } = req.params;
+    const { user_draws_id } = req.params;
+    const userId = req.userId;
 
-    // 先取得 letter 基本資料
-    const letterResult = await pool.query(
-      `SELECT letter_id, card_style_id, summary_text, created_at
-       FROM letters WHERE letter_id = $1`,
-      [letter_id]
-    );
-
-    if (letterResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: '找不到此信箋' });
-    }
-
-    const letter = letterResult.rows[0];
-
-    // ✨ 用 summary_text 比對 user_draws → weekly_cards → ai_questions
-    // 這是目前唯一可靠的串接方式（因為 conversation_id 都是 null）
-    const cardResult = await pool.query(
-      `SELECT 
-         aq.question_text AS question,
-         aq.quote,
-         aq.quote_source,
-         aq.theme,
-         aq.image_url,
-         ud.letter_quote,
-         ud.letter_quote_source
+    const result = await pool.query(
+      `SELECT ud.user_draws_id, ud.summary, ud.is_completed, ud.created_at,
+              aq.question_text AS question, aq.quote, aq.quote_source,
+              aq.image_url, aq.theme
        FROM user_draws ud
-       JOIN weekly_cards wc ON wc.weekly_cards_id = ud.weekly_card_id
-       JOIN ai_questions aq ON aq.ai_question_id = wc.ai_question_id
-       WHERE ud.summary = $1
-       LIMIT 1`,
-      [letter.summary_text]
+       JOIN weekly_cards wc ON ud.weekly_card_id = wc.weekly_cards_id
+       JOIN ai_questions aq ON wc.ai_question_id = aq.ai_question_id
+       WHERE ud.user_draws_id = $1 AND ud.user_id = $2`,
+      [user_draws_id, userId]
     );
 
-    if (cardResult.rows.length === 0) {
-      // fallback：用 card_style_id 找（舊路徑）
-      const fallback = await pool.query(
-        `SELECT aq.question_text AS question, aq.quote, aq.quote_source, aq.image_url
-         FROM ai_questions aq WHERE aq.ai_question_id = $1`,
-        [letter.card_style_id]
-      );
-      const fb = fallback.rows[0] || {};
-      return res.status(200).json({
-        success: true,
-        data: {
-          letter_id: letter.letter_id,
-          summary_text: letter.summary_text,
-          question: fb.question || null,
-          quote: fb.quote || null,
-          quote_source: fb.quote_source || null,
-          image_url: fb.image_url || null,
-        }
-      });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: '找不到此抽卡記錄' });
     }
 
-    const card = cardResult.rows[0];
-    return res.status(200).json({
-      success: true,
-      data: {
-        letter_id: letter.letter_id,
-        summary_text: letter.summary_text,
-        question: card.question,
-        // ✨ 優先用 user_draws 的 letter_quote（更精確）
-        quote: card.letter_quote || card.quote,
-        quote_source: card.letter_quote_source || card.quote_source,
-        image_url: card.image_url,
-      }
-    });
+    return res.status(200).json({ success: true, data: result.rows[0] });
 
   } catch (error) {
-    console.error('[活水泉源] getLetter 錯誤：', error.message);
-    return res.status(500).json({ success: false, message: '取得信箋失敗', error: error.message });
+    console.error('[活水泉源] getDraw 錯誤：', error.message);
+    return res.status(500).json({ success: false, message: '取得抽卡記錄失敗', error: error.message });
   }
 };
 
@@ -691,15 +598,62 @@ ${magisterium.answer ? `【天主教教義參考（Magisterium）】：\n${magis
   }
 };
 
+// ============================================================
+// GET /api/livingwater/my-collection
+// 取得使用者所有週的抽卡紀錄（累積收藏，不限本週）
+// ============================================================
+const getMyCollectionController = async (req, res) => {
+  try {
+    const userId = req.userId;
+    if (!userId) return res.status(401).json({ success: false, message: '請先登入' });
+
+    const result = await pool.query(
+      `SELECT ud.user_draws_id, ud.weekly_card_id, ud.is_completed, ud.created_at,
+              ud.summary, ud.conversation_id,
+              wc.day_no, wc.weekly_start_date,
+              aq.ai_question_id, aq.question_text, aq.theme, aq.quote, aq.quote_source, aq.image_url
+       FROM user_draws ud
+       JOIN weekly_cards wc ON ud.weekly_card_id = wc.weekly_cards_id
+       JOIN ai_questions aq ON wc.ai_question_id = aq.ai_question_id
+       WHERE ud.user_id = $1
+       ORDER BY ud.created_at DESC, wc.day_no ASC`,
+      [userId]
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: result.rows.map(row => ({
+        user_draws_id: row.user_draws_id,
+        weekly_card_id: row.weekly_card_id,
+        is_completed: row.is_completed,
+        created_at: row.created_at,
+        day: row.day_no,
+        weekly_start_date: row.weekly_start_date,
+        id: row.ai_question_id,
+        question: row.question_text,
+        theme: row.theme,
+        quote: row.quote,
+        quote_source: row.quote_source,
+        image_url: row.image_url,
+        summary: row.summary || null,
+      })),
+    });
+  } catch (error) {
+    console.error('[活水泉源] getMyCollection 錯誤：', error.message);
+    return res.status(500).json({ success: false, message: '取得卡片收藏失敗', error: error.message });
+  }
+};
+
 // 匯出給 Route 使用
 module.exports = {
   generateLetterController,
   generateImageController,
-  getLetterController,
+  getDrawController,
   getDailyCardController,
   getWeeklyCardsController,
   recordDrawController,
   completeDrawController,
   getMyDrawsController,
+  getMyCollectionController,
   chatController,
 };

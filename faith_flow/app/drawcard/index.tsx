@@ -20,6 +20,7 @@ export default function DrawCardScreen() {
   const { currentUser } = useAuth();
   const [cards, setCards] = useState<WeeklyCard[]>([]);
   const [drawnCardIds, setDrawnCardIds] = useState<number[]>([]);
+  const [drewToday, setDrewToday] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedCard, setSelectedCard] = useState<WeeklyCard | null>(null);
 
@@ -39,7 +40,15 @@ export default function DrawCardScreen() {
             headers: { Authorization: `Bearer ${token}` },
           });
           const drawsData = await drawsRes.json();
-          if (drawsData.success) setDrawnCardIds(drawsData.drawn_card_ids || []);
+          if (drawsData.success) {
+            setDrawnCardIds(drawsData.drawn_card_ids || []);
+            const now = new Date();
+            const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+            const hasDrawToday = (drawsData.data || []).some(
+              (d: any) => String(d.drawdate).substring(0, 10) === today
+            );
+            setDrewToday(hasDrawToday);
+          }
         } catch (err) { console.warn('[DrawCard] 取得抽卡記錄失敗:', err); }
       }
     } catch (err) { console.error('[DrawCard] fetchData failed:', err); }
@@ -48,7 +57,9 @@ export default function DrawCardScreen() {
 
   const handleCardPress = async (card: WeeklyCard) => {
     if (drawnCardIds.includes(card.weekly_card_id)) return;
+    if (drewToday) return;
     setSelectedCard(card);
+    setDrewToday(true); // 立即鎖住其他卡，不等重新 fetch
     if (currentUser) {
       try {
         const token = await currentUser.getIdToken(true);
@@ -76,6 +87,8 @@ export default function DrawCardScreen() {
           <View style={styles.cardArea}>
             {allDrawn ? (
               <Text style={styles.hint}>🎉 本週抽卡已結束！{'\n'}下週再來繼續靈修之旅</Text>
+            ) : drewToday ? (
+              <Text style={styles.hint}>今日已完成抽卡{'\n'}明天再來繼續靈修之旅</Text>
             ) : (
               <Text style={styles.hint}>點擊卡片開始今日靈修對話</Text>
             )}
@@ -83,14 +96,16 @@ export default function DrawCardScreen() {
               {[1,2,3,4,5].map((day) => {
                 const card = cards.find(c => c.day === day);
                 const isDrawn = card ? drawnCardIds.includes(card.weekly_card_id) : false;
-                const canPress = !!card && !isDrawn;
+                const isLocked = !isDrawn && drewToday;
+                const canPress = !!card && !isDrawn && !drewToday;
                 return (
                   <Pressable key={day}
-                    style={[styles.card, isDrawn ? styles.cardDrawn : styles.cardAvailable]}
+                    style={[styles.card, isDrawn ? styles.cardDrawn : isLocked ? styles.cardLocked : styles.cardAvailable]}
                     onPress={() => card && canPress && handleCardPress(card)}
                     disabled={!canPress}>
                     {isDrawn && <Text style={styles.cardDoneIcon}>✓</Text>}
-                    {!isDrawn && card && <Text style={styles.cardTapHint}>點我{'\n'}抽卡</Text>}
+                    {isLocked && <Text style={styles.cardLockIcon}>🔒</Text>}
+                    {!isDrawn && !isLocked && card && <Text style={styles.cardTapHint}>點我{'\n'}抽卡</Text>}
                   </Pressable>
                 );
               })}
@@ -98,6 +113,7 @@ export default function DrawCardScreen() {
             <View style={styles.legend}>
               <View style={styles.legendItem}><View style={[styles.legendDot, {backgroundColor:'rgba(255,255,255,0.85)'}]}/><Text style={styles.legendText}>未抽</Text></View>
               <View style={styles.legendItem}><View style={[styles.legendDot, {backgroundColor:'rgba(255,255,255,0.3)'}]}/><Text style={styles.legendText}>已抽</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, {backgroundColor:'rgba(255,255,255,0.15)'}]}/><Text style={styles.legendText}>鎖定</Text></View>
             </View>
           </View>
         ) : (
@@ -149,6 +165,8 @@ const styles = StyleSheet.create({
   card:{width:CARD_W,height:CARD_H,borderRadius:12,alignItems:'center',justifyContent:'center',shadowColor:'#000',shadowOffset:{width:0,height:4},shadowOpacity:0.3,shadowRadius:8,elevation:6,padding:4,gap:8},
   cardAvailable:{backgroundColor:'rgba(255,255,255,0.85)',borderWidth:2,borderColor:'#FFD700'},
   cardDrawn:{backgroundColor:'rgba(255,255,255,0.25)'},
+  cardLocked:{backgroundColor:'rgba(255,255,255,0.1)',borderWidth:1,borderColor:'rgba(255,255,255,0.2)'},
+  cardLockIcon:{fontSize:18,opacity:0.4},
   cardDayLabel:{color:'rgba(255,255,255,0.7)',fontSize:11,fontWeight:'600'},
   cardDayLabelAvailable:{color:'#2d5a3d',fontWeight:'700'},
   cardTapHint:{color:'#2d5a3d',fontSize:11,fontWeight:'600',textAlign:'center',lineHeight:16},

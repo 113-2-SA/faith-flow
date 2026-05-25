@@ -44,6 +44,7 @@ export default function DrawCardChatScreen() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [showReview, setShowReview] = useState(false);
+  const [conversationId, setConversationId] = useState<string>("");
   const flatListRef = useRef<FlatList>(null);
 
   const sendMessage = async () => {
@@ -74,6 +75,7 @@ export default function DrawCardChatScreen() {
           theme: params.theme,
           message: userMsg.content,
           conversation: conversationText,
+          conversationId: conversationId || undefined,
         }),
       });
 
@@ -86,7 +88,10 @@ export default function DrawCardChatScreen() {
         if (!line.startsWith("data: ")) continue;
         try {
           const obj = JSON.parse(line.slice(6).trim());
-          if (obj.type === "done" && obj.reply) reply = obj.reply;
+          if (obj.type === "done") {
+            if (obj.reply) reply = obj.reply;
+            if (obj.conversationId) setConversationId(String(obj.conversationId));
+          }
           if (obj.type === "error" && !reply) reply = obj.message || "";
         } catch { /* skip malformed chunk */ }
       }
@@ -117,6 +122,7 @@ export default function DrawCardChatScreen() {
       quote: params.quote,
       quote_source: params.quote_source,
       image_url: params.image_url || "",
+      conversation_id: conversationId,
       conversation: messages
         .map((m) => `${m.role === "user" ? "使用者" : "AI"}：${m.content}`)
         .join("\n"),

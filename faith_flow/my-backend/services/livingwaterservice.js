@@ -50,12 +50,9 @@ ${question}
 ## 使用者與 AI 的完整對話記錄
 ${conversation}
 
-## 請生成信箋三元件，嚴格輸出 JSON：
+## 請生成信箋摘要，嚴格輸出 JSON：
 {
-  "summary": "100-150字，用第二人稱「你」，提煉這次對話的核心洞見與轉折",
-  "quote": "20-50字福音，來自禮儀年/教宗通諭/宗教新聞，力道強、耐人尋味",
-  "quote_source": "出處，如：《福音的喜樂》第197號 / 路 15:20",
-  "image_prompt": "英文，50-80字，象徵性藝術插畫風格，反映問題情感核心，含 soft warm light, watercolor texture, contemplative mood"
+  "summary": "100-150字，用第二人稱「你」，提煉這次對話的核心洞見與轉折"
 }`;
 
 // ── 呼叫 Groq API（暫時代替 Qwen，待 Qwen 穩定後可切換回來）──

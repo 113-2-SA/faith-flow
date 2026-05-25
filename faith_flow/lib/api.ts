@@ -2,7 +2,6 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 function getApiBaseUrl(): string {
-  // 優先使用環境變數（Cloudflare tunnel / 生產環境皆適用，手機不需同網段）
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
   }
@@ -11,12 +10,16 @@ function getApiBaseUrl(): string {
     return 'https://your-production-api.com';
   }
 
-  // Dev fallback：自動從 Expo DevServer 取得本機 IP
-  const debuggerHost = Constants.expoConfig?.hostUri;
-  const localhost = debuggerHost?.split(':')[0];
+  // Web 瀏覽器直接用 localhost（和後端同機器）
+  if (Platform.OS === 'web') {
+    return 'http://localhost:3000';
+  }
 
-  if (localhost) {
-    return `http://${localhost}:3000`;
+  // 手機透過熱點連筆電：從 Expo DevServer hostUri 取得筆電 IP
+  const debuggerHost = Constants.expoConfig?.hostUri;
+  const laptopIp = debuggerHost?.split(':')[0];
+  if (laptopIp) {
+    return `http://${laptopIp}:3000`;
   }
 
   if (Platform.OS === 'android') {

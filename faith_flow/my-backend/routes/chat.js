@@ -373,7 +373,7 @@ router.get("/history", verifyToken, attachUserId, async (req, res) => {
     const conversations = await pool.query(
       `SELECT conversation_id, title, created_at, updated_at, status
        FROM conversations
-       WHERE user_id = $1 AND deleted_at IS NULL
+       WHERE user_id = $1 AND deleted_at IS NULL AND con_from IS NULL
        ORDER BY updated_at DESC
        LIMIT 20`,
       [userId]
@@ -665,14 +665,19 @@ router.get("/:conversationId/messages", verifyToken, attachUserId, async (req, r
        ORDER BY created_at ASC`,
       [conversationId]
     );
-    const formattedMessages = messages.rows.map(msg => ({
-      message_id: msg.message_id,
-      role: msg.ms_role,
-      content: msg.ms_content,
-      companion_response: msg.metadata?.companion_response || null,
-      citations: msg.metadata?.citations || [],
-      created_at: msg.created_at,
-    }));
+    const formattedMessages = messages.rows.map(msg => {
+      const meta = typeof msg.metadata === 'string'
+        ? (() => { try { return JSON.parse(msg.metadata); } catch { return {}; } })()
+        : (msg.metadata || {});
+      return {
+        message_id: msg.message_id,
+        role: msg.ms_role,
+        content: msg.ms_content,
+        companion_response: meta.companion_response || null,
+        citations: meta.citations || [],
+        created_at: msg.created_at,
+      };
+    });
     return res.json({ ok: true, data: formattedMessages });
   } catch (err) {
     console.error("[GET messages] failed:", err.message);
