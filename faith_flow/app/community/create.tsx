@@ -37,26 +37,24 @@ interface SummaryItem {
   end_date: string;
 }
 
-// ✨ 新增：信箋資料的型別定義
 interface LetterItem {
-  letter_id: number;
-  summary_text: string;      // 信箋摘要內容
-  question?: string;         // 問題主題（從 ai_questions 來）
-  image_url?: string;        // 卡片圖片（Cloudflare R2）
-  quote?: string;        // ✨ 改這裡（原本是 letter_quote）
-  quote_source?: string; // 福音來源
-  }
+  user_draws_id: number;
+  summary: string;
+  question?: string;
+  image_url?: string;
+  quote?: string;
+  quote_source?: string;
+}
 
 export default function CreatePostScreen() {
   const router = useRouter();
   const { currentUser } = useAuth();
 
-  // ✨ 新增 letter_id 到路由參數解析
   const params = useLocalSearchParams<{
     diary_id?: string;
     summary_year?: string;
     summary_week?: string;
-    letter_id?: string;      // 新增：從 collection.tsx 帶過來
+    user_draws_id?: string;
   }>();
 
   const [postText, setPostText] = useState('');
@@ -148,31 +146,27 @@ export default function CreatePostScreen() {
     loadDiary();
   }, [params.diary_id, currentUser]);
 
-  // ✨ 新增：若有 letter_id 參數，自動抓取信箋資料
-  // 📌 為什麼要呼叫 API 而不是直接用 params 傳資料？
-  //    因為照著日記的模式，統一從後端抓，資料更完整也更安全
   useEffect(() => {
-    if (!params.letter_id || !currentUser) return;
+    if (!params.user_draws_id || !currentUser) return;
     const loadLetter = async () => {
       setLetterLoading(true);
       try {
         const token = await currentUser.getIdToken();
-        // 呼叫交接文件中已存在的 API：GET /api/livingwater/letter/:letter_id
         const res = await fetch(
-          `${API_BASE_URL}/api/livingwater/letter/${params.letter_id}`,
+          `${API_BASE_URL}/api/livingwater/draw/${params.user_draws_id}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         const data = await res.json();
         if (data.success) {
           const l = data.data;
           setAttachedLetter({
-            letter_id:           l.letter_id,
-            summary_text:        l.summary_text,
-            question:            l.question ?? '',
-            image_url:           l.image_url ?? null,
-            quote:        l.quote ?? null,        // ✨ 改這裡
-            quote_source: l.quote_source ?? null, // ✨ 改這裡
-        });
+            user_draws_id: l.user_draws_id,
+            summary:       l.summary ?? '',
+            question:      l.question ?? '',
+            image_url:     l.image_url ?? null,
+            quote:         l.quote ?? null,
+            quote_source:  l.quote_source ?? null,
+          });
         } else {
           Alert.alert('提醒', '無法載入信箋，請重新嘗試');
         }
@@ -183,7 +177,7 @@ export default function CreatePostScreen() {
       }
     };
     loadLetter();
-  }, [params.letter_id, currentUser]);
+  }, [params.user_draws_id, currentUser]);
 
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -252,8 +246,7 @@ export default function CreatePostScreen() {
         if (tags.length > 0) formData.append('tags', JSON.stringify(tags));
         if (attachedDiary) formData.append('diary_id', String(attachedDiary.diary_id));
         if (attachedSummary) formData.append('summary_id', String(attachedSummary.summary_id));
-        // ✨ 新增：信箋 id 加入 FormData
-        if (attachedLetter) formData.append('letter_id', String(attachedLetter.letter_id));
+        if (attachedLetter) formData.append('user_draw_id', String(attachedLetter.user_draws_id));
         const filename = imageUri.split('/').pop() ?? 'photo.jpg';
         if (Platform.OS === 'web') {
           const response = await fetch(imageUri);
@@ -276,8 +269,7 @@ export default function CreatePostScreen() {
           ...(tags.length > 0 ? { tags } : {}),
           ...(attachedDiary ? { diary_id: attachedDiary.diary_id } : {}),
           ...(attachedSummary ? { summary_id: attachedSummary.summary_id } : {}),
-          // ✨ 新增：信箋 id 加入 JSON body
-          ...(attachedLetter ? { letter_id: attachedLetter.letter_id } : {}),
+          ...(attachedLetter ? { user_draw_id: attachedLetter.user_draws_id } : {}),
         });
       }
 
@@ -358,8 +350,8 @@ export default function CreatePostScreen() {
                   ) : null}
                   {/* 摘要前60字預覽 */}
                   <Text style={styles.diaryPreview} numberOfLines={3}>
-                    {attachedLetter.summary_text.slice(0, 80)}
-                    {attachedLetter.summary_text.length > 80 ? '...' : ''}
+                    {attachedLetter.summary.slice(0, 80)}
+                    {attachedLetter.summary.length > 80 ? '...' : ''}
                   </Text>
                   {/* 福音 */}
                   {attachedLetter.quote ? (

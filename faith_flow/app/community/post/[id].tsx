@@ -22,7 +22,7 @@ import { useAuth } from '../../context/authcontext';
 import { API_BASE_URL } from '../../../lib/api';
 import { VideoBackground } from '../../../components/VideoBackground';
 import { GlassCard } from '../../../components/GlassCard';
-import { PostCard, CommentCard, PostData, CommentData, PostDiaryCard, PostSummaryCard } from '../../../components/PostCard';
+import { PostCard, CommentCard, PostData, CommentData, PostDiaryCard, PostSummaryCard, PostLetterCard } from '../../../components/PostCard';
 import { HEADER_CONTENT_HEIGHT } from '../../../components/AppShell';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -55,6 +55,7 @@ export default function PostDetailScreen() {
   const [imageModalUri, setImageModalUri] = useState<string | null>(null);
   const [diaryModalCard, setDiaryModalCard] = useState<PostDiaryCard | null>(null);
   const [summaryModalCard, setSummaryModalCard] = useState<PostSummaryCard | null>(null);
+  const [letterModalCard, setLetterModalCard] = useState<PostLetterCard | null>(null);
   const inputRef = useRef<TextInput>(null);
   const [reportMenuVisible, setReportMenuVisible] = useState(false);
   const [reportModalVisible, setReportModalVisible] = useState(false);
@@ -359,6 +360,7 @@ export default function PostDetailScreen() {
                 onAvatarPress={() => router.push(`/user/${post.author_user_id}` as never)}
                 onDiaryCardPress={setDiaryModalCard}
                 onSummaryCardPress={setSummaryModalCard}
+                onLetterCardPress={setLetterModalCard}
                 onImagePress={setImageModalUri}
                 onOriginalPostPress={(id) => router.push(`/community/post/${id}` as never)}
                 style={{ marginBottom: 8 }}
@@ -501,6 +503,50 @@ export default function PostDetailScreen() {
               {summaryModalCard?.bible_quote && (
                 <Text style={styles.summaryModalBible}>📖 {summaryModalCard.bible_quote}</Text>
               )}
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Letter Full Content Modal */}
+      <Modal
+        visible={!!letterModalCard}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLetterModalCard(null)}
+      >
+        <TouchableOpacity
+          style={styles.diaryModalOverlay}
+          activeOpacity={1}
+          onPress={() => setLetterModalCard(null)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.diaryModalSheet} onPress={() => {}}>
+            <View style={styles.diaryModalHeader}>
+              <Text style={styles.diaryModalIcon}>✉️</Text>
+              <Text style={styles.diaryModalTitle} numberOfLines={2}>
+                {letterModalCard?.question ?? '活水信箋'}
+              </Text>
+              <TouchableOpacity onPress={() => setLetterModalCard(null)} style={styles.diaryModalClose}>
+                <Text style={styles.diaryModalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            {letterModalCard?.day_no != null && (
+              <Text style={styles.diaryModalDate}>第 {letterModalCard.day_no} 天</Text>
+            )}
+            <View style={styles.diaryModalDivider} />
+            <ScrollView style={styles.diaryModalScroll} showsVerticalScrollIndicator={false}>
+              {letterModalCard?.image_url ? (
+                <Image source={{ uri: letterModalCard.image_url }} style={styles.letterModalImg} resizeMode="cover" />
+              ) : null}
+              <Text style={styles.diaryModalContent}>{letterModalCard?.summary}</Text>
+              {letterModalCard?.quote ? (
+                <View style={styles.letterModalQuoteBlock}>
+                  <Text style={styles.letterModalQuoteText}>「{letterModalCard.quote}」</Text>
+                  {letterModalCard.quote_source ? (
+                    <Text style={styles.letterModalQuoteSource}>—— {letterModalCard.quote_source}</Text>
+                  ) : null}
+                </View>
+              ) : null}
             </ScrollView>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -929,4 +975,19 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.1)' },
   sendIcon: { fontSize: 18, color: 'white', fontWeight: '600' },
+
+  letterModalImg: {
+    width: '100%', height: 180, borderRadius: 10, marginBottom: 12,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  letterModalQuoteBlock: {
+    borderLeftWidth: 3, borderLeftColor: 'rgba(100,200,120,0.6)',
+    paddingLeft: 12, marginTop: 16, marginBottom: 8,
+  },
+  letterModalQuoteText: {
+    fontSize: 13, color: 'rgba(180,230,180,0.9)', fontStyle: 'italic', lineHeight: 20,
+  },
+  letterModalQuoteSource: {
+    fontSize: 12, color: 'rgba(255,255,255,0.4)', textAlign: 'right', marginTop: 4,
+  },
 });

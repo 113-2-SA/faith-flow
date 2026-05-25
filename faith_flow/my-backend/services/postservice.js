@@ -30,7 +30,7 @@ class PostService {
 
             const postQuery = `
                INSERT INTO community_posts
-                (author_user_id, post_text, post_type, visibility, letter_id, diary_id, summary_id, tags, post_pic)
+                (author_user_id, post_text, post_type, visibility, user_draw_id, diary_id, summary_id, tags, post_pic)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 RETURNING *
             `;
@@ -40,7 +40,7 @@ class PostService {
                 postData.post_text,
                 postData.post_type,
                 postData.visibility || 'public',
-                postData.letter_id || null,
+                postData.user_draw_id || null,
                 postData.diary_id || null,
                 postData.summary_id || null,
                 postData.tags || null,
@@ -99,17 +99,21 @@ class PostService {
             ws."week_number"     as summary_card_week_number,
             ws."start_date"      as summary_card_start_date,
             ws."end_date"        as summary_card_end_date,
-            l.summary_text  as letter_card_summary,
-            aq.question_text as letter_card_question,
-            aq.image_url    as letter_card_image_url,
-            ud.letter_quote as letter_card_quote,
-            ud.letter_quote_source as letter_card_quote_source
+            ud.summary           as letter_card_summary,
+            ud.is_completed      as letter_card_is_completed,
+            ud.conversation_id   as letter_card_conversation_id,
+            wc.day_no            as letter_card_day_no,
+            wc.weekly_start_date as letter_card_week_start,
+            aq.question_text     as letter_card_question,
+            aq.image_url         as letter_card_image_url,
+            aq.quote             as letter_card_quote,
+            aq.quote_source      as letter_card_quote_source,
+            aq.theme             as letter_card_theme
         FROM community_posts p
         LEFT JOIN "user" u ON p.author_user_id = u."userID"
         LEFT JOIN diary d ON p.post_type = 'diary' AND p.diary_id = d.diary_id
         LEFT JOIN "weekly_summary" ws ON p.post_type = 'summary' AND p.summary_id = ws."summary_id"
-        LEFT JOIN letters l ON p.post_type = 'letter' AND p.letter_id = l.letter_id
-        LEFT JOIN user_draws ud ON ud.summary = l.summary_text AND ud.is_completed = true
+        LEFT JOIN user_draws ud ON p.post_type = 'letter' AND p.user_draw_id = ud.user_draws_id
         LEFT JOIN weekly_cards wc ON wc.weekly_cards_id = ud.weekly_card_id
         LEFT JOIN ai_questions aq ON aq.ai_question_id = wc.ai_question_id
         WHERE p.community_post_id = $1 AND p.deleted_at IS NULL
@@ -159,21 +163,31 @@ class PostService {
         delete post.summary_card_start_date;
         delete post.summary_card_end_date;
 
-        // ✨ 整理信箋卡片
-        if (post.letter_card_summary) {
+        // 整理活水泉源信箋卡片
+        if (post.letter_card_summary !== null && post.letter_card_summary !== undefined) {
             post.letter_card = {
-                summary_text: post.letter_card_summary,
-                question:     post.letter_card_question,
-                image_url:    post.letter_card_image_url,
-                quote:        post.letter_card_quote,
-                quote_source: post.letter_card_quote_source,
+                summary:         post.letter_card_summary,
+                is_completed:    post.letter_card_is_completed,
+                conversation_id: post.letter_card_conversation_id,
+                day_no:          post.letter_card_day_no,
+                week_start:      post.letter_card_week_start,
+                question:        post.letter_card_question,
+                image_url:       post.letter_card_image_url,
+                quote:           post.letter_card_quote,
+                quote_source:    post.letter_card_quote_source,
+                theme:           post.letter_card_theme,
             };
         }
         delete post.letter_card_summary;
+        delete post.letter_card_is_completed;
+        delete post.letter_card_conversation_id;
+        delete post.letter_card_day_no;
+        delete post.letter_card_week_start;
         delete post.letter_card_question;
         delete post.letter_card_image_url;
         delete post.letter_card_quote;
         delete post.letter_card_quote_source;
+        delete post.letter_card_theme;
 
         // ⭐ 如果提供了 userId，檢查點讚和轉發狀態
         if (userId) {
@@ -212,17 +226,21 @@ class PostService {
                     d.diary_title   as diary_card_title,
                     d.diary_content as diary_card_content,
                     d.diary_date    as diary_card_date,
-                    l.summary_text  as letter_card_summary,
-                    aq.question_text as letter_card_question,
-                    aq.image_url    as letter_card_image_url,
-                    ud.letter_quote as letter_card_quote,
-                    ud.letter_quote_source as letter_card_quote_source
+                    ud.summary           as letter_card_summary,
+                    ud.is_completed      as letter_card_is_completed,
+                    ud.conversation_id   as letter_card_conversation_id,
+                    wc.day_no            as letter_card_day_no,
+                    wc.weekly_start_date as letter_card_week_start,
+                    aq.question_text     as letter_card_question,
+                    aq.image_url         as letter_card_image_url,
+                    aq.quote             as letter_card_quote,
+                    aq.quote_source      as letter_card_quote_source,
+                    aq.theme             as letter_card_theme
                 FROM community_post_shares s
                 JOIN community_posts p ON s.original_post_id = p.community_post_id
                 LEFT JOIN "user" u ON p.author_user_id = u."userID"
                 LEFT JOIN diary d ON p.post_type = 'diary' AND p.diary_id = d.diary_id
-                LEFT JOIN letters l ON p.post_type = 'letter' AND p.letter_id = l.letter_id
-                LEFT JOIN user_draws ud ON ud.summary = l.summary_text AND ud.is_completed = true
+                LEFT JOIN user_draws ud ON p.post_type = 'letter' AND p.user_draw_id = ud.user_draws_id
                 LEFT JOIN weekly_cards wc ON wc.weekly_cards_id = ud.weekly_card_id
                 LEFT JOIN ai_questions aq ON aq.ai_question_id = wc.ai_question_id
                 WHERE s.shared_post_id = $1
@@ -248,13 +266,18 @@ class PostService {
                             diary_date:    orig.diary_card_date,
                         }
                     } : {}),
-                    ...(orig.letter_card_summary ? {
+                    ...(orig.letter_card_summary !== null && orig.letter_card_summary !== undefined ? {
                         letter_card: {
-                            summary_text: orig.letter_card_summary,
-                            question:     orig.letter_card_question,
-                            image_url:    orig.letter_card_image_url,
-                            quote:        orig.letter_card_quote,
-                            quote_source: orig.letter_card_quote_source,
+                            summary:         orig.letter_card_summary,
+                            is_completed:    orig.letter_card_is_completed,
+                            conversation_id: orig.letter_card_conversation_id,
+                            day_no:          orig.letter_card_day_no,
+                            week_start:      orig.letter_card_week_start,
+                            question:        orig.letter_card_question,
+                            image_url:       orig.letter_card_image_url,
+                            quote:           orig.letter_card_quote,
+                            quote_source:    orig.letter_card_quote_source,
+                            theme:           orig.letter_card_theme,
                         }
                     } : {})
                 };
@@ -345,11 +368,16 @@ class PostService {
                 , ws."week_number"     as summary_card_week_number
                 , ws."start_date"      as summary_card_start_date
                 , ws."end_date"        as summary_card_end_date
-                , ltr.summary_text     as letter_card_summary
-                , laq.question_text    as letter_card_question
-                , laq.image_url        as letter_card_image_url
-                , ud_ltr.letter_quote  as letter_card_quote
-                , ud_ltr.letter_quote_source as letter_card_quote_source
+                , ud.summary           as letter_card_summary
+                , ud.is_completed      as letter_card_is_completed
+                , ud.conversation_id   as letter_card_conversation_id
+                , wc.day_no            as letter_card_day_no
+                , wc.weekly_start_date as letter_card_week_start
+                , aq.question_text     as letter_card_question
+                , aq.image_url         as letter_card_image_url
+                , aq.quote             as letter_card_quote
+                , aq.quote_source      as letter_card_quote_source
+                , aq.theme             as letter_card_theme
                 , op.community_post_id   as orig_post_id
                 , op.post_text           as orig_post_text
                 , op.post_type           as orig_post_type
@@ -367,19 +395,23 @@ class PostService {
                 , ows."bible_quote"     as orig_summary_card_bible_quote
                 , ows."year"            as orig_summary_card_year
                 , ows."week_number"     as orig_summary_card_week_number
-                , ol.summary_text          as orig_letter_card_summary
-                , olaq.question_text       as orig_letter_card_question
-                , olaq.image_url           as orig_letter_card_image_url
-                , oud.letter_quote         as orig_letter_card_quote
-                , oud.letter_quote_source  as orig_letter_card_quote_source
+                , oud.summary           as orig_letter_card_summary
+                , oud.is_completed      as orig_letter_card_is_completed
+                , oud.conversation_id   as orig_letter_card_conversation_id
+                , owc.day_no            as orig_letter_card_day_no
+                , owc.weekly_start_date as orig_letter_card_week_start
+                , oaq.question_text     as orig_letter_card_question
+                , oaq.image_url         as orig_letter_card_image_url
+                , oaq.quote             as orig_letter_card_quote
+                , oaq.quote_source      as orig_letter_card_quote_source
+                , oaq.theme             as orig_letter_card_theme
             FROM community_posts p
             LEFT JOIN "user" u ON p.author_user_id = u."userID"
             LEFT JOIN diary d ON p.post_type = 'diary' AND p.diary_id = d.diary_id
             LEFT JOIN "weekly_summary" ws ON p.post_type = 'summary' AND p.summary_id = ws."summary_id"
-            LEFT JOIN letters ltr ON p.post_type = 'letter' AND p.letter_id = ltr.letter_id
-            LEFT JOIN user_draws ud_ltr ON ud_ltr.summary = ltr.summary_text AND ud_ltr.is_completed = true
-            LEFT JOIN weekly_cards lwc ON lwc.weekly_cards_id = ud_ltr.weekly_card_id
-            LEFT JOIN ai_questions laq ON laq.ai_question_id = lwc.ai_question_id
+            LEFT JOIN user_draws ud ON p.post_type = 'letter' AND p.user_draw_id = ud.user_draws_id
+            LEFT JOIN weekly_cards wc ON wc.weekly_cards_id = ud.weekly_card_id
+            LEFT JOIN ai_questions aq ON aq.ai_question_id = wc.ai_question_id
             LEFT JOIN community_post_shares ps
                 ON ps.shared_post_id = p.community_post_id
             LEFT JOIN community_posts op
@@ -387,10 +419,9 @@ class PostService {
             LEFT JOIN "user" ou ON op.author_user_id = ou."userID"
             LEFT JOIN diary od ON op.post_type = 'diary' AND op.diary_id = od.diary_id
             LEFT JOIN "weekly_summary" ows ON op.post_type = 'summary' AND op.summary_id = ows."summary_id"
-            LEFT JOIN letters ol ON op.post_type = 'letter' AND op.letter_id = ol.letter_id
-            LEFT JOIN user_draws oud ON oud.summary = ol.summary_text AND oud.is_completed = true
+            LEFT JOIN user_draws oud ON op.post_type = 'letter' AND op.user_draw_id = oud.user_draws_id
             LEFT JOIN weekly_cards owc ON owc.weekly_cards_id = oud.weekly_card_id
-            LEFT JOIN ai_questions olaq ON olaq.ai_question_id = owc.ai_question_id
+            LEFT JOIN ai_questions oaq ON oaq.ai_question_id = owc.ai_question_id
             WHERE ${conditions.join(' AND ')}
             ORDER BY p.created_at DESC
             LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -436,21 +467,31 @@ class PostService {
             delete post.summary_card_start_date;
             delete post.summary_card_end_date;
 
-            // ✨ 整理信箋卡片
-            if (row.letter_card_summary) {
+            // 整理活水泉源信箋卡片
+            if (row.letter_card_summary !== null && row.letter_card_summary !== undefined) {
                 post.letter_card = {
-                    summary_text: row.letter_card_summary,
-                    question:     row.letter_card_question,
-                    image_url:    row.letter_card_image_url,
-                    quote:        row.letter_card_quote,
-                    quote_source: row.letter_card_quote_source,
+                    summary:         row.letter_card_summary,
+                    is_completed:    row.letter_card_is_completed,
+                    conversation_id: row.letter_card_conversation_id,
+                    day_no:          row.letter_card_day_no,
+                    week_start:      row.letter_card_week_start,
+                    question:        row.letter_card_question,
+                    image_url:       row.letter_card_image_url,
+                    quote:           row.letter_card_quote,
+                    quote_source:    row.letter_card_quote_source,
+                    theme:           row.letter_card_theme,
                 };
             }
             delete post.letter_card_summary;
+            delete post.letter_card_is_completed;
+            delete post.letter_card_conversation_id;
+            delete post.letter_card_day_no;
+            delete post.letter_card_week_start;
             delete post.letter_card_question;
             delete post.letter_card_image_url;
             delete post.letter_card_quote;
             delete post.letter_card_quote_source;
+            delete post.letter_card_theme;
 
             // 整理轉發來源貼文
             if (row.post_type === 'shared' && row.orig_post_id) {
@@ -479,15 +520,20 @@ class PostService {
                             week_number:     row.orig_summary_card_week_number,
                         }
                     } : {}),
-                    ...(row.orig_letter_card_summary ? {
+                    ...(row.orig_letter_card_summary !== null && row.orig_letter_card_summary !== undefined ? {
                         letter_card: {
-                            summary_text: row.orig_letter_card_summary,
-                            question:     row.orig_letter_card_question,
-                            image_url:    row.orig_letter_card_image_url,
-                            quote:        row.orig_letter_card_quote,
-                            quote_source: row.orig_letter_card_quote_source,
+                            summary:         row.orig_letter_card_summary,
+                            is_completed:    row.orig_letter_card_is_completed,
+                            conversation_id: row.orig_letter_card_conversation_id,
+                            day_no:          row.orig_letter_card_day_no,
+                            week_start:      row.orig_letter_card_week_start,
+                            question:        row.orig_letter_card_question,
+                            image_url:       row.orig_letter_card_image_url,
+                            quote:           row.orig_letter_card_quote,
+                            quote_source:    row.orig_letter_card_quote_source,
+                            theme:           row.orig_letter_card_theme,
                         }
-                    } : {})
+                    } : {}),
                 };
             }
             delete post.orig_post_id;
@@ -508,10 +554,15 @@ class PostService {
             delete post.orig_summary_card_year;
             delete post.orig_summary_card_week_number;
             delete post.orig_letter_card_summary;
+            delete post.orig_letter_card_is_completed;
+            delete post.orig_letter_card_conversation_id;
+            delete post.orig_letter_card_day_no;
+            delete post.orig_letter_card_week_start;
             delete post.orig_letter_card_question;
             delete post.orig_letter_card_image_url;
             delete post.orig_letter_card_quote;
             delete post.orig_letter_card_quote_source;
+            delete post.orig_letter_card_theme;
             return post;
         });
     }

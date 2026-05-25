@@ -36,11 +36,15 @@ export interface PostSummaryCard {
 }
 
 export interface PostLetterCard {
-  summary_text: string;
+  summary: string;
   question: string | null;
   image_url: string | null;
   quote: string | null;
   quote_source: string | null;
+  day_no?: number | null;
+  week_start?: string | null;
+  theme?: string | null;
+  is_completed?: boolean;
 }
 
 export interface PostOriginalPost {
@@ -282,6 +286,7 @@ interface PostCardProps {
   onAvatarPress?: () => void;
   onDiaryCardPress?: (card: PostDiaryCard) => void;
   onSummaryCardPress?: (card: PostSummaryCard) => void;
+  onLetterCardPress?: (card: PostLetterCard) => void;
   onImagePress?: (uri: string) => void;
   onOriginalPostPress?: (postId: number) => void;
   style?: object;
@@ -301,6 +306,7 @@ export function PostCard({
   onAvatarPress,
   onDiaryCardPress,
   onSummaryCardPress,
+  onLetterCardPress,
   onImagePress,
   onOriginalPostPress,
   style,
@@ -427,7 +433,11 @@ export function PostCard({
 
       {/* ── Letter card ── */}
       {post.letter_card && (
-        <View style={styles.letterCard}>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => onLetterCardPress?.(post.letter_card!)}
+          style={styles.letterCard}
+        >
           <View style={styles.letterRow}>
             {post.letter_card.image_url ? (
               <Image source={{ uri: post.letter_card.image_url }} style={styles.letterImg} resizeMode="cover" />
@@ -441,8 +451,8 @@ export function PostCard({
                 <Text style={styles.letterQuestion} numberOfLines={2}>{post.letter_card.question}</Text>
               )}
               <Text style={styles.letterPreview} numberOfLines={3}>
-                {post.letter_card.summary_text?.slice(0, 80)}
-                {(post.letter_card.summary_text?.length ?? 0) > 80 ? '...' : ''}
+                {post.letter_card.summary?.slice(0, 80)}
+                {(post.letter_card.summary?.length ?? 0) > 80 ? '...' : ''}
               </Text>
               {post.letter_card.quote && (
                 <Text style={styles.letterQuote} numberOfLines={2}>
@@ -451,7 +461,7 @@ export function PostCard({
               )}
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
       )}
 
       {/* ── Quoted original post (for shared type) ── */}
@@ -509,10 +519,10 @@ export function PostCard({
                       {post.original_post.letter_card.question}
                     </Text>
                   ) : null}
-                  {post.original_post.letter_card.summary_text ? (
+                  {post.original_post.letter_card.summary ? (
                     <Text style={styles.letterPreview} numberOfLines={2}>
-                      {post.original_post.letter_card.summary_text.slice(0, 50)}
-                      {post.original_post.letter_card.summary_text.length > 50 ? '...' : ''}
+                      {post.original_post.letter_card.summary.slice(0, 50)}
+                      {post.original_post.letter_card.summary.length > 50 ? '...' : ''}
                     </Text>
                   ) : null}
                   {post.original_post.letter_card.quote ? (

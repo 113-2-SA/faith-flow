@@ -25,7 +25,7 @@ class PostController {
                 post_text: req.body.post_text,
                 post_type: req.body.post_type,
                 visibility: req.body.visibility,
-                letter_id: req.body.letter_id,
+                user_draw_id: req.body.user_draw_id,
                 diary_id: req.body.diary_id,
                 summary_id: req.body.summary_id,
                 tags
@@ -34,11 +34,11 @@ class PostController {
             console.log('📦 準備的貼文資料:', JSON.stringify(postData, null, 2));
 
             // 驗證
-            if (postData.post_type === 'letter' && !postData.letter_id) {
-                console.log('❌ 驗證失敗：letter 類型缺少 letter_id');
-                return res.status(400).json({ 
+            if (postData.post_type === 'letter' && !postData.user_draw_id) {
+                console.log('❌ 驗證失敗：letter 類型缺少 user_draw_id');
+                return res.status(400).json({
                     ok: false,
-                    error: 'letter 類型貼文必須提供 letter_id' 
+                    error: 'letter 類型貼文必須提供 user_draw_id'
                 });
             }
 

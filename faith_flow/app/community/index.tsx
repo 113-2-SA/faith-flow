@@ -23,7 +23,7 @@ import {
 import { HEADER_CONTENT_HEIGHT } from '../../components/AppShell';
 import { CopilotStep, useCopilot, walkthroughable } from 'react-native-copilot';
 import { GlassCard } from '../../components/GlassCard';
-import { PostCard, PostData, PostDiaryCard, PostSummaryCard, POST_TYPE_LABELS } from '../../components/PostCard';
+import { PostCard, PostData, PostDiaryCard, PostSummaryCard, PostLetterCard, POST_TYPE_LABELS } from '../../components/PostCard';
 import { timeAgo } from '../../utils/dateUtils';
 import { VideoBackground } from '../../components/VideoBackground';
 import { API_BASE_URL } from '../../lib/api';
@@ -49,6 +49,7 @@ export default function CommunityFeedScreen() {
   const [sharing, setSharing] = useState(false);
   const [diaryModalCard, setDiaryModalCard] = useState<PostDiaryCard | null>(null);
   const [summaryModalCard, setSummaryModalCard] = useState<PostSummaryCard | null>(null);
+  const [letterModalCard, setLetterModalCard] = useState<PostLetterCard | null>(null);
   const LIMIT = 20;
 
   // 搜尋相關狀態
@@ -337,6 +338,7 @@ export default function CommunityFeedScreen() {
       onAvatarPress={() => router.push(`/user/${item.author_user_id}` as never)}
       onDiaryCardPress={setDiaryModalCard}
       onSummaryCardPress={setSummaryModalCard}
+      onLetterCardPress={setLetterModalCard}
       onOriginalPostPress={(postId) => router.push(`./community/post/${postId}`)}
     />
   );
@@ -555,6 +557,50 @@ export default function CommunityFeedScreen() {
     
     
     
+      {/* Letter Full Content Modal */}
+      <Modal
+        visible={!!letterModalCard}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLetterModalCard(null)}
+      >
+        <TouchableOpacity
+          style={styles.diaryOverlay}
+          activeOpacity={1}
+          onPress={() => setLetterModalCard(null)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.diaryFloatCard} onPress={() => {}}>
+            <View style={styles.diaryFloatHeader}>
+              <Text style={styles.diaryFloatIcon}>✉️</Text>
+              <Text style={styles.diaryFloatTitle} numberOfLines={2}>
+                {letterModalCard?.question ?? '活水信箋'}
+              </Text>
+              <TouchableOpacity onPress={() => setLetterModalCard(null)} style={styles.diaryFloatClose}>
+                <Text style={styles.diaryFloatCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            {letterModalCard?.day_no != null && (
+              <Text style={styles.diaryFloatDate}>第 {letterModalCard.day_no} 天</Text>
+            )}
+            <View style={styles.diaryFloatDivider} />
+            <ScrollView style={styles.diaryFloatScroll} showsVerticalScrollIndicator={false}>
+              {letterModalCard?.image_url ? (
+                <Image source={{ uri: letterModalCard.image_url }} style={styles.letterModalImg} resizeMode="cover" />
+              ) : null}
+              <Text style={styles.diaryFloatContent}>{letterModalCard?.summary}</Text>
+              {letterModalCard?.quote ? (
+                <View style={styles.letterModalQuoteBlock}>
+                  <Text style={styles.letterModalQuoteText}>「{letterModalCard.quote}」</Text>
+                  {letterModalCard.quote_source ? (
+                    <Text style={styles.letterModalQuoteSource}>—— {letterModalCard.quote_source}</Text>
+                  ) : null}
+                </View>
+              ) : null}
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Share Modal */}
       <Modal
         visible={!!shareTarget}
@@ -633,10 +679,10 @@ export default function CommunityFeedScreen() {
                             {shareTarget.letter_card.question}
                           </Text>
                         ) : null}
-                        {shareTarget.letter_card.summary_text ? (
+                        {shareTarget.letter_card.summary ? (
                           <Text style={styles.letterCardPreview} numberOfLines={2}>
-                            {shareTarget.letter_card.summary_text.slice(0, 50)}
-                            {shareTarget.letter_card.summary_text.length > 50 ? '...' : ''}
+                            {shareTarget.letter_card.summary.slice(0, 50)}
+                            {shareTarget.letter_card.summary.length > 50 ? '...' : ''}
                           </Text>
                         ) : null}
                         {shareTarget.letter_card.quote ? (
@@ -1118,5 +1164,20 @@ const styles = StyleSheet.create({
     color: 'rgba(180,230,180,0.85)',
     fontStyle: 'italic',
     lineHeight: 17,
+  },
+
+  letterModalImg: {
+    width: '100%', height: 180, borderRadius: 10, marginBottom: 12,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  letterModalQuoteBlock: {
+    borderLeftWidth: 3, borderLeftColor: 'rgba(100,200,120,0.6)',
+    paddingLeft: 12, marginTop: 16, marginBottom: 8,
+  },
+  letterModalQuoteText: {
+    fontSize: 13, color: 'rgba(180,230,180,0.9)', fontStyle: 'italic', lineHeight: 20,
+  },
+  letterModalQuoteSource: {
+    fontSize: 12, color: 'rgba(255,255,255,0.4)', textAlign: 'right', marginTop: 4,
   },
 });
