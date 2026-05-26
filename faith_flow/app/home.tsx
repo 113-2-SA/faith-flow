@@ -1,11 +1,121 @@
 import { useAuth } from "../hooks/useAuth";
-import { ScrollView, Text, View, TouchableOpacity, StyleSheet, LayoutAnimation, Platform, UIManager } from "react-native";
+import { Animated, KeyboardAvoidingView, Modal, Pressable, ScrollView, Text, TextInput, View, TouchableOpacity, StyleSheet, LayoutAnimation, Platform, UIManager } from "react-native";
 import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { addMonths } from "../components/calendarUtils";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { API_BASE_URL } from "../lib/api";
+import { auth } from "../lib/firebase";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// ── 首次進入導覽 ─────────────────────────────────────────────
+const HOME_TOUR_KEY = 'faith_flow_home_tour_v1';
+
+const TOUR_STEPS = [
+  { title: "🙏 歡迎使用 Faith Flow", body: "你的天主教靈修旅伴，陪你記錄信仰、探索真理、與教友同行。" },
+  { title: "📖 祈禱日記", body: "每天記錄靈修心得，AI 自動分析情緒與主題，協助你看見信仰成長的軌跡。" },
+  { title: "💬 有答大師", body: "向 AI 提出任何信仰問題，結合天主教教義知識與個人化陪伴回應，感性理性兼顧。" },
+  { title: "💌 活水泉源", body: "抽取靈修主題卡，與 AI 深度對話，結束後收到專屬信箋與意境插圖。" },
+  { title: "🕊️ 教友社群", body: "與同行的教友分享日記、靈感與反思，彼此扶持在信仰路上同行。" },
+  { title: "✍️ 讓 AI 更了解你", body: null },
+];
+const BIO_STEP_INDEX = TOUR_STEPS.length - 1;
+
+function HomeTour({ onDone }: { onDone: () => void }) {
+  const [step, setStep] = useState(0);
+  const [bio, setBio] = useState("");
+  const [saving, setSaving] = useState(false);
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+  }, [step, opacity]);
+
+  const fadeAndGo = useCallback((next: () => void) => {
+    Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => next());
+  }, [opacity]);
+
+  const handleFinish = useCallback(async () => {
+    if (bio.trim()) {
+      setSaving(true);
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        if (token) {
+          await fetch(`${API_BASE_URL}/api/user/profile`, {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ profile: bio.trim() }),
+          });
+        }
+      } catch {
+        // 儲存失敗不影響流程，使用者可在設定頁補填
+      } finally {
+        setSaving(false);
+      }
+    }
+    onDone();
+  }, [bio, onDone]);
+
+  const goNext = useCallback(() => {
+    if (step + 1 >= TOUR_STEPS.length) {
+      handleFinish();
+    } else {
+      fadeAndGo(() => setStep((s) => s + 1));
+    }
+  }, [step, fadeAndGo, handleFinish]);
+
+  const current = TOUR_STEPS[step];
+  const isBioStep = step === BIO_STEP_INDEX;
+  const isLast = step + 1 >= TOUR_STEPS.length;
+
+  return (
+    <Modal transparent animationType="fade" statusBarTranslucent>
+      <KeyboardAvoidingView
+        style={homeTourStyles.overlay}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <Pressable style={homeTourStyles.backdrop} onPress={isBioStep ? undefined : goNext} />
+        <Animated.View style={[homeTourStyles.card, { opacity }]}>
+          <Text style={homeTourStyles.stepLabel}>{step + 1} / {TOUR_STEPS.length}</Text>
+          <Text style={homeTourStyles.title}>{current.title}</Text>
+
+          {isBioStep ? (
+            <>
+              <Text style={homeTourStyles.body}>
+                介紹你自己，信仰程度、職業、興趣等，讓 AI 更認識你
+              </Text>
+              <TextInput
+                style={homeTourStyles.bioInput}
+                placeholder="例如：教友 5 年，每週主日彌撒，對靈修閱讀有興趣..."
+                placeholderTextColor="rgba(0,0,0,0.35)"
+                multiline
+                maxLength={200}
+                value={bio}
+                onChangeText={setBio}
+                textAlignVertical="top"
+              />
+            </>
+          ) : (
+            <Text style={homeTourStyles.body}>{current.body}</Text>
+          )}
+
+          <View style={homeTourStyles.actions}>
+            <Pressable onPress={goNext} style={[homeTourStyles.next, { marginLeft: 'auto' }]} disabled={saving}>
+              <Text style={homeTourStyles.nextText}>
+                {saving ? "儲存中..." : isLast ? "完成" : "下一步"}
+              </Text>
+            </Pressable>
+          </View>
+        </Animated.View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
 }
 
 import { CalendarCard } from "../components/CalendarCard";
@@ -34,12 +144,25 @@ export default function Home() {
   const [viewDate, setViewDate] = useState(() => new Date());
   const [calExpanded, setCalExpanded] = useState(false);
   const [nudge, setNudge] = useState<NudgeData | null>(null);
+  const [showHomeTour, setShowHomeTour] = useState(false);
 
   const toggleCalendar = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setCalExpanded((v) => !v);
   };
   const nudgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 首次進入首頁時顯示導覽
+  useEffect(() => {
+    AsyncStorage.getItem(HOME_TOUR_KEY).then((done) => {
+      if (!done) setTimeout(() => setShowHomeTour(true), 800);
+    });
+  }, []);
+
+  const endHomeTour = useCallback(() => {
+    setShowHomeTour(false);
+    AsyncStorage.setItem(HOME_TOUR_KEY, 'true');
+  }, []);
 
   // 停留 4 秒後查詢是否有待顯示的光點回顧
   useEffect(() => {
@@ -131,9 +254,91 @@ export default function Home() {
           onStartConversation={handleStartConversation}
         />
       )}
+
+      {/* 首次進入導覽（含個人簡介填寫） */}
+      {showHomeTour && <HomeTour onDone={endHomeTour} />}
     </VideoBackground>
   );
 }
+
+const homeTourStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 28,
+    width: '100%',
+    maxWidth: 380,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  stepLabel: {
+    fontSize: 11,
+    color: 'rgba(0,0,0,0.35)',
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: 'rgba(0,0,0,0.85)',
+    marginBottom: 10,
+  },
+  body: {
+    fontSize: 14,
+    color: 'rgba(0,0,0,0.65)',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  bioInput: {
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.15)',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 14,
+    color: 'rgba(0,0,0,0.8)',
+    minHeight: 90,
+    marginBottom: 20,
+    backgroundColor: 'rgba(0,0,0,0.03)',
+  },
+  actions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  skip: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  skipText: {
+    fontSize: 14,
+    color: 'rgba(0,0,0,0.35)',
+  },
+  next: {
+    backgroundColor: 'rgba(102,126,234,0.90)',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+  },
+  nextText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
+});
 
 const styles = StyleSheet.create({
   diaryListButton: {

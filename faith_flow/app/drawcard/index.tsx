@@ -4,6 +4,15 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Dimensions, Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../context/authcontext";
 import { API_BASE_URL as API_BASE } from "../../lib/api";
+import { PageTour } from "../../components/PageTour";
+
+const DRAWCARD_TOUR_KEY = 'faith_flow_drawcard_tour_v1';
+const DRAWCARD_STEPS = [
+  { title: "💌 活水泉源", body: "每週更新五張靈修主題卡，陪你在信仰路上每天深耕一步。" },
+  { title: "🎴 每日一抽", body: "每天限抽一張卡，點擊未翻開的卡片，今日的靈修主題就此揭曉。" },
+  { title: "💬 靈修對話", body: "抽卡後與 AI 就該主題展開深度對話，探索你與天主的關係。" },
+  { title: "📜 專屬信箋", body: "對話結束後，AI 將為你生成一封個人信箋與意境插圖，收藏本週的靈修紀錄。" },
+];
 const { width: SCREEN_W } = Dimensions.get("window");
 const CARD_W = (SCREEN_W - 80) / 5;
 const CARD_H = CARD_W * 1.55;
@@ -149,6 +158,7 @@ export default function DrawCardScreen() {
           <Text style={styles.collectionText}>卡片&信箋</Text>
         </Pressable>
       </SafeAreaView>
+      <PageTour steps={DRAWCARD_STEPS} storageKey={DRAWCARD_TOUR_KEY} />
     </View>
   );
 }
