@@ -24,6 +24,8 @@ import { GlassCard } from "./GlassCard";
 import { db, auth } from "../lib/firebase";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { loadPrayers, PrayerRecord } from "../lib/prayerStore";
+import { WishHolySiteModal } from "./WishHolySiteModal";
+import { useIsAdmin } from "../hooks/useIsAdmin";
 
 // Bundler auto-resolves to GoogleMapsComponent.web on web
 const GoogleMapsComponent = lazy(() => import("./GoogleMapsComponent"));
@@ -80,6 +82,8 @@ export function BasilicaMap() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [prayerFocusLocation, setPrayerFocusLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [showWishModal, setShowWishModal] = useState(false);
+  const isAdmin = useIsAdmin();
 
   const searchWidth = useRef(new Animated.Value(0)).current;
   const sheetY = useRef(new Animated.Value(COLLAPSED_Y)).current;
@@ -396,6 +400,18 @@ export function BasilicaMap() {
                       <Text style={styles.recordBtnText}>🎙 錄音祈禱</Text>
                     </GlassCard>
                   </Pressable>
+                  <Pressable onPress={() => setShowWishModal(true)} style={styles.listItemWrap}>
+                    <GlassCard style={styles.listRecordCard} glassColor="rgba(234,180,50,0.38)" blurTint="dark">
+                      <Text style={styles.wishBtnText}>✨ 許願聖地</Text>
+                    </GlassCard>
+                  </Pressable>
+                  {isAdmin && (
+                    <Pressable onPress={() => router.push("/admin" as any)} style={styles.listItemWrap}>
+                      <GlassCard style={styles.listRecordCard} glassColor="rgba(52,168,83,0.35)" blurTint="dark">
+                        <Text style={styles.adminReviewBtnText}>🛡 審核許願聖地</Text>
+                      </GlassCard>
+                    </Pressable>
+                  )}
                   {displayedBasilicas.map((b) => (
                     <Pressable
                       key={b.id}
@@ -464,6 +480,11 @@ export function BasilicaMap() {
           heading={selectedBasilica.panoramaHeading}
         />
       )}
+
+      <WishHolySiteModal
+        visible={showWishModal}
+        onClose={() => setShowWishModal(false)}
+      />
     </View>
   );
 }
@@ -547,4 +568,6 @@ const styles = StyleSheet.create({
   prayerModalDate: { fontSize: 12, color: "rgba(255,255,255,0.50)", marginBottom: 12 },
   prayerModalScroll: { maxHeight: 260 },
   prayerModalText: { fontSize: 14, color: "rgba(255,255,255,0.88)", lineHeight: 22 },
+  wishBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(255,215,100,0.95)", textAlign: "center" },
+  adminReviewBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(160,255,180,0.95)", textAlign: "center" },
 });

@@ -121,7 +121,11 @@ export default function LoginScreen() {
 
   return (
     <VideoBackground source={require("../../assets/backgrounds/main.mp4")}>
-      <Pressable style={{ flex: 1, justifyContent: "center", padding: 24 }} onPress={Keyboard.dismiss}>
+      <View style={{ flex: 1, justifyContent: "center", padding: 24 }}>
+        <Pressable
+          style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+          onPress={Keyboard.dismiss}
+        />
         <GlassCard style={{ padding: 20 }}>
           <Text
             style={{
@@ -261,7 +265,7 @@ export default function LoginScreen() {
             </Text>
           )}
         </GlassCard>
-      </Pressable>
+      </View>
     </VideoBackground>
   );
 }
