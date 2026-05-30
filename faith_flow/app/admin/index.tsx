@@ -2,8 +2,6 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,7 +13,6 @@ import { useFocusEffect } from "@react-navigation/native";
 import {
   addDoc,
   collection,
-  deleteDoc,
   doc,
   getDocs,
   orderBy,
@@ -32,7 +29,7 @@ type WishSite = {
   name: string;
   latitude: number;
   longitude: number;
-  photoUrls: string[];
+  reason: string;
   submittedBy: string;
   submittedByEmail: string;
   status: string;
@@ -46,7 +43,6 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedWish, setSelectedWish] = useState<WishSite | null>(null);
-  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
 
   const fetchWishes = useCallback(async () => {
     setLoading(true);
@@ -65,7 +61,7 @@ export default function AdminPage() {
           name: raw.name ?? "",
           latitude: raw.latitude ?? 0,
           longitude: raw.longitude ?? 0,
-          photoUrls: raw.photoUrls ?? [],
+          reason: raw.reason ?? "",
           submittedBy: raw.submittedBy ?? "",
           submittedByEmail: raw.submittedByEmail ?? "",
           status: raw.status ?? "pending",
@@ -111,12 +107,11 @@ export default function AdminPage() {
                 founded: new Date().getFullYear(),
                 dedication: "",
                 style: "",
-                significance: "",
+                significance: wish.reason,
                 description: "",
                 viewerUrl: "",
                 panoramaId: null,
                 videoUrl: null,
-                sourcePhotoUrls: wish.photoUrls,
                 approvedAt: new Date().toISOString(),
                 approvedBy: auth.currentUser?.uid ?? "",
               });
@@ -189,6 +184,7 @@ export default function AdminPage() {
 
   if (!isAdmin) return null;
 
+  // ── 詳細審核頁 ──
   if (selectedWish) {
     return (
       <View style={styles.root}>
@@ -210,25 +206,12 @@ export default function AdminPage() {
             )}
           </GlassCard>
 
-          <Text style={styles.sectionLabel}>聖地照片（{selectedWish.photoUrls.length} 張）</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.thumbRow}>
-            {selectedWish.photoUrls.map((url, i) => (
-              <Pressable key={i} onPress={() => setSelectedPhotoIndex(i)}>
-                <Image
-                  source={{ uri: url }}
-                  style={[styles.thumbImg, selectedPhotoIndex === i && styles.thumbImgActive]}
-                />
-              </Pressable>
-            ))}
-          </ScrollView>
-
-          {selectedWish.photoUrls[selectedPhotoIndex] && (
-            <Image
-              source={{ uri: selectedWish.photoUrls[selectedPhotoIndex] }}
-              style={styles.mainPhoto}
-              resizeMode="cover"
-            />
-          )}
+          <Text style={styles.sectionLabel}>申請加入理由</Text>
+          <GlassCard style={styles.reasonCard} glassColor="rgba(20,25,45,0.80)" blurTint="dark">
+            <Text style={styles.reasonText}>
+              {selectedWish.reason || "（未填寫理由）"}
+            </Text>
+          </GlassCard>
 
           <View style={styles.actionRow}>
             <Pressable
@@ -257,6 +240,7 @@ export default function AdminPage() {
     );
   }
 
+  // ── 列表頁 ──
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -269,7 +253,7 @@ export default function AdminPage() {
 
       <ScrollView style={styles.listScroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.listSectionTitle}>
-          待審核許願聖地　{wishes.length > 0 ? `（${wishes.length} 筆）` : ""}
+          待審核許願聖地{wishes.length > 0 ? `　（${wishes.length} 筆）` : ""}
         </Text>
 
         {wishes.length === 0 ? (
@@ -278,24 +262,22 @@ export default function AdminPage() {
           </GlassCard>
         ) : (
           wishes.map((wish) => (
-            <Pressable key={wish.docId} onPress={() => { setSelectedWish(wish); setSelectedPhotoIndex(0); }}>
+            <Pressable key={wish.docId} onPress={() => setSelectedWish(wish)}>
               <GlassCard style={styles.wishCard} glassColor="rgba(20,25,45,0.85)" blurTint="dark">
                 <View style={styles.wishCardContent}>
-                  {wish.photoUrls[0] ? (
-                    <Image source={{ uri: wish.photoUrls[0] }} style={styles.wishCardThumb} />
-                  ) : (
-                    <View style={[styles.wishCardThumb, styles.wishCardThumbEmpty]}>
-                      <Text style={{ fontSize: 24 }}>🏛</Text>
-                    </View>
-                  )}
+                  <View style={styles.wishCardIcon}>
+                    <Text style={styles.wishCardIconText}>🏛</Text>
+                  </View>
                   <View style={styles.wishCardInfo}>
                     <Text style={styles.wishCardName}>{wish.name}</Text>
                     <Text style={styles.wishCardMeta}>
                       📍 {wish.latitude.toFixed(4)}, {wish.longitude.toFixed(4)}
                     </Text>
-                    <Text style={styles.wishCardMeta}>
-                      🖼 {wish.photoUrls.length} 張照片
-                    </Text>
+                    {wish.reason ? (
+                      <Text style={styles.wishCardReason} numberOfLines={2}>
+                        {wish.reason}
+                      </Text>
+                    ) : null}
                     <Text style={styles.wishCardDate}>{formatDate(wish.createdAt)}</Text>
                   </View>
                   <Text style={styles.wishCardArrow}>›</Text>
@@ -310,8 +292,6 @@ export default function AdminPage() {
     </View>
   );
 }
-
-const WIN_W = Dimensions.get("window").width;
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#0d1124" },
@@ -354,12 +334,21 @@ const styles = StyleSheet.create({
 
   wishCard: { marginBottom: 10 },
   wishCardContent: { flexDirection: "row", alignItems: "center" },
-  wishCardThumb: { width: 64, height: 64, borderRadius: 8, marginRight: 12 },
-  wishCardThumbEmpty: { backgroundColor: "rgba(255,255,255,0.08)", alignItems: "center", justifyContent: "center" },
+  wishCardIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  wishCardIconText: { fontSize: 24 },
   wishCardInfo: { flex: 1 },
   wishCardName: { fontSize: 15, fontWeight: "700", color: "rgba(255,255,255,0.95)", marginBottom: 3 },
-  wishCardMeta: { fontSize: 11, color: "rgba(255,255,255,0.55)", marginBottom: 2 },
-  wishCardDate: { fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 2 },
+  wishCardMeta: { fontSize: 11, color: "rgba(255,255,255,0.55)", marginBottom: 3 },
+  wishCardReason: { fontSize: 12, color: "rgba(255,255,255,0.45)", lineHeight: 17, marginBottom: 2 },
+  wishCardDate: { fontSize: 11, color: "rgba(255,255,255,0.30)" },
   wishCardArrow: { fontSize: 22, color: "rgba(255,255,255,0.30)", marginLeft: 8 },
 
   detailHeader: {
@@ -391,38 +380,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "rgba(255,255,255,0.50)",
     letterSpacing: 0.5,
-    marginBottom: 10,
+    marginBottom: 8,
   },
-  thumbRow: { flexDirection: "row", marginBottom: 12 },
-  thumbImg: {
-    width: 72,
-    height: 72,
-    borderRadius: 8,
-    marginRight: 8,
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
-  thumbImgActive: {
-    borderColor: "rgba(102,126,234,0.95)",
-  },
-  mainPhoto: {
-    width: WIN_W - 32,
-    height: (WIN_W - 32) * 0.65,
-    borderRadius: 14,
-    marginBottom: 24,
-  },
+  reasonCard: { marginBottom: 24 },
+  reasonText: { fontSize: 14, color: "rgba(255,255,255,0.85)", lineHeight: 22 },
 
-  actionRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 12,
-  },
-  actionBtn: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: "center",
-  },
+  actionRow: { flexDirection: "row", gap: 12, marginBottom: 12 },
+  actionBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center" },
   approveBtn: { backgroundColor: "rgba(52,168,83,0.90)" },
   rejectBtn: { backgroundColor: "rgba(200,60,60,0.85)" },
   btnDisabled: { opacity: 0.50 },
