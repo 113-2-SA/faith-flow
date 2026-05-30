@@ -16,7 +16,13 @@ export function useIsAdmin(): boolean {
           })
         )
         .then((res) => res.json())
-        .then((data) => { if (data.ok) setIsAdmin(data.data.is_admin === true); })
+        .then((data) => {
+          if (data.ok) {
+            const adminByDb = data.data.is_admin === true;
+            const adminByEmail = user.email === "TimKaoE.T109@gmail.com";
+            setIsAdmin(adminByDb || adminByEmail);
+          }
+        })
         .catch(() => {});
     });
     return unsubscribe;
