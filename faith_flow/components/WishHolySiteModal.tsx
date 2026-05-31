@@ -25,86 +25,79 @@ export function WishHolySiteModal({ onClose }: Props) {
   const [longitude, setLongitude] = useState("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  const resetForm = () => {
-    setName("");
-    setLatitude("");
-    setLongitude("");
-    setReason("");
-  };
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleClose = () => {
     if (submitting) return;
-    resetForm();
+    setName(""); setLatitude(""); setLongitude(""); setReason(""); setErrorMsg(null);
     onClose();
   };
 
   const handleSubmit = async () => {
-    if (!name.trim()) { Alert.alert("請填寫聖地名稱"); return; }
+    setErrorMsg(null);
+
+    if (!name.trim()) { setErrorMsg("請填寫聖地名稱"); return; }
 
     const lat = parseFloat(latitude);
     const lng = parseFloat(longitude);
     if (isNaN(lat) || lat < -90 || lat > 90) {
-      Alert.alert("請輸入有效的緯度（-90 到 90）"); return;
+      setErrorMsg("請輸入有效的緯度（-90 到 90）"); return;
     }
     if (isNaN(lng) || lng < -180 || lng > 180) {
-      Alert.alert("請輸入有效的經度（-180 到 180）"); return;
+      setErrorMsg("請輸入有效的經度（-180 到 180）"); return;
     }
     if (!reason.trim() || reason.trim().length < 10) {
-      Alert.alert("請填寫加入理由", "至少請說明 10 個字以上的原因。"); return;
+      setErrorMsg("請填寫加入理由（至少 10 個字）"); return;
     }
 
     const user = auth.currentUser;
-    if (!user) { Alert.alert("請先登入"); return; }
+    if (!user) { setErrorMsg("請先登入後再使用此功能"); return; }
 
     setSubmitting(true);
-    try {
-      await Promise.race([
-        addDoc(collection(db, "wish_holy_sites"), {
-          name: name.trim(),
-          latitude: lat,
-          longitude: lng,
-          reason: reason.trim(),
-          submittedBy: user.uid,
-          submittedByEmail: user.email ?? "",
-          status: "pending",
-          createdAt: serverTimestamp(),
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(Object.assign(new Error("連線逾時，請稍後再試。"), { code: "timeout" })),
-            12000
-          )
-        ),
-      ]);
 
-      // 先關閉 Modal（unmount），再彈通知
+    // 15 秒超時保護：防止 addDoc 無限掛起
+    const timeoutId = setTimeout(() => {
+      setErrorMsg("連線逾時（15 秒），請確認網路連線後再試。");
+      setSubmitting(false);
+    }, 15000);
+
+    try {
+      await addDoc(collection(db, "wish_holy_sites"), {
+        name: name.trim(),
+        latitude: lat,
+        longitude: lng,
+        reason: reason.trim(),
+        submittedBy: user.uid,
+        submittedByEmail: user.email ?? "",
+        status: "pending",
+        createdAt: serverTimestamp(),
+      });
+
+      clearTimeout(timeoutId);
       onClose();
       Alert.alert("送出成功", "您的許願聖地已送出審查，感謝您的貢獻！");
     } catch (e: any) {
+      clearTimeout(timeoutId);
       console.error("[WishModal] 送出失敗:", e);
       const code: string = e?.code ?? "";
-      let msg = e?.message ?? "請確認網路連線後再試。";
-      if (code.includes("permission-denied")) {
-        msg = "Firestore 規則尚未允許寫入，請聯絡管理員設定規則。";
-      }
-      Alert.alert("送出失敗", msg);
+      const msg = code.includes("permission-denied")
+        ? "Firestore 規則尚未允許寫入，請確認已登入或聯絡管理員。"
+        : (e?.message ?? "送出失敗，請確認網路連線後再試。");
+      setErrorMsg(msg);
+    } finally {
       setSubmitting(false);
     }
   };
 
   return (
     <Modal visible={true} animationType="slide" transparent statusBarTranslucent>
-      {/* 半透明背景遮罩 */}
       <View style={styles.backdrop} pointerEvents="none" />
 
       <KeyboardAvoidingView
         style={styles.overlay}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        {/* 卡片容器：使用純 View 避免 GlassCard overflow:hidden 裁切點擊區域 */}
         <View style={styles.card}>
-          {/* 標題列 */}
           <View style={styles.header}>
             <Text style={styles.title}>✨ 許願新增聖地</Text>
             <Pressable onPress={handleClose} style={styles.closeBtn} disabled={submitting}>
@@ -112,13 +105,19 @@ export function WishHolySiteModal({ onClose }: Props) {
             </Pressable>
           </View>
 
-          {/* 表單內容 */}
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="always"
           >
+            {/* 錯誤提示橫幅 */}
+            {errorMsg ? (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorText}>⚠️ {errorMsg}</Text>
+              </View>
+            ) : null}
+
             <Text style={styles.label}>聖地名稱 *</Text>
             <TextInput
               style={[styles.input, Platform.OS === "web" ? ({ outline: "none" } as any) : null]}
@@ -219,7 +218,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     maxHeight: "90%",
-    // 故意不加 overflow:hidden，避免裁切 ScrollView 內容的點擊區域
     borderTopWidth: 1,
     borderLeftWidth: 1,
     borderRightWidth: 1,
@@ -244,6 +242,20 @@ const styles = StyleSheet.create({
   closeBtnText: { fontSize: 18, color: "rgba(255,255,255,0.50)" },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingTop: 4 },
+  errorBanner: {
+    backgroundColor: "rgba(200,50,50,0.25)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,80,80,0.45)",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginTop: 12,
+  },
+  errorText: {
+    fontSize: 13,
+    color: "rgba(255,160,160,0.95)",
+    lineHeight: 18,
+  },
   label: {
     fontSize: 13,
     fontWeight: "600",
