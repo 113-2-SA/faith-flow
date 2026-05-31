@@ -55,7 +55,7 @@ export default function SettingsScreen() {
           if (!cancelled && data.ok) {
             setUserName(data.data.user_name ?? "");
             setUserPic(data.data.user_pic ?? "");
-            setUserBio(data.data.profile ?? "");
+            setUserBio(data.data.user_profile ?? "");
 
           }
         } catch {

@@ -30,12 +30,12 @@ export function SideDrawer({ open, onClose }: Props) {
   const drawerW = Math.min(320, Math.round(screenW * 0.78));
 
   const items = [
-    { label: "首頁", href: "/home" },
-    { label: "活水泉源", href: "/drawcard" },
-    { label: "有答大師", href: "/chat" },
-    { label: "心靈營火", href: "/community" },
-    { label: "朝聖之地", href: "/pilgrimage" },
-    { label: "帳號設定", href: "/settings" },
+    { label: "首頁",     href: "/home",       sub: "" },
+    { label: "活水泉源", href: "/drawcard",   sub: "經文抽卡" },
+    { label: "有答大師", href: "/chat",       sub: "AI資深教友" },
+    { label: "心靈營火", href: "/community",  sub: "教友社群" },
+    { label: "朝聖之地", href: "/pilgrimage", sub: "線上祈禱" },
+    { label: "帳號設定", href: "/settings",   sub: "" },
   ];
 
   const handleLogout = async () => {
@@ -105,6 +105,7 @@ export function SideDrawer({ open, onClose }: Props) {
               }}
             >
               <Text style={styles.itemText}>{it.label}</Text>
+              {it.sub ? <Text style={styles.itemSub}>{it.sub}</Text> : null}
             </Pressable>
           ))}
         </View>
@@ -149,6 +150,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   itemText: { color: "rgba(0,0,0,0.88)", fontSize: 16, fontFamily: "NotoSerifTC_400Regular" },
+  itemSub: { color: "rgba(0,0,0,0.35)", fontSize: 11, marginTop: 1 },
   footer: { marginTop: "auto", paddingBottom: 20 },
   logoutBtn: {
     paddingVertical: 12,

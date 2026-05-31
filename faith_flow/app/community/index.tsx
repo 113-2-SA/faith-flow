@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PageTour } from '../../components/PageTour';
+
+const COMMUNITY_INTRO_KEY = 'faith_flow_community_intro_v1';
+const COMMUNITY_INTRO_STEPS = [
+  { title: "🕊️ 心靈營火", body: "與同行的教友共聚，分享靈修心得、互相鼓勵，在信仰路上彼此扶持。" },
+  { title: "📋 動態牆", body: "瀏覽教友分享的祈禱日記、週回顧摘要與活水信箋，汲取彼此的靈修養分。" },
+  { title: "🔍 搜尋與篩選", body: "輸入關鍵字或依貼文類型篩選，快速找到你感興趣的教友分享內容。" },
+  { title: "💙 互動回應", body: "點愛心、留言回應，讓教友知道他們的分享觸動了你，共同建立溫暖的信仰社群。" },
+];
 import { useFocusEffect, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
@@ -799,6 +808,7 @@ export default function CommunityFeedScreen() {
           </View>
         </View>
       </Modal>
+      <PageTour steps={COMMUNITY_INTRO_STEPS} storageKey={COMMUNITY_INTRO_KEY} />
     </VideoBackground>
   );
 }

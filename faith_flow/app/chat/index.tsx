@@ -1,7 +1,16 @@
 // app/chat/index.tsx
 // 有答大師 - 聊天介面（含引用回覆 + 情緒指標 + 對話管理）
 
+import { PageTour } from '../../components/PageTour';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+
+const CHAT_TOUR_KEY = 'faith_flow_chat_tour_v1';
+const CHAT_STEPS = [
+  { title: "💬 有答大師", body: "你的天主教 AI 信仰陪伴者，結合教義知識與溫暖情感，隨時解答你的信仰疑惑。" },
+  { title: "📖 知識回答", body: "連結 Magisterium 天主教教義資料庫，提供有根據的神學知識，並附上教廷文獻引用來源。" },
+  { title: "🤝 陪伴回應", body: "同步偵測你問題的情緒溫度，自動調整感性與理性的回應比重，像關心你的朋友般陪伴。" },
+  { title: "🔗 引用追問", body: "長按任何回應段落可引用，針對特定內容深入追問，讓對話更聚焦。" },
+];
 import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -654,6 +663,7 @@ export default function ChatScreen() {
           </View>
         </View>
       </Modal>
+      <PageTour steps={CHAT_STEPS} storageKey={CHAT_TOUR_KEY} />
     </KeyboardAvoidingView>
     </VideoBackground>
   );
