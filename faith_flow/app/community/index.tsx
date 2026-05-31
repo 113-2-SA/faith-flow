@@ -36,7 +36,7 @@ type Post = PostData;
 
 export default function CommunityFeedScreen() {
   const router = useRouter();
-  const { currentUser } = useAuth();
+  const { currentUser, isAdmin } = useAuth();
   const { start } = useCopilot();
 
   const [posts, setPosts] = useState<Post[]>([]);
@@ -326,13 +326,14 @@ export default function CommunityFeedScreen() {
   const renderPost = ({ item }: { item: Post }) => (
     <PostCard
       post={item}
+      isAdmin={isAdmin}
       onPress={() => router.push(`./community/post/${item.community_post_id}`)}
       onLike={() => toggleLike(item.community_post_id, !!item.is_liked)}
       onComment={() => router.push(`./community/post/${item.community_post_id}`)}
       onShare={() => { setShareTarget(item); setShareCaption(''); }}
-      onEdit={() => router.push(`/community/edit/${item.community_post_id}` as never)}
+      onEdit={item.is_owner ? () => router.push(`/community/edit/${item.community_post_id}` as never) : undefined}
       onDelete={() => deletePost(item.community_post_id)}
-      onReport={!item.is_owner ? () => setReportMenuPostId(item.community_post_id) : undefined}
+      onReport={!item.is_owner && !isAdmin ? () => setReportMenuPostId(item.community_post_id) : undefined}
       onTagPress={onTagPress}
       onPostTypePress={onPostTypePress}
       onAvatarPress={() => router.push(`/user/${item.author_user_id}` as never)}
@@ -357,6 +358,14 @@ export default function CommunityFeedScreen() {
 
         {/* 搜尋鈕：與朝聖之地相同，右上角浮動，按下展開 TextInput */}
         <View style={styles.searchRow}>
+          {isAdmin && (
+            <Pressable
+              onPress={() => router.push('./community/admin-reports' as never)}
+              style={styles.searchBtn}
+            >
+              <MaterialCommunityIcons name="shield-alert-outline" size={24} color="rgba(255,200,100,0.95)" />
+            </Pressable>
+          )}
           <Animated.View style={{ width: searchWidth, overflow: 'hidden', marginRight: 8 }}>
             <TextInput
               ref={searchInputRef}

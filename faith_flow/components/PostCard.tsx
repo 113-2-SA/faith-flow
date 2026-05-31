@@ -162,6 +162,7 @@ interface ContextMenuProps {
   anim: Animated.Value;
   onClose: () => void;
   isOwner: boolean;
+  isAdmin?: boolean;
   onEdit?: () => void;
   onDelete?: () => void;
   onReport?: () => void;
@@ -169,7 +170,7 @@ interface ContextMenuProps {
 }
 
 function ContextMenuModal({
-  visible, pos, anim, isOwner,
+  visible, pos, anim, isOwner, isAdmin,
   onEdit, onDelete, onReport, closeMenu,
 }: ContextMenuProps) {
   const [confirming, setConfirming] = useState(false);
@@ -222,6 +223,11 @@ function ContextMenuModal({
                 </TouchableOpacity>
               )}
             </>
+          ) : isAdmin && onDelete ? (
+            <TouchableOpacity style={styles.menuItem} onPress={() => setConfirming(true)}>
+              <MaterialCommunityIcons name="shield-remove-outline" size={17} color="#FF3B30" />
+              <Text style={[styles.menuItemText, styles.menuItemRed]}>管理員刪除</Text>
+            </TouchableOpacity>
           ) : onReport ? (
             <TouchableOpacity style={styles.menuItem} onPress={() => closeMenu(onReport)}>
               <MaterialCommunityIcons name="alert-outline" size={17} color="#FF3B30" />
@@ -274,6 +280,7 @@ function LikeButton({ isLiked, likeCount, likeScale, likeGlow, onPress }: LikeBu
 
 interface PostCardProps {
   post: PostData;
+  isAdmin?: boolean;
   onPress?: () => void;
   onLike?: () => void;
   onComment?: () => void;
@@ -294,6 +301,7 @@ interface PostCardProps {
 
 export function PostCard({
   post,
+  isAdmin,
   onPress,
   onLike,
   onComment,
@@ -314,7 +322,9 @@ export function PostCard({
   const { menuOpen, menuPos, menuBtnRef, menuAnim, openMenu, closeMenu } = useMenuState();
   const { likeScale, likeGlow, triggerLikeAnim } = useLikeAnim();
 
-  const hasMenu = post.is_owner ? (!!onEdit || !!onDelete) : !!onReport;
+  const hasMenu = post.is_owner
+    ? (!!onEdit || !!onDelete)
+    : (isAdmin ? !!onDelete : !!onReport);
 
   function handleLike() {
     if (!post.is_liked) triggerLikeAnim();
@@ -575,6 +585,7 @@ export function PostCard({
           anim={menuAnim}
           onClose={() => closeMenu()}
           isOwner={!!post.is_owner}
+          isAdmin={isAdmin}
           onEdit={onEdit}
           onDelete={onDelete}
           onReport={onReport}
@@ -590,6 +601,7 @@ export function PostCard({
 interface CommentCardProps {
   comment: CommentData;
   isReply?: boolean;
+  isAdmin?: boolean;
   onLike?: () => void;
   onReply?: () => void;
   onEdit?: () => void;
@@ -600,6 +612,7 @@ interface CommentCardProps {
 export function CommentCard({
   comment,
   isReply = false,
+  isAdmin,
   onLike,
   onReply,
   onEdit,
@@ -610,7 +623,9 @@ export function CommentCard({
   const { menuOpen, menuPos, menuBtnRef, menuAnim, openMenu, closeMenu } = useMenuState();
   const { likeScale, likeGlow, triggerLikeAnim } = useLikeAnim();
 
-  const hasMenu = comment.is_owner ? (!!onEdit || !!onDelete) : !!onReport;
+  const hasMenu = comment.is_owner
+    ? (!!onEdit || !!onDelete)
+    : (isAdmin ? !!onDelete : !!onReport);
 
   function handleLike() {
     if (!liked) triggerLikeAnim();
@@ -671,6 +686,7 @@ export function CommentCard({
           anim={menuAnim}
           onClose={() => closeMenu()}
           isOwner={!!comment.is_owner}
+          isAdmin={isAdmin}
           onEdit={onEdit}
           onDelete={onDelete}
           onReport={onReport}

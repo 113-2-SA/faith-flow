@@ -12,6 +12,7 @@ import { API_BASE_URL } from '../../lib/api';
 interface AuthContextType {
   currentUser: User | null;
   loading: boolean;
+  isAdmin: boolean;
   signOut: () => Promise<void>;
   syncUserToBackend: (user: User) => Promise<boolean>;
 }
@@ -29,6 +30,7 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // ⭐ 同步使用者到 PostgreSQL
   const syncUserToBackend = async (user: User): Promise<boolean> => {
@@ -57,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (data.ok) {
         console.log('✅ [AuthContext] PostgreSQL 同步成功:', data.user);
+        setIsAdmin(data.user?.is_admin === true);
         return true;
       } else {
         console.error('❌ [AuthContext] PostgreSQL 同步失敗:', data.error);
@@ -97,8 +100,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (user) {
         console.log('🔄 偵測到使用者，開始自動同步...');
         await syncUserToBackend(user);
+      } else {
+        setIsAdmin(false);
       }
-      
+
       setLoading(false);
     });
 
@@ -112,6 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = {
     currentUser,
     loading,
+    isAdmin,
     signOut,
     syncUserToBackend
   };

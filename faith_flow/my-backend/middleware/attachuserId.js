@@ -10,7 +10,7 @@ async function attachUserId(req, res, next) {
 
     // 用 firebase uid 找到你系統內的 int userID
     const r = await pool.query(
-      `SELECT "userID" FROM "user" WHERE "firebase_uid" = $1`,
+      `SELECT "userID", is_admin FROM "user" WHERE "firebase_uid" = $1`,
       [firebaseUid]
     );
 
@@ -21,7 +21,8 @@ async function attachUserId(req, res, next) {
       });
     }
 
-    req.userId = r.rows[0].userID; // ⭐ 這個是 int
+    req.userId = r.rows[0].userID;
+    req.isAdmin = r.rows[0].is_admin === true;
     return next();
   } catch (err) {
     console.error("[attachUserId] failed:", err);

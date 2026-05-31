@@ -614,23 +614,20 @@ class PostService {
     }
 
     // ⭐ 刪除貼文（軟刪除 + 刪除 R2 圖片）
-    async deletePost(postId, userId) {
+    async deletePost(postId, userId, isAdmin = false) {
         const client = await pool.connect();
-        
+
         try {
             await client.query('BEGIN');
 
             // 先獲取貼文資訊（包含圖片 URL）
-            const getPostQuery = `
-                SELECT post_pic
-                FROM community_posts
-                WHERE community_post_id = $1
-                AND author_user_id = $2
-                AND deleted_at IS NULL
-            `;
-            
-            const postResult = await client.query(getPostQuery, [postId, userId]);
-            
+            const getPostQuery = isAdmin
+                ? `SELECT post_pic FROM community_posts WHERE community_post_id = $1 AND deleted_at IS NULL`
+                : `SELECT post_pic FROM community_posts WHERE community_post_id = $1 AND author_user_id = $2 AND deleted_at IS NULL`;
+            const getPostParams = isAdmin ? [postId] : [postId, userId];
+
+            const postResult = await client.query(getPostQuery, getPostParams);
+
             if (postResult.rows.length === 0) {
                 await client.query('ROLLBACK');
                 return null;
@@ -639,16 +636,12 @@ class PostService {
             const post = postResult.rows[0];
 
             // 執行軟刪除
-            const deleteQuery = `
-                UPDATE community_posts 
-                SET deleted_at = CURRENT_TIMESTAMP
-                WHERE community_post_id = $1 
-                AND author_user_id = $2 
-                AND deleted_at IS NULL
-                RETURNING community_post_id
-            `;
-            
-            const result = await client.query(deleteQuery, [postId, userId]);
+            const deleteQuery = isAdmin
+                ? `UPDATE community_posts SET deleted_at = CURRENT_TIMESTAMP WHERE community_post_id = $1 AND deleted_at IS NULL RETURNING community_post_id`
+                : `UPDATE community_posts SET deleted_at = CURRENT_TIMESTAMP WHERE community_post_id = $1 AND author_user_id = $2 AND deleted_at IS NULL RETURNING community_post_id`;
+            const deleteParams = isAdmin ? [postId] : [postId, userId];
+
+            const result = await client.query(deleteQuery, deleteParams);
 
             await client.query('COMMIT');
 
@@ -764,6 +757,90 @@ class PostService {
             if (error.code === '23505') throw new Error('您已經檢舉過這篇貼文');
             throw error;
         }
+    }
+
+    async getAllPendingReports() {
+        const result = await pool.query(
+            `SELECT
+                pr.post_id,
+                pr.comment_id,
+                CASE
+                    WHEN pr.post_id IS NOT NULL THEN cp.post_text
+                    WHEN pr.comment_id IS NOT NULL THEN cc.comment_content
+                END AS content_text,
+                CASE
+                    WHEN pr.post_id IS NOT NULL THEN cp.post_type
+                    ELSE 'comment'
+                END AS content_type,
+                CASE
+                    WHEN pr.post_id IS NOT NULL THEN cp.created_at
+                    WHEN pr.comment_id IS NOT NULL THEN cc.created_at
+                END AS content_created_at,
+                CASE
+                    WHEN pr.post_id IS NOT NULL THEN pu.user_name
+                    WHEN pr.comment_id IS NOT NULL THEN cu.user_name
+                END AS author_name,
+                COUNT(pr.report_id)::int AS report_count,
+                JSON_AGG(
+                    JSON_BUILD_OBJECT(
+                        'report_id', pr.report_id,
+                        'reason', pr.reason,
+                        'reporter_name', ru.user_name,
+                        'created_at', pr.created_at
+                    ) ORDER BY pr.created_at DESC
+                ) AS reports
+             FROM post_reports pr
+             LEFT JOIN community_posts cp ON pr.post_id = cp.community_post_id AND cp.deleted_at IS NULL
+             LEFT JOIN community_comments cc ON pr.comment_id = cc.comment_id AND cc.deleted_at IS NULL
+             LEFT JOIN "user" pu ON cp.author_user_id = pu."userID"
+             LEFT JOIN "user" cu ON cc.user_id = cu."userID"
+             JOIN "user" ru ON pr.reporter_user_id = ru."userID"
+             WHERE (pr.status IS NULL OR pr.status = 'pending')
+               AND (
+                 (pr.post_id IS NOT NULL AND cp.community_post_id IS NOT NULL)
+                 OR
+                 (pr.comment_id IS NOT NULL AND cc.comment_id IS NOT NULL)
+               )
+             GROUP BY pr.post_id, pr.comment_id, cp.post_text, cp.post_type, cp.created_at,
+                      cc.comment_content, cc.created_at, pu.user_name, cu.user_name
+             ORDER BY MAX(pr.created_at) DESC`
+        );
+        return result.rows;
+    }
+
+    async getPostReports(postId) {
+        const result = await pool.query(
+            `SELECT pr.report_id, pr.reason, pr.status, pr.created_at,
+                    u.user_name AS reporter_name
+             FROM post_reports pr
+             JOIN "user" u ON pr.reporter_user_id = u."userID"
+             WHERE pr.post_id = $1
+             ORDER BY pr.created_at DESC`,
+            [postId]
+        );
+        return result.rows;
+    }
+
+    async resolvePostReports(postId) {
+        const result = await pool.query(
+            `UPDATE post_reports
+             SET status = 'reviewed'
+             WHERE post_id = $1 AND (status IS NULL OR status = 'pending')
+             RETURNING report_id`,
+            [postId]
+        );
+        return { resolvedCount: result.rowCount };
+    }
+
+    async resolveCommentReports(commentId) {
+        const result = await pool.query(
+            `UPDATE post_reports
+             SET status = 'reviewed'
+             WHERE comment_id = $1 AND (status IS NULL OR status = 'pending')
+             RETURNING report_id`,
+            [commentId]
+        );
+        return { resolvedCount: result.rowCount };
     }
 
     // 驗證貼文擁有者

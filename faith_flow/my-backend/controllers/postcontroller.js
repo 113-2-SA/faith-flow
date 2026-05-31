@@ -209,7 +209,7 @@ class PostController {
             const postId = parseInt(req.params.id);
             const userId = req.userId;
 
-            const result = await postService.deletePost(postId, userId);
+            const result = await postService.deletePost(postId, userId, req.isAdmin);
 
             if (!result) {
                 return res.status(404).json({ 
@@ -240,6 +240,67 @@ class PostController {
         } catch (error) {
             const status = ['已經', '不能', '無效', '不存在'].some(k => error.message.includes(k)) ? 400 : 500;
             res.status(status).json({ ok: false, error: error.message });
+        }
+    }
+
+    // 取得所有待處理的檢舉（管理員）
+    async getAllPendingReports(req, res) {
+        try {
+            if (!req.isAdmin) return res.status(403).json({ ok: false, error: '權限不足' });
+            const reports = await postService.getAllPendingReports();
+            res.json({ ok: true, data: reports });
+        } catch (error) {
+            res.status(500).json({ ok: false, error: error.message });
+        }
+    }
+
+    // 取得貼文的所有檢舉（管理員）
+    async getPostReports(req, res) {
+        try {
+            if (!req.isAdmin) return res.status(403).json({ ok: false, error: '權限不足' });
+            const postId = parseInt(req.params.id);
+            const reports = await postService.getPostReports(postId);
+            res.json({ ok: true, data: reports });
+        } catch (error) {
+            res.status(500).json({ ok: false, error: error.message });
+        }
+    }
+
+    // 標記貼文所有檢舉為已解決（管理員）
+    async resolvePostReports(req, res) {
+        try {
+            if (!req.isAdmin) return res.status(403).json({ ok: false, error: '權限不足' });
+            const postId = parseInt(req.params.id);
+            const result = await postService.resolvePostReports(postId);
+            res.json({ ok: true, data: result });
+        } catch (error) {
+            res.status(500).json({ ok: false, error: error.message });
+        }
+    }
+
+    // 標記留言所有檢舉為已解決（管理員）
+    async resolveCommentReports(req, res) {
+        try {
+            if (!req.isAdmin) return res.status(403).json({ ok: false, error: '權限不足' });
+            const commentId = parseInt(req.params.id);
+            const result = await postService.resolveCommentReports(commentId);
+            res.json({ ok: true, data: result });
+        } catch (error) {
+            res.status(500).json({ ok: false, error: error.message });
+        }
+    }
+
+    // 管理員刪除貼文（先解決檢舉，再刪除內容）
+    async adminDeletePost(req, res) {
+        try {
+            if (!req.isAdmin) return res.status(403).json({ ok: false, error: '權限不足' });
+            const postId = parseInt(req.params.id);
+            await postService.resolvePostReports(postId);
+            const result = await postService.deletePost(postId, req.userId, true);
+            if (!result) return res.status(404).json({ ok: false, error: '找不到該貼文' });
+            res.json({ ok: true, message: '貼文已刪除' });
+        } catch (error) {
+            res.status(500).json({ ok: false, error: error.message });
         }
     }
 

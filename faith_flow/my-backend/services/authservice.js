@@ -12,7 +12,7 @@ async function upsertUser(userData) {
     DO UPDATE SET
       user_name = EXCLUDED.user_name,
       user_pic  = EXCLUDED.user_pic
-    RETURNING "userID", firebase_uid, user_name, user_pic, join_time;
+    RETURNING "userID", firebase_uid, user_name, user_pic, join_time, is_admin;
   `;
   
   const result = await pool.query(sql, [firebaseUid, displayName, photoUrl]);

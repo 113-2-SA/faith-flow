@@ -43,7 +43,7 @@ type Comment = CommentData;
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { currentUser } = useAuth();
+  const { currentUser, isAdmin } = useAuth();
 
   const [post, setPost] = useState<Post | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -101,6 +101,7 @@ export default function PostDetailScreen() {
     if (!postId) return;
     Promise.all([fetchPost(), fetchComments()]).finally(() => setLoading(false));
   }, [postId, currentUser]);
+
 
   // ─── Like Post ────────────────────────────────────────────────────────────
 
@@ -351,12 +352,13 @@ export default function PostDetailScreen() {
             post ? (
               <PostCard
                 post={{ ...post, tags: post.tags?.map(t => t.tag_name) ?? [] }}
+                isAdmin={isAdmin}
                 onLike={toggleLike}
                 onComment={() => inputRef.current?.focus()}
                 onShare={() => setShareModalVisible(true)}
-                onEdit={() => router.push(`/community/edit/${postId}` as never)}
+                onEdit={post.is_owner ? () => router.push(`/community/edit/${postId}` as never) : undefined}
                 onDelete={deletePost}
-                onReport={!post.is_owner ? () => openReport('post', postId) : undefined}
+                onReport={!post.is_owner && !isAdmin ? () => openReport('post', postId) : undefined}
                 onAvatarPress={() => router.push(`/user/${post.author_user_id}` as never)}
                 onDiaryCardPress={setDiaryModalCard}
                 onSummaryCardPress={setSummaryModalCard}
@@ -378,21 +380,23 @@ export default function PostDetailScreen() {
             <>
               <CommentCard
                 comment={item}
+                isAdmin={isAdmin}
                 onLike={() => toggleCommentLike(item.comment_id, item.is_liked ?? false)}
                 onReply={() => startReply(item)}
                 onEdit={item.is_owner ? () => startEditComment(item) : undefined}
-                onDelete={item.is_owner ? () => deleteComment(item.comment_id) : undefined}
-                onReport={!item.is_owner ? () => openReport('comment', item.comment_id) : undefined}
+                onDelete={() => deleteComment(item.comment_id)}
+                onReport={!item.is_owner && !isAdmin ? () => openReport('comment', item.comment_id) : undefined}
               />
               {(item.replies ?? []).map(r => (
                 <CommentCard
                   key={r.comment_id}
                   comment={r}
                   isReply
+                  isAdmin={isAdmin}
                   onLike={() => toggleCommentLike(r.comment_id, r.is_liked ?? false)}
                   onEdit={r.is_owner ? () => startEditComment(r) : undefined}
-                  onDelete={r.is_owner ? () => deleteComment(r.comment_id) : undefined}
-                  onReport={!r.is_owner ? () => openReport('comment', r.comment_id) : undefined}
+                  onDelete={() => deleteComment(r.comment_id)}
+                  onReport={!r.is_owner && !isAdmin ? () => openReport('comment', r.comment_id) : undefined}
                 />
               ))}
             </>

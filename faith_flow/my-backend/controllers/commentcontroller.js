@@ -158,7 +158,7 @@ class CommentController {
             const commentId = parseInt(req.params.id);
             const userId = req.userId;
 
-            const result = await commentService.deleteComment(commentId, userId);
+            const result = await commentService.deleteComment(commentId, userId, req.isAdmin);
 
             if (!result) {
                 return res.status(404).json({
@@ -175,6 +175,22 @@ class CommentController {
         } catch (error) {
             console.error('[deleteComment] 錯誤:', error);
             next(error);
+        }
+    }
+
+    // 管理員刪除留言（先解決檢舉，再刪除內容）
+    async adminDeleteComment(req, res) {
+        try {
+            if (!req.isAdmin) return res.status(403).json({ ok: false, error: '權限不足' });
+            const commentId = parseInt(req.params.id);
+            const postService = require('../services/postservice');
+            await postService.resolveCommentReports(commentId);
+            const result = await commentService.deleteComment(commentId, req.userId, true);
+            if (!result) return res.status(404).json({ ok: false, error: '找不到該留言' });
+            res.json({ ok: true, message: '留言已刪除' });
+        } catch (error) {
+            console.error('[adminDeleteComment] 錯誤:', error);
+            res.status(500).json({ ok: false, error: error.message });
         }
     }
 }

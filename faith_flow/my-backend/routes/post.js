@@ -76,4 +76,39 @@ router.post('/:id/report',
     postController.reportPost
 );
 
+// ⭐ 取得所有待處理的檢舉（管理員）
+router.get('/reports/pending',
+    verifyToken,
+    attachUserId,
+    postController.getAllPendingReports
+);
+
+// ⭐ 取得貼文的所有檢舉（管理員）
+router.get('/:id/reports',
+    verifyToken,
+    attachUserId,
+    postController.getPostReports
+);
+
+// ⭐ 標記貼文所有檢舉為已解決（管理員）
+router.put('/:id/reports/resolve',
+    verifyToken,
+    attachUserId,
+    postController.resolvePostReports
+);
+
+// ⭐ 標記留言所有檢舉為已解決（管理員）
+router.put('/comment/:id/reports/resolve',
+    verifyToken,
+    attachUserId,
+    postController.resolveCommentReports
+);
+
+// ⭐ 管理員刪除貼文（解決檢舉 + 刪除）
+router.delete('/:id/admin',
+    verifyToken,
+    attachUserId,
+    postController.adminDeletePost
+);
+
 module.exports = router;

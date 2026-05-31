@@ -25,4 +25,7 @@ router.get('/:id', validateCommentId, commentController.getCommentById);
 // 刪除留言
 router.delete('/:id', validateCommentId, commentController.deleteComment);
 
+// ⭐ 管理員刪除留言（解決檢舉 + 刪除）
+router.delete('/:id/admin', validateCommentId, commentController.adminDeleteComment);
+
 module.exports = router;

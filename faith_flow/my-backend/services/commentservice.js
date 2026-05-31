@@ -189,23 +189,20 @@ class CommentService {
     }
 
     // 刪除留言（軟刪除）
-    async deleteComment(commentId, userId) {
+    async deleteComment(commentId, userId, isAdmin = false) {
         const client = await pool.connect();
-        
+
         try {
             await client.query('BEGIN');
 
-            // 檢查是否為留言擁有者
-            const checkQuery = `
-                SELECT post_id, parent_comment_id
-                FROM community_comments
-                WHERE comment_id = $1 
-                AND user_id = $2 
-                AND deleted_at IS NULL
-            `;
-            
-            const checkResult = await client.query(checkQuery, [commentId, userId]);
-            
+            // 檢查是否為留言擁有者（管理者略過擁有者限制）
+            const checkQuery = isAdmin
+                ? `SELECT post_id, parent_comment_id FROM community_comments WHERE comment_id = $1 AND deleted_at IS NULL`
+                : `SELECT post_id, parent_comment_id FROM community_comments WHERE comment_id = $1 AND user_id = $2 AND deleted_at IS NULL`;
+            const checkParams = isAdmin ? [commentId] : [commentId, userId];
+
+            const checkResult = await client.query(checkQuery, checkParams);
+
             if (checkResult.rows.length === 0) {
                 await client.query('ROLLBACK');
                 return null;
