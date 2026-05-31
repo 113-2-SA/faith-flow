@@ -15,7 +15,6 @@ import {
   collection,
   doc,
   getDocs,
-  orderBy,
   query,
   updateDoc,
   where,
@@ -43,14 +42,15 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedWish, setSelectedWish] = useState<WishSite | null>(null);
+  const [pendingAction, setPendingAction] = useState<"approve" | "reject" | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const fetchWishes = useCallback(async () => {
     setLoading(true);
     try {
       const q = query(
         collection(db, "wish_holy_sites"),
-        where("status", "==", "pending"),
-        orderBy("createdAt", "asc")
+        where("status", "==", "pending")
       );
       const snap = await getDocs(q);
       const data: WishSite[] = [];
@@ -67,6 +67,11 @@ export default function AdminPage() {
           status: raw.status ?? "pending",
           createdAt: raw.createdAt ?? null,
         });
+      });
+      data.sort((a, b) => {
+        const ta = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+        const tb = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+        return ta - tb;
       });
       setWishes(data);
     } catch (e) {
@@ -87,79 +92,53 @@ export default function AdminPage() {
     }
   }, [isAdmin, loading, router]);
 
-  const handleApprove = async (wish: WishSite) => {
-    Alert.alert(
-      "確認新增聖地",
-      `確定要將「${wish.name}」新增到地圖上嗎？\n座標：${wish.latitude}, ${wish.longitude}`,
-      [
-        { text: "取消", style: "cancel" },
-        {
-          text: "確認新增",
-          onPress: async () => {
-            setProcessingId(wish.docId);
-            try {
-              await addDoc(collection(db, "basilicas"), {
-                name: wish.name,
-                nameEn: wish.name,
-                location: "",
-                coordinates: [wish.latitude, wish.longitude],
-                type: "chapel",
-                founded: new Date().getFullYear(),
-                dedication: "",
-                style: "",
-                significance: wish.reason,
-                description: "",
-                viewerUrl: "",
-                panoramaId: null,
-                videoUrl: null,
-                approvedAt: new Date().toISOString(),
-                approvedBy: auth.currentUser?.uid ?? "",
-              });
-              await updateDoc(doc(db, "wish_holy_sites", wish.docId), {
-                status: "approved",
-              });
-              setWishes((prev) => prev.filter((w) => w.docId !== wish.docId));
-              if (selectedWish?.docId === wish.docId) setSelectedWish(null);
-              Alert.alert("新增成功", `「${wish.name}」已加入地圖！`);
-            } catch (e) {
-              console.error(e);
-              Alert.alert("新增失敗", "操作過程發生錯誤，請稍後再試。");
-            } finally {
-              setProcessingId(null);
-            }
-          },
-        },
-      ]
-    );
+  const executeApprove = async (wish: WishSite) => {
+    setProcessingId(wish.docId);
+    setActionError(null);
+    try {
+      await addDoc(collection(db, "basilicas"), {
+        name: wish.name,
+        nameEn: wish.name,
+        location: "",
+        coordinates: [wish.latitude, wish.longitude],
+        type: "chapel",
+        founded: new Date().getFullYear(),
+        dedication: "",
+        style: "",
+        significance: wish.reason,
+        description: "",
+        viewerUrl: "",
+        panoramaId: null,
+        videoUrl: null,
+        approvedAt: new Date().toISOString(),
+        approvedBy: auth.currentUser?.uid ?? "",
+      });
+      await updateDoc(doc(db, "wish_holy_sites", wish.docId), { status: "approved" });
+      setWishes((prev) => prev.filter((w) => w.docId !== wish.docId));
+      setPendingAction(null);
+      setSelectedWish(null);
+    } catch (e) {
+      console.error(e);
+      setActionError("新增失敗，請稍後再試。");
+    } finally {
+      setProcessingId(null);
+    }
   };
 
-  const handleReject = async (wish: WishSite) => {
-    Alert.alert(
-      "確認駁回",
-      `確定要駁回「${wish.name}」的申請嗎？`,
-      [
-        { text: "取消", style: "cancel" },
-        {
-          text: "駁回",
-          style: "destructive",
-          onPress: async () => {
-            setProcessingId(wish.docId);
-            try {
-              await updateDoc(doc(db, "wish_holy_sites", wish.docId), {
-                status: "rejected",
-              });
-              setWishes((prev) => prev.filter((w) => w.docId !== wish.docId));
-              if (selectedWish?.docId === wish.docId) setSelectedWish(null);
-            } catch (e) {
-              console.error(e);
-              Alert.alert("操作失敗", "請稍後再試。");
-            } finally {
-              setProcessingId(null);
-            }
-          },
-        },
-      ]
-    );
+  const executeReject = async (wish: WishSite) => {
+    setProcessingId(wish.docId);
+    setActionError(null);
+    try {
+      await updateDoc(doc(db, "wish_holy_sites", wish.docId), { status: "rejected" });
+      setWishes((prev) => prev.filter((w) => w.docId !== wish.docId));
+      setPendingAction(null);
+      setSelectedWish(null);
+    } catch (e) {
+      console.error(e);
+      setActionError("駁回失敗，請稍後再試。");
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   const formatDate = (ts: WishSite["createdAt"]) => {
@@ -213,26 +192,63 @@ export default function AdminPage() {
             </Text>
           </GlassCard>
 
-          <View style={styles.actionRow}>
-            <Pressable
-              style={[styles.actionBtn, styles.rejectBtn, processingId === selectedWish.docId && styles.btnDisabled]}
-              onPress={() => handleReject(selectedWish)}
-              disabled={processingId === selectedWish.docId}
-            >
-              {processingId === selectedWish.docId
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.actionBtnText}>✕ 駁回</Text>}
-            </Pressable>
-            <Pressable
-              style={[styles.actionBtn, styles.approveBtn, processingId === selectedWish.docId && styles.btnDisabled]}
-              onPress={() => handleApprove(selectedWish)}
-              disabled={processingId === selectedWish.docId}
-            >
-              {processingId === selectedWish.docId
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.actionBtnText}>✓ 新增聖地確認</Text>}
-            </Pressable>
-          </View>
+          {/* 錯誤提示 */}
+          {actionError ? (
+            <View style={styles.actionErrorBanner}>
+              <Text style={styles.actionErrorText}>⚠️ {actionError}</Text>
+            </View>
+          ) : null}
+
+          {/* 操作按鈕 / inline 確認列 */}
+          {pendingAction ? (
+            <View style={styles.confirmBox}>
+              <Text style={styles.confirmText}>
+                {pendingAction === "approve"
+                  ? `確定要將「${selectedWish.name}」新增到地圖嗎？`
+                  : `確定要駁回「${selectedWish.name}」的申請嗎？`}
+              </Text>
+              <View style={styles.confirmBtns}>
+                <Pressable
+                  style={styles.cancelBtn}
+                  onPress={() => setPendingAction(null)}
+                  disabled={!!processingId}
+                >
+                  <Text style={styles.cancelBtnText}>取消</Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    pendingAction === "approve" ? styles.confirmApproveBtn : styles.confirmRejectBtn,
+                    !!processingId && styles.btnDisabled,
+                  ]}
+                  onPress={() =>
+                    pendingAction === "approve"
+                      ? executeApprove(selectedWish)
+                      : executeReject(selectedWish)
+                  }
+                  disabled={!!processingId}
+                >
+                  {processingId
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Text style={styles.actionBtnText}>確定</Text>}
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.actionRow}>
+              <Pressable
+                style={[styles.actionBtn, styles.rejectBtn]}
+                onPress={() => { setActionError(null); setPendingAction("reject"); }}
+              >
+                <Text style={styles.actionBtnText}>✕ 駁回</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.actionBtn, styles.approveBtn]}
+                onPress={() => { setActionError(null); setPendingAction("approve"); }}
+              >
+                <Text style={styles.actionBtnText}>✓ 新增聖地確認</Text>
+              </Pressable>
+            </View>
+          )}
 
           <View style={{ height: 40 }} />
         </ScrollView>
@@ -391,4 +407,53 @@ const styles = StyleSheet.create({
   rejectBtn: { backgroundColor: "rgba(200,60,60,0.85)" },
   btnDisabled: { opacity: 0.50 },
   actionBtnText: { fontSize: 15, fontWeight: "700", color: "#fff" },
+
+  actionErrorBanner: {
+    backgroundColor: "rgba(200,50,50,0.25)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,80,80,0.45)",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  actionErrorText: { fontSize: 13, color: "rgba(255,160,160,0.95)" },
+
+  confirmBox: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    padding: 16,
+    marginBottom: 12,
+  },
+  confirmText: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.85)",
+    marginBottom: 14,
+    lineHeight: 20,
+  },
+  confirmBtns: { flexDirection: "row", gap: 10 },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.10)",
+  },
+  cancelBtnText: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.70)" },
+  confirmApproveBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    backgroundColor: "rgba(52,168,83,0.90)",
+  },
+  confirmRejectBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    backgroundColor: "rgba(200,60,60,0.85)",
+  },
 });
