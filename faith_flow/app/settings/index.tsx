@@ -18,13 +18,17 @@ import {
   View,
 } from "react-native";
 
+import { useRouter } from "expo-router";
 import { auth } from "../../lib/firebase";
 import { loadPrefs, Preferences, savePrefs } from "../../lib/prefs";
 import { GlassCard } from "../../components/GlassCard";
 import { VideoBackground } from "../../components/VideoBackground";
 import { API_BASE_URL } from "../../lib/api";
+import { useIsAdmin } from "../../hooks/useIsAdmin";
 
 export default function SettingsScreen() {
+  const router = useRouter();
+  const isAdmin = useIsAdmin();
   const [prefs, setPrefs] = useState<Preferences | null>(null);
 
   // 個人資料
@@ -211,6 +215,17 @@ export default function SettingsScreen() {
 
             <View style={styles.divider} />
 
+            {/* ── 管理者區 ── */}
+            {isAdmin && (
+              <>
+                <Text style={styles.sectionLabel}>管理者</Text>
+                <Pressable onPress={() => router.push("/admin" as any)} style={styles.adminBtn}>
+                  <Text style={styles.adminBtnText}>🛡 管理者頁面</Text>
+                </Pressable>
+                <View style={styles.divider} />
+              </>
+            )}
+
             {/* 登出 */}
             <Pressable onPress={onLogout} style={styles.logoutBtn}>
               <Text style={styles.logoutText}>登出</Text>
@@ -329,6 +344,15 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   rowText: { fontSize: 15, color: "rgba(255,255,255,0.9)" },
+  adminBtn: {
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: "rgba(102,126,234,0.30)",
+    borderWidth: 1,
+    borderColor: "rgba(102,126,234,0.55)",
+    marginBottom: 8,
+  },
+  adminBtnText: { color: "rgba(255,255,255,0.95)", textAlign: "center", fontSize: 15, fontWeight: "600" },
   logoutBtn: {
     padding: 14,
     borderRadius: 12,

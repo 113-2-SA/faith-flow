@@ -8,7 +8,7 @@ const pool = require("../config/database");
  */
 async function getUserProfile(firebaseUid) {
   const result = await pool.query(
-    `SELECT "userID", firebase_uid, user_name, user_pic, user_profile, join_time
+    `SELECT "userID", firebase_uid, user_name, user_pic, user_profile, join_time, is_admin
      FROM "user"
      WHERE firebase_uid = $1`,
     [firebaseUid]
