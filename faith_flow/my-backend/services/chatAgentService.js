@@ -4,7 +4,7 @@
 const pool = require("../config/database");
 const mcp = require("./magisteriumMcp");
 const { findRelevantDiaries } = require("./embeddingService");
-const { callLLM } = require("./llmService");
+const { callLLM, callMistral } = require("./llmService");
 
 const SOURCE_TIER = {
   MAGISTERIUM: "A",
@@ -194,7 +194,7 @@ async function analyzeEmotion(query) {
 - 100 = 純理性（純粹知識性、神學教義問題）
 只回傳數字，不要其他文字。`;
 
-    const result = await callLLM(
+    const result = await callMistral(
       emotionSystemPrompt,
       `請分析這個問題的情緒程度：${query}`,
       { temperature: 0.1, max_tokens: 10 }

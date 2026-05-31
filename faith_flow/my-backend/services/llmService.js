@@ -1,5 +1,5 @@
 // services/llmService.js
-// LLM 呼叫層：Groq（優先）、Ollama（fallback）
+// LLM 呼叫層：Groq（優先）、Ollama（fallback）；Mistral 專用情緒分析
 
 async function callGroq(apiKey, systemPrompt, userMessage, options = {}) {
   const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
@@ -96,4 +96,32 @@ async function callLLM(systemPrompt, userMessage, options = {}) {
   return await callOllama(systemPrompt, userMessage, options);
 }
 
-module.exports = { callLLM, callGroq, callGroqStreamResponse, callOllama };
+async function callMistral(systemPrompt, userMessage, options = {}) {
+  const apiKey = process.env.MISTRAL_API_KEY;
+  if (!apiKey) throw new Error("MISTRAL_API_KEY not set");
+  const model = process.env.MISTRAL_EMOTION_MODEL || "mistral-small-latest";
+  const res = await fetch("https://api.mistral.ai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      temperature: options.temperature ?? 0.1,
+      max_tokens: options.max_tokens ?? 10,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.text().catch(() => "");
+    throw new Error(`Mistral API failed ${res.status}: ${err.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content || "";
+}
+
+module.exports = { callLLM, callGroq, callGroqStreamResponse, callOllama, callMistral };
