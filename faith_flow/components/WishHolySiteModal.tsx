@@ -16,11 +16,10 @@ import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 
 type Props = {
-  visible: boolean;
   onClose: () => void;
 };
 
-export function WishHolySiteModal({ visible, onClose }: Props) {
+export function WishHolySiteModal({ onClose }: Props) {
   const [name, setName] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
@@ -60,20 +59,28 @@ export function WishHolySiteModal({ visible, onClose }: Props) {
 
     setSubmitting(true);
     try {
-      await addDoc(collection(db, "wish_holy_sites"), {
-        name: name.trim(),
-        latitude: lat,
-        longitude: lng,
-        reason: reason.trim(),
-        submittedBy: user.uid,
-        submittedByEmail: user.email ?? "",
-        status: "pending",
-        createdAt: serverTimestamp(),
-      });
-
-      Alert.alert("送出成功", "您的許願聖地已送出審查，感謝您的貢獻！", [
-        { text: "確定", onPress: handleClose },
+      await Promise.race([
+        addDoc(collection(db, "wish_holy_sites"), {
+          name: name.trim(),
+          latitude: lat,
+          longitude: lng,
+          reason: reason.trim(),
+          submittedBy: user.uid,
+          submittedByEmail: user.email ?? "",
+          status: "pending",
+          createdAt: serverTimestamp(),
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(Object.assign(new Error("連線逾時，請稍後再試。"), { code: "timeout" })),
+            12000
+          )
+        ),
       ]);
+
+      // 先關閉 Modal（unmount），再彈通知
+      onClose();
+      Alert.alert("送出成功", "您的許願聖地已送出審查，感謝您的貢獻！");
     } catch (e: any) {
       console.error("[WishModal] 送出失敗:", e);
       const code: string = e?.code ?? "";
@@ -82,13 +89,12 @@ export function WishHolySiteModal({ visible, onClose }: Props) {
         msg = "Firestore 規則尚未允許寫入，請聯絡管理員設定規則。";
       }
       Alert.alert("送出失敗", msg);
-    } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent statusBarTranslucent>
+    <Modal visible={true} animationType="slide" transparent statusBarTranslucent>
       {/* 半透明背景遮罩 */}
       <View style={styles.backdrop} pointerEvents="none" />
 

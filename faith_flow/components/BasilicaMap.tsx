@@ -481,10 +481,9 @@ export function BasilicaMap() {
         />
       )}
 
-      <WishHolySiteModal
-        visible={showWishModal}
-        onClose={() => setShowWishModal(false)}
-      />
+      {showWishModal && (
+        <WishHolySiteModal onClose={() => setShowWishModal(false)} />
+      )}
     </View>
   );
 }
