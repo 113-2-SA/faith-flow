@@ -69,10 +69,10 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({ NotoSerifTC_400Regular });
+  const [fontsLoaded, fontError] = useFonts({ NotoSerifTC_400Regular });
 
-  // 字體載完後同步設定，確保所有 Text 在首次渲染時就套用
-  if (!fontsLoaded) {
+  // 字體載入失敗（含 fontfaceobserver timeout）時仍正常渲染，使用系統字體 fallback
+  if (!fontsLoaded && !fontError) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator />
