@@ -14,11 +14,11 @@ jobs:
 
       - uses: actions/setup-node@v3
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install dependencies
         working-directory: faith_flow
-        run: npm install
+        run: npm ci
 
       - name: Build web
         working-directory: faith_flow
