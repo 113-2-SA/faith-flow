@@ -2,9 +2,14 @@
   "expo": {
     "web": {
       "output": "static",
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "bundler": "metro"
     },
-    "platforms": ["ios", "android", "web"],
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
     "name": "faith_flow",
     "slug": "faith_flow",
     "version": "1.0.0",
@@ -55,10 +60,6 @@
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
-    "web": {
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
-    },
     "plugins": [
       "expo-router",
       [
@@ -76,7 +77,8 @@
       "expo-video",
       "expo-audio",
       "expo-web-browser",
-      "expo-asset"
+      "expo-asset",
+      "expo-font"
     ],
     "assetBundlePatterns": [
       "assets/**/*"
@@ -87,7 +89,7 @@
     },
     "extra": {
       "router": {
-        "origin": false
+        "origin": "https://113-2-sa.github.io/faith-flow"
       },
       "eas": {
         "projectId": "505a5439-f5e2-42b8-8e54-4429f15a6cd8"
