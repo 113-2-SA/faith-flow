@@ -35,6 +35,16 @@ export default function CreateDiaryScreen() {
   const [tags, setTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // 在 web 環境下，Alert.alert 會無法使用，改用 window.alert
+  const showAlert = (title: string, message: string, onPress?: () => void) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}\n${message}`);
+      onPress?.();
+    } else {
+      Alert.alert(title, message, onPress ? [{ text: '確定', onPress }] : undefined);
+    }
+  };
+
   // 新增標籤
   const handleAddTag = () => {
     const t = tagInput.trim();
@@ -125,7 +135,7 @@ export default function CreateDiaryScreen() {
             style={styles.input}
             value={diary_date}
             onChangeText={setDiaryDate}
-            placeholder="YYYY-MM-DD" 
+            placeholder="YYYY-MM-DD"
           />
         </View>
 
