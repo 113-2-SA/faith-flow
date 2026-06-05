@@ -28,8 +28,8 @@ if (!process.env.DATABASE_URL) {
   console.error("❌ 缺少環境變數: DATABASE_URL");
   process.exit(1);
 }
-if (!process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
-  console.error("❌ 缺少環境變數: FIREBASE_SERVICE_ACCOUNT_PATH");
+if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON && !process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+  console.error("❌ 缺少環境變數: FIREBASE_SERVICE_ACCOUNT_JSON 或 FIREBASE_SERVICE_ACCOUNT_PATH");
   process.exit(1);
 }
 
