@@ -6,6 +6,9 @@ on:
     paths:
       - 'faith_flow/**'
 
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
