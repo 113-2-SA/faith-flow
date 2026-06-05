@@ -18,6 +18,8 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 22
+      - name: Clear cache
+        run: rm -rf faith_flow/.expo faith_flow/dist
 
       - name: Install dependencies
         working-directory: faith_flow
