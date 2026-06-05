@@ -3,8 +3,7 @@
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png",
-      "bundler": "metro",
-      "publicPath": "/faith-flow"
+      "bundler": "metro"
     },
     "platforms": [
       "ios",
@@ -86,7 +85,8 @@
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": true,
+      "baseUrl": "/faith-flow"
     },
     "extra": {
       "router": {
