@@ -3,7 +3,8 @@
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png",
-      "bundler": "metro"
+      "bundler": "metro",
+      "publicPath": "/faith-flow"
     },
     "platforms": [
       "ios",
