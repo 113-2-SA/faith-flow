@@ -56,16 +56,16 @@ export default function LoginScreen() {
   }, []);
 
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest(
-    webClientId
-      ? {
-          clientId: webClientId,
-          webClientId,
-          iosClientId: isExpoGo ? undefined : iosClientId,
-          redirectUri,
-          scopes: ["openid", "profile", "email"],
-        }
-      : (null as any)
-  );
+  webClientId && Platform.OS !== "web"
+    ? {
+        clientId: webClientId,
+        webClientId,
+        iosClientId: isExpoGo ? undefined : iosClientId,
+        redirectUri,
+        scopes: ["openid", "profile", "email"],
+      }
+    : (null as any)
+);
 
   useEffect(() => {
     (async () => {
