@@ -55,17 +55,35 @@ export default function LoginScreen() {
     } as any);
   }, []);
 
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest(
-  webClientId && Platform.OS !== "web"
-    ? {
-        clientId: webClientId,
-        webClientId,
-        iosClientId: isExpoGo ? undefined : iosClientId,
-        redirectUri,
-        scopes: ["openid", "profile", "email"],
-      }
-    : (null as any)
-);
+// Google 登入只在非 web 環境使用
+  function useGoogleAuth(webClientId: string | undefined, iosClientId: string | undefined, redirectUri: string) {
+    return Google.useIdTokenAuthRequest(
+      webClientId
+        ? {
+            clientId: webClientId,
+            webClientId,
+            iosClientId: isExpoGo ? undefined : iosClientId,
+            redirectUri,
+            scopes: ["openid", "profile", "email"],
+          }
+        : (null as any)
+    );
+  }
+
+  const [request, response, promptAsync] = Platform.OS === "web"
+  ? [null, null, async () => {}]
+  : // eslint-disable-next-line react-hooks/rules-of-hooks
+    Google.useIdTokenAuthRequest(
+      webClientId
+        ? {
+            clientId: webClientId,
+            webClientId,
+            iosClientId: isExpoGo ? undefined : iosClientId,
+            redirectUri,
+            scopes: ["openid", "profile", "email"],
+          }
+        : (null as any)
+    );
 
   useEffect(() => {
     (async () => {
