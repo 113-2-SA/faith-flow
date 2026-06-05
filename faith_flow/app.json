@@ -1,5 +1,10 @@
 {
   "expo": {
+    "web": {
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "platforms": ["ios", "android", "web"],
     "name": "faith_flow",
     "slug": "faith_flow",
     "version": "1.0.0",

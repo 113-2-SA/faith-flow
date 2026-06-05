@@ -17,7 +17,9 @@
       "Bash(curl -s --connect-timeout 3 http://localhost:3000/health)",
       "Bash(npm show *)",
       "Bash(node -e \"const f = require\\('@expo-google-fonts/playwrite-no'\\); console.log\\(Object.keys\\(f\\).filter\\(k => k !== 'useFonts'\\)\\);\")",
-      "Bash(node -e \"const fs=require\\('fs'\\); const f=fs.readFileSync\\('c:/Users/johan/OneDrive/文件/GitHub/faith-flow/faith_flow/node_modules/@expo-google-fonts/noto-serif-tc/index.js','utf8'\\); console.log\\(f.match\\(/export const \\\\w+/g\\)?.join\\('\\\\n'\\)\\);\")"
+      "Bash(node -e \"const fs=require\\('fs'\\); const f=fs.readFileSync\\('c:/Users/johan/OneDrive/文件/GitHub/faith-flow/faith_flow/node_modules/@expo-google-fonts/noto-serif-tc/index.js','utf8'\\); console.log\\(f.match\\(/export const \\\\w+/g\\)?.join\\('\\\\n'\\)\\);\")",
+      "Bash(Get-ChildItem -Path . -Force)",
+      "Bash(Select-Object -Property Name, PSIsContainer)"
     ]
   }
 }

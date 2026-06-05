@@ -7,8 +7,8 @@ function getApiBaseUrl(): string {
   }
 
   if (!__DEV__) {
-    return 'https://your-production-api.com';
-  }
+  return 'https://passionate-benevolence-production-9c5e.up.railway.app';
+}
 
   // Web 瀏覽器直接用 localhost（和後端同機器）
   if (Platform.OS === 'web') {
