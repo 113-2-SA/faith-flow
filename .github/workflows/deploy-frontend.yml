@@ -5,7 +5,9 @@ on:
     branches: [main]
     paths:
       - 'faith_flow/**'
-
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
+  
 permissions:
   contents: write
 
