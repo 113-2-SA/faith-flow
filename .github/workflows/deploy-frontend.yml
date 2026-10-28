@@ -28,7 +28,7 @@ jobs:
       - name: Build web
         working-directory: faith_flow
         env:
-          EXPO_PUBLIC_API_URL: https://passionate-benevolence-production-9c5e.up.railway.app
+          EXPO_PUBLIC_API_URL: https://faith-flow.onrender.com
           EXPO_PUBLIC_FIREBASE_API_KEY: ${{ secrets.EXPO_PUBLIC_FIREBASE_API_KEY }}
           EXPO_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY }}
           NODE_OPTIONS: "--max-old-space-size=4096"
